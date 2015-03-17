@@ -1,4 +1,5 @@
 
+import twisted.internet
 
 class Dispatcher(object):
     """
@@ -7,14 +8,16 @@ class Dispatcher(object):
     """
     instance = None
 
-    def __init__(self):
+    def __init__(self, reactor):
         assert(Dispatcher.instance is None)
 
         #the currently connected protocols
         self.protocols = []
 
         #The listeners that will be called whenever a message is received
-        self.listeners = {}  # See Listener lookup document for more info
+        self._listeners = {}  # See Listener lookup document for more info
+
+        self._reactor = reactor
 
         #THERE CAN BE ONLY ONE
         Dispatcher.instance = self
@@ -27,7 +30,7 @@ class Dispatcher(object):
         where:  n = the number of levels of the listener list
                 k = the number of keys in the msg
         """
-        if root_list is None: root_list = self.listeners
+        if root_list is None: root_list = self._listeners
         #call any functions in the None key
         root_list[None] = [func for func in root_list.get(None, []) if not func(msg)]
 
@@ -51,7 +54,7 @@ class Dispatcher(object):
         """
         #sort so we always get the same order
         keys = sorted(kwargs.keys())
-        root_list = self.listeners
+        root_list = self._listeners
         for k in keys:
             v = kwargs[k]
 
@@ -71,3 +74,6 @@ class Dispatcher(object):
 
 
 
+if __name__=="__main__":
+    d = Dispatcher()
+    print "Hello Dispatcher"
