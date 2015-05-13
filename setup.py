@@ -2,8 +2,8 @@ from setuptools import setup
 from distutils.extension import Extension
 import os, fnmatch
 
-RELEASE = True
-USE_CYTHON = False
+RELEASE = False
+USE_CYTHON = True
 
 
 def find_files(directory, pattern):
