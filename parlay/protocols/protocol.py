@@ -1,5 +1,5 @@
 
-from parlay.modules.base import BaseMessage, InvalidMessage
+
 
 class InvalidProtocolDeclaration(Exception):
     """
@@ -24,29 +24,18 @@ class ProtocolMeta(type):
 
             cls.protocol_registry[protocol_name] = cls
 
-        super(ProtocolMeta,cls).__init__(name,bases,dct)
+        super(ProtocolMeta, cls).__init__(name, bases, dct)
 
 
 
 class Protocol(object):
     __metaclass__ = ProtocolMeta
 
-    def __init__(self, dispatcher):
-        self.dispatcher = dispatcher
-
-    def processMessage(self, msg):
-        """
-        Call this with a dictionary type message once the protocol has parsed it
-        """
-        try:
-            msg_class = BaseMessage.message_registry[msg['type']]
-            msg_obj = msg_class.from_message(msg)
-            self.dispatcher.call_listeners(msg_obj)
-        except KeyError as e:
-            raise InvalidMessage("No/bad message type in msg "+str(msg))
 
     def get_modules(self):
         """
         Returns a deferred that will callback (or errback) with a list of discovered devices
         """
         raise NotImplementedError()
+
+

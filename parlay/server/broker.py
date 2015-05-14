@@ -1,7 +1,8 @@
 
 from twisted.internet import reactor
 import json
-from autobahn.twisted.websocket import WebSocketServerProtocol, WebSocketServerFactory
+from parlay.protocols.protocol import Protocol
+from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
 
 class Broker(object):
     """
@@ -129,12 +130,11 @@ class Broker(object):
         self._reactor.run()
 
 
-
-
-class BrokerWebsocketProtocol(WebSocketServerProtocol):
+class BrokerWebsocketProtocol(WebSocketServerProtocol, Protocol):
     """
     When a client connects over a websocket, this is the protocol that will handle the communication
     """
+
 
     def onConnect(self, request):
         self.broker = Broker.get_instance()
@@ -149,9 +149,10 @@ class BrokerWebsocketProtocol(WebSocketServerProtocol):
     def _on_subscribe_msg(self, msg):
         #send a message when we get these
 
-        self.broker.subscribe_listener(self.send_message_as_JSON, self, **(msg['contents']['topics']))
+        self.broker.subscribe_listener(self.send_message_as_JSON, self, **(msg['contents']['topic']))
         resp_msg = msg.copy()
         resp_msg['topics']['event'] = 'reply'
+        resp_msg['contents']['status'] = 'ok'
 
         #send the reply
         self.sendMessage(json.dumps(resp_msg))
@@ -170,6 +171,8 @@ class BrokerWebsocketProtocol(WebSocketServerProtocol):
             self.broker.call_listeners(msg)
         else:
             print "Binary messages not supported yet"
+
+
 
 
 
