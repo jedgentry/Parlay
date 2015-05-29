@@ -11,6 +11,7 @@ class _FieldClass(object):
     def __init__(self, required=True):
         self.required = required
 
+
 class Topic(_FieldClass):
     """
     Topics are fields that can be used to publish and subscribe to
@@ -23,7 +24,3 @@ class Content(_FieldClass):
     Content fields can *not* be used to subscribe to
     """
     pass
-
-
-
-
