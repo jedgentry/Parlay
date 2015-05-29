@@ -10,12 +10,6 @@ class CommandModule(BaseModule):
         super(CommandModule, self).__init__(module_id, name)
         self._commands = self.__class__._commands
 
-    def get_view_card(self):
-        result = "<ul>"
-        for c in self._commands:
-            result += "<li>%d - %s</li>" % (c['id'], c['name'])
-        result += "</ul>"
-
     def on_message(self, msg):
         pass
 

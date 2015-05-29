@@ -16,12 +16,6 @@ class BaseModule(object):
         # subscribe on_message to be called whenever we get a message *to* us
         self._broker.subscribe_listener(self.on_message, to_id=id)
 
-    def get_view_card(self):
-        """
-        Return an HTML viewcard for this module to use in the web-based UI
-        """
-        return "<span>#%d  - %s </span>" % (self.module_id, self.module_name)
-
     def on_message(self, msg):
         """
         Every time we get a message for us, this method will be called with it.
