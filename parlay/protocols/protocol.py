@@ -28,9 +28,25 @@ class ProtocolMeta(type):
 
 
 
-class Protocol(object):
+class BaseProtocol(object):
     __metaclass__ = ProtocolMeta
 
+
+    @classmethod
+    def open(cls, broker):
+        """
+        Override this with a generic method that will open the protocol.
+        The first argument must be the broker, the rest will be parameters that the user can set. Default arguments will
+        be sent to the UI and can be overwritten bu the user
+        It must return the built protocol (subclass of Protocol)  that will be registered with the Broker
+        Be sure to decorate it with @classmethod
+
+        e.g.
+        @classmethod
+        def open(cls, broker, ip, port=8080):
+            return protocol(ip,port)
+        """
+        raise NotImplementedError()
 
     def get_modules(self):
         """

@@ -1,7 +1,7 @@
 
 from twisted.internet import reactor
 import json
-from parlay.protocols.protocol import Protocol
+from parlay.protocols.protocol import BaseProtocol
 from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
 
 class Broker(object):
@@ -35,7 +35,13 @@ class Broker(object):
 
         return Broker.instance
 
-    def call_listeners(self, msg, root_list=None):
+    def send_msg(self, msg):
+        """
+        Send a message out to the ecosystem
+        """
+        return self._call_listeners(msg)
+
+    def _call_listeners(self, msg, root_list=None):
         """
         Call all of the listeners that match msg
 
@@ -60,7 +66,7 @@ class Broker(object):
                                 # (Any other key will lead to yet another dictionary of keys and values)
             if k in root_list and topics[k] in root_list[k]:
                 #recurse
-                self.call_listeners(msg, root_list[k][topics[k]])
+                self._call_listeners(msg, root_list[k][topics[k]])
 
 
     def subscribe_listener(self, func, owner, **kwargs):
@@ -120,17 +126,17 @@ class Broker(object):
 
     def run(self):
         """
-        Start uop and run the broker. This method call with not return
+        Start up and run the broker. This method call with not return
         """
         #listen for websocket connections on port 8085
         factory = WebSocketServerFactory("ws://localhost:8085")
-        factory.protocol = BrokerWebsocketProtocol
+        factory.protocol = BrokerWebsocketBaseProtocol
 
         self._reactor.listenTCP(8085, factory)
         self._reactor.run()
 
 
-class BrokerWebsocketProtocol(WebSocketServerProtocol, Protocol):
+class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
     """
     When a client connects over a websocket, this is the protocol that will handle the communication
     """
@@ -168,7 +174,7 @@ class BrokerWebsocketProtocol(WebSocketServerProtocol, Protocol):
         if not isBinary:
             print payload
             msg = json.loads(payload)
-            self.broker.call_listeners(msg)
+            self.broker._call_listeners(msg)
         else:
             print "Binary messages not supported yet"
 
