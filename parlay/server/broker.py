@@ -69,15 +69,20 @@ class Broker(object):
                 self._call_listeners(msg, root_list[k][topics[k]])
 
 
-    def subscribe_listener(self, func, owner, **kwargs):
+    def subscribe_listener(self, func, **kwargs):
         """
         Register a listener. The kwargs is a dictionary of args that **all** must be true
         to call this listener. You may register the same function multiple times with different
         kwargs, and it may be called multiple times for each message.
         @param func: The function to run
-        @param owner: The 'owner' of this function. This object can be passed to unsubscribe_all to remove this (e.g. on a protocol disconnect)
         @param kwargs: The key/value pairs to listen for
         """
+        # only bound methods are allowed to subscribe so they are easier to clean up later
+        if hasattr(func, 'im_self') and func.im_self is not None:
+            owner = func.im_self
+        else:
+            raise ValueError("Function {} passed to subscribe_listener() ".format(func.__name__) +
+                             "must be a bound method of an object")
 
         #sort so we always get the same order
         keys = sorted(kwargs.keys())
@@ -146,7 +151,7 @@ class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
         self.broker = Broker.get_instance()
 
         #automatically subscribe to subcription types
-        self.broker.subscribe_listener(self._on_subscribe_msg, self, type='subscribe', event='request')
+        self.broker.subscribe_listener(self._on_subscribe_msg, type='subscribe', event='request')
 
     def onClose(self, wasClean, code, reason):
         #clean up after ourselves
@@ -155,7 +160,7 @@ class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
     def _on_subscribe_msg(self, msg):
         #send a message when we get these
 
-        self.broker.subscribe_listener(self.send_message_as_JSON, self, **(msg['contents']['topic']))
+        self.broker.subscribe_listener(self.send_message_as_JSON, **(msg['contents']['topic']))
         resp_msg = msg.copy()
         resp_msg['topics']['event'] = 'reply'
         resp_msg['contents']['status'] = 'ok'

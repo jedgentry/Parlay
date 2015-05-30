@@ -13,7 +13,7 @@ class BaseModule(object):
         self._broker = Broker.get_instance()
 
         # subscribe on_message to be called whenever we get a message *to* us
-        self._broker.subscribe_listener(self.on_message, self, to=module_id)
+        self._broker.subscribe_listener(self.on_message, to=module_id)
 
     def on_message(self, msg):
         """
