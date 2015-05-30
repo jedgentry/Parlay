@@ -31,7 +31,7 @@ class Broker(object):
         @rtype Broker
         """
         if Broker.instance is None:
-            Broker.instance = Broker()
+            Broker.instance = Broker(reactor)
 
         return Broker.instance
 
