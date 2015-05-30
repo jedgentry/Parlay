@@ -21,7 +21,13 @@ class BaseModule(object):
         Every time we get a message for us, this method will be called with it.
         Be sure to override this.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("{} must implement the on_message function".format(type(self)))
+
+    def get_id(self):
+        return self.module_id
+
+    def get_name(self):
+        return self.module_name
 
 
 class InvalidMessageTypeDeclaration(Exception):
