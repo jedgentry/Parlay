@@ -1,0 +1,86 @@
+"""
+Generic utilities and helper functions that help make protocol development easier
+"""
+from collections import deque
+from twisted.internet import defer
+from twisted.internet import reactor
+
+class MessageQueue(object):
+    """
+    A basic message queue for messages that need to be acknowledged
+    """
+
+    def __init__(self, callback):
+        """
+        :param callback: A callback function that will be called every time we get a new message. This callback\
+        should be of the form function(message) and must return a deferred that will be called back when it's
+        done processing the message (or errback if there was an error)
+        """
+        self._q = deque()
+        self._callback = callback
+        #:type defer.Deferred
+        self._active_sent = None  # deferred for the one we're sending
+
+    def add(self, message):
+        """
+        Add a message to the queue, It will be sent in FIFO order
+
+        :returns A deferred that will be called back (or err-backed) when the message is done processing
+        :rtype defer.deferred
+        """
+        # is the queue empty?
+        if len(self._q) == 0 and self._active_sent is None:
+            self._active_sent = self._callback(message)
+            return self._active_sent
+        elif self._active_sent is not None:
+            d = defer.Deferred()
+            #queue up the message and the deferred to call
+            self._q.append((message, d))
+            return d
+        else:
+            raise RuntimeError("""Invalid message queue state! Queue not empty but not working on anything.
+            Make sure that your callback function returns a deferred and calls it back properly""")
+
+
+
+    def _done_with_msg(self, msg_result):
+        self._active_sent.callback(msg_result)
+        # send the next one (if there is one)
+        if len(self._q) > 0:
+            next_msg, self._active_sent = self._q.popleft()
+            # process the message, and set up our callback
+            d = self._callback(next_msg)
+            d.addCallback(self._done_with_msg)
+
+        else:  # nothing left in queue
+            self._active_sent = None
+
+
+
+
+
+
+def message_id_generator(radix, min=0):
+    """
+    makes an infinite iterator that will be modulo radix
+    """
+    counter = min
+    while True:
+        yield counter
+        counter = (counter + 1) % radix
+        if counter < min:
+            counter = min
+
+
+
+
+def timeout(d, seconds):
+    """
+    Call d's errback if it hasn't been called back within 'seconds' number of seconds
+    """
+    def cancel():
+        if not d.called:
+            d.cancel()
+
+    timer = reactor.callLater(seconds, cancel)
+    return d
