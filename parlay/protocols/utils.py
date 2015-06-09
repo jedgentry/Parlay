@@ -35,7 +35,7 @@ class MessageQueue(object):
         if len(self._q) == 0 and self._active_sent is None:
 
             self._active_sent = self._callback(message)
-            self._active_sent.addCallback(self._done_with_msg)  # call this when we're finished
+            self._active_sent.addBoth(self._done_with_msg)  # call this when we're finished
             return self._active_sent
         elif self._active_sent is not None:
             d = defer.Deferred()
@@ -49,13 +49,17 @@ class MessageQueue(object):
 
 
     def _done_with_msg(self, msg_result):
+        if isinstance(msg_result, failure.Failure):
+            print "Error encoding packet -- moving on to next packet"
+            msg_result.printTraceback()
+
         #reactor.callLater(0, self._active_sent.callback, msg_result)
         # send the next one (if there is one)
         if len(self._q) > 0:
             next_msg, self._active_sent = self._q.popleft()
             # process the message, and set up our callback
             d = self._callback(next_msg)
-            d.addCallback(self._done_with_msg)
+            d.addBoth(self._done_with_msg)
 
         else:  # nothing left in queue
             self._active_sent = None
