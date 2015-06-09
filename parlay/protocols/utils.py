@@ -4,6 +4,8 @@ Generic utilities and helper functions that help make protocol development easie
 from collections import deque
 from twisted.internet import defer
 from twisted.internet import reactor
+from twisted.python import failure
+from parlay.server.broker import Broker
 
 class MessageQueue(object):
     """
@@ -23,14 +25,17 @@ class MessageQueue(object):
 
     def add(self, message):
         """
-        Add a message to the queue, It will be sent in FIFO order
+        Add a message to the queue
+        self.waiting_for_ack_seq_num = None  # None = not waiting ... an int here, It will be sent in FIFO order
 
         :returns A deferred that will be called back (or err-backed) when the message is done processing
         :rtype defer.deferred
         """
         # is the queue empty?
         if len(self._q) == 0 and self._active_sent is None:
+
             self._active_sent = self._callback(message)
+            self._active_sent.addCallback(self._done_with_msg)  # call this when we're finished
             return self._active_sent
         elif self._active_sent is not None:
             d = defer.Deferred()
@@ -44,7 +49,7 @@ class MessageQueue(object):
 
 
     def _done_with_msg(self, msg_result):
-        self._active_sent.callback(msg_result)
+        #reactor.callLater(0, self._active_sent.callback, msg_result)
         # send the next one (if there is one)
         if len(self._q) > 0:
             next_msg, self._active_sent = self._q.popleft()
@@ -80,7 +85,16 @@ def timeout(d, seconds):
     """
     def cancel():
         if not d.called:
-            d.cancel()
+            d.errback(failure.Failure(TimeoutError()))
 
     timer = reactor.callLater(seconds, cancel)
+    return d
+
+
+class TimeoutError(Exception):
+    pass
+
+def delay(timeout):
+    d = defer.Deferred()
+    Broker.get_instance()._reactor.callLater(timeout, lambda: d.callback(None))
     return d
