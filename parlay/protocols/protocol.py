@@ -48,9 +48,11 @@ class BaseProtocol(object):
         """
         raise NotImplementedError()
 
-    def get_modules(self):
+    def get_discovery(self):
         """
-        Returns a deferred that will callback (or errback) with a list of discovered devices
+        This will get called when a discovery message is sent out. Return a deferred that will be called back with
+        all attached:
+        endpoint types, message types, and connected endpoint instances
         """
         raise NotImplementedError()
 
