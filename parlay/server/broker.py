@@ -121,12 +121,14 @@ class Broker(object):
 
 
 
-    def get_modules(self):
+    def handle_broker_message(self, msg, protocol):
         """
-        Get the Discovery for everything
+        Any message with topic type 'broker' should be passed into here.  'broker' messages are special messages
+        that don't get 'published'. They are for querying the state of the system.
+        'broker' messages have a 'request' field and will reply with an appropriate 'response' field
         """
-        return [p.get_module() for p in self.protocols]
-
+        if msg['request'] == 'get_protocols':
+            protocols = BaseProtocol.protocol_registry
 
 
     def run(self):
@@ -170,7 +172,7 @@ class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
 
     def send_message_as_JSON(self, msg):
         """
-        Send a mesage dictionary as JSON
+        Send a message dictionary as JSON
         """
         print("Sending")
         self.sendMessage(json.dumps(msg))

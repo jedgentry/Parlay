@@ -1,5 +1,5 @@
 
-
+import inspect
 
 class InvalidProtocolDeclaration(Exception):
     """
@@ -47,6 +47,34 @@ class BaseProtocol(object):
             return protocol(ip,port)
         """
         raise NotImplementedError()
+
+    @classmethod
+    def get_open_params(cls):
+        """
+        Returns the params for the cls.open() class method. Feel free to overwrite this in a sub-class if this default
+        implementation doesn't fit your protocol's needs.
+        :return: A list of parameter names
+        :rtype: list
+        """
+        # get the arguments
+        # (don't use argspec because it is needlesly strict and fails on perfectly valid Cython functions)
+        args, varargs, varkw = inspect.getargs(cls.open.func_code)
+        return args[2:]  # remove 'cls' and 'broker'
+
+    @classmethod
+    def get_open_params_defaults(cls):
+        """
+        return the defaults for parameters to the cls.open() using inspect. Feel free to overwrite this in a sub-class if this default
+        implementation doesn't fit your protocol's needs.
+        :return: A dictionary of parameter names -> default values.
+        :rtype: dict
+        """
+        # (don't use argspec because it is needlesly strict and fails on perfectly valid Cython functions)
+        defaults = cls.open.func_defaults
+        params = cls.get_open_params()
+        # cut params to only the last x (defaults are always at the end of the signature)
+        params = params[len(params) - len(defaults):]
+        return dict(zip(params, defaults))
 
     def get_discovery(self):
         """
