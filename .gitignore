@@ -4,3 +4,5 @@
 *.pyc
 *.so
 *.o
+parlay/ui/node_modules
+parlay/ui/app/npm-debug.log
