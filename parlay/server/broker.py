@@ -35,13 +35,24 @@ class Broker(object):
 
         return Broker.instance
 
-    def send_msg(self, msg):
-        """
-        Send a message out to the ecosystem
-        """
-        return self._call_listeners(msg)
 
-    def _call_listeners(self, msg, root_list=None):
+    def publish(self, msg, write_method):
+        """
+        Publish a message to the Parlay system
+        :param msg : The message to publish
+        :param write_method : the protocol's method to callback if the broker needs to send a response
+        """
+        topic_type = msg['topics'].get('type', None)
+        #handle broker and subscribe messages special
+        if topic_type == 'broker':
+            self.handle_broker_message(msg, write_method)
+        elif topic_type == 'subscribe':
+            self.handle_subscribe_message(msg, write_method)
+        #generic publish for all other messages
+        else:
+            self._publish(msg)
+
+    def _publish(self, msg, root_list=None):
         """
         Call all of the listeners that match msg
 
@@ -66,10 +77,10 @@ class Broker(object):
                                 # (Any other key will lead to yet another dictionary of keys and values)
             if k in root_list and topics[k] in root_list[k]:
                 #recurse
-                self._call_listeners(msg, root_list[k][topics[k]])
+                self._publish(msg, root_list[k][topics[k]])
 
 
-    def subscribe_listener(self, func, **kwargs):
+    def subscribe(self, func, **kwargs):
         """
         Register a listener. The kwargs is a dictionary of args that **all** must be true
         to call this listener. You may register the same function multiple times with different
@@ -102,7 +113,7 @@ class Broker(object):
         listeners.append((func, owner))
         root_list[None] = listeners
 
-
+    #TODO: unsubscribe from specific topic k/v pair list
     def unsubscribe_all(self, owner, root_list = None):
         """
         Unsubscribe all function in our list that have a n owner that matches 'owner'
@@ -121,14 +132,53 @@ class Broker(object):
 
 
 
-    def handle_broker_message(self, msg, protocol):
+    def handle_broker_message(self, msg, message_callback):
         """
         Any message with topic type 'broker' should be passed into here.  'broker' messages are special messages
         that don't get 'published'. They are for querying the state of the system.
         'broker' messages have a 'request' field and will reply with an appropriate 'response' field
+
+        message_callback is the function to call to send the message back to the protocol
         """
-        if msg['request'] == 'get_protocols':
-            protocols = BaseProtocol.protocol_registry
+        if msg['topics']['type'] != "broker":
+            raise KeyError("handle_broker_message can only handle messages with 'topics''type' == 'broker'")
+
+        reply = {'topics': {'type': 'broker', 'response': msg['request']+"_response"}, 'contents': {}}
+        request = msg['topics']['request']
+
+        if request == 'get_protocols':
+            reg = BaseProtocol.protocol_registry
+            #make a dictionary of protocol names (keys) to (values) a dictionary of open params and defaults
+            protocols = {k:{} for k in reg.keys()}
+            for name in protocols.keys():
+                protocols[name]["params"] = reg[name].get_open_params()
+                protocols[name]["defaults"] = reg[name].get_open_params_defaults()
+
+            reply['contents'] = protocols
+            message_callback(reply)
+
+        elif request == 'open_protocol':
+            protocol_name = msg['contents']['protocol_name']
+            open_params = msg['contents'].get('params', {})
+            # make sure we know about the protocol
+            if protocol_name not in BaseProtocol.protocol_registry:
+                reply['topics']['response'] = 'error'
+                reply['contents'] = {'error': "No such protocol"}
+            else:
+                # we have the protocol! open it
+                BaseProtocol.protocol_registry[protocol_name].open(self, **open_params)
+                reply['contents'] = {'status': 'ok'}
+            message_callback(reply)
+
+
+    def handle_subscribe_message(self, msg, message_callback):
+        self.subscribe(message_callback, **(msg['contents']['topics']))
+        resp_msg = msg.copy()
+        resp_msg['topics']['event'] = 'subscribe_response'
+        resp_msg['contents']['status'] = 'ok'
+
+        #send the reply
+        message_callback(resp_msg)
 
 
     def run(self):
@@ -152,23 +202,9 @@ class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
     def onConnect(self, request):
         self.broker = Broker.get_instance()
 
-        #automatically subscribe to subcription types
-        self.broker.subscribe_listener(self._on_subscribe_msg, type='subscribe', event='request')
-
     def onClose(self, wasClean, code, reason):
         #clean up after ourselves
         self.broker.unsubscribe_all(self)
-
-    def _on_subscribe_msg(self, msg):
-        #send a message when we get these
-
-        self.broker.subscribe_listener(self.send_message_as_JSON, **(msg['contents']['topic']))
-        resp_msg = msg.copy()
-        resp_msg['topics']['event'] = 'reply'
-        resp_msg['contents']['status'] = 'ok'
-
-        #send the reply
-        self.sendMessage(json.dumps(resp_msg))
 
     def send_message_as_JSON(self, msg):
         """
@@ -181,7 +217,7 @@ class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
         if not isBinary:
             print payload
             msg = json.loads(payload)
-            self.broker._call_listeners(msg)
+            self.broker.publish(msg, self.send_message_as_JSON)
         else:
             print "Binary messages not supported yet"
 
