@@ -25,7 +25,8 @@ module.exports = function(config) {
       'bower_components/angular-ui-ace/ui-ace.js',
       'bower_components/angular-websocket/angular-websocket.js',
       'bower_components/angular-mocks/angular-mocks.js',
-      'components/**/*.js',
+      'app.js',
+      'parlay_components/**/*.js',
       'test/**/*.js'
     ],
 

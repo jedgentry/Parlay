@@ -116,18 +116,18 @@ endpoints.controller('endpointController', ['$scope', '$mdToast', 'EndpointManag
 
 endpoints.directive('parlayEndpointCardItem', function () {
     return {
-        templateUrl: 'components/endpoints/directives/parlay-endpoint-card-item.html'
+        templateUrl: 'parlay_components/endpoints/directives/parlay-endpoint-card-item.html'
     }
 });
 
 endpoints.directive('parlayEndpointListItem', function () {
     return {
-        templateUrl: 'components/endpoints/directives/parlay-endpoint-list-item.html'
+        templateUrl: 'parlay_components/endpoints/directives/parlay-endpoint-list-item.html'
     }
 });
 
 endpoints.directive('parlayEndpointsToolbar', function () {
     return {
-        templateUrl: 'components/endpoints/directives/parlay-endpoints-toolbar.html'
+        templateUrl: 'parlay_components/endpoints/directives/parlay-endpoints-toolbar.html'
     }
 });

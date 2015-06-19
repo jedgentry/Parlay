@@ -4,7 +4,7 @@ navigation.value('parlayNavToggleOpen', true);
 
 navigation.directive('parlayToolbar', function () {
     return {
-        templateUrl: 'components/navigation/directives/parlay-toolbar.html',
+        templateUrl: 'parlay_components/navigation/directives/parlay-toolbar.html',
         controller: ['$scope', '$mdSidenav', '$mdMedia', 'parlayNavToggleOpen', 'ParlaySocket', function ($scope, $mdSidenav, $mdMedia, parlayNavToggleOpen, ParlaySocket) {
             
             $scope.socket = ParlaySocket;
@@ -33,7 +33,7 @@ navigation.directive('parlayToolbar', function () {
 
 navigation.directive('parlayNav', function () {
     return {
-        templateUrl: 'components/navigation/directives/parlay-navigation.html',
+        templateUrl: 'parlay_components/navigation/directives/parlay-navigation.html',
         replace: true,
         controller: function ($scope, $state, $rootScope, parlayNavToggleOpen) {
             

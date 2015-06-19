@@ -35,7 +35,7 @@ editor.controller('editorController', ['$scope', '$window', function ($scope, $w
 
 editor.directive('parlayEditorToolbar', function () {
     return {
-        templateUrl: 'components/editor/directives/parlay-editor-toolbar.html'
+        templateUrl: 'parlay_components/editor/directives/parlay-editor-toolbar.html'
     }
 });
 
