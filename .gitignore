@@ -8,3 +8,6 @@ parlay/ui/node_modules
 parlay/ui/bower_components
 parlay/ui/app/npm-debug.log
 .DS_Store
+parlay/ui/npm-debug.log
+parlay/ui/dist
+parlay/ui/doc
