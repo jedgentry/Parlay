@@ -3,6 +3,12 @@ from twisted.internet import reactor
 import json
 from parlay.protocols.protocol import BaseProtocol
 from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
+from twisted.application import internet, service
+from twisted.web import static, server
+import os
+
+# path to the root parlay folder
+PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 
 class Broker(object):
     """
@@ -190,6 +196,11 @@ class Broker(object):
         factory.protocol = BrokerWebsocketBaseProtocol
 
         self._reactor.listenTCP(8085, factory)
+
+        #http server
+        root = static.File(PARLAY_PATH + "/ui/app")
+        site = server.Site(root)
+        self._reactor.listenTCP(8080, site)
         self._reactor.run()
 
 
