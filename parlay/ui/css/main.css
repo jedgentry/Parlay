@@ -1,0 +1,14 @@
+.md-fab > ng-md-icon {
+    padding-top: 20px;
+    line-height: 70px;
+}
+.md-fab.md-mini > ng-md-icon {
+    line-height: 55px;
+}
+.white {
+    fill: white !important;
+}
+md-list-item > a {
+    text-decoration: none;
+    color: black;
+}
