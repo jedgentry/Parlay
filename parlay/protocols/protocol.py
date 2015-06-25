@@ -1,5 +1,10 @@
+"""
+Define the base Protocol classes and meta-classes.
 
+For documentation on broker and common message types see parlay.protocols::
+"""
 import inspect
+
 
 class InvalidProtocolDeclaration(Exception):
     """
@@ -7,20 +12,22 @@ class InvalidProtocolDeclaration(Exception):
     """
     pass
 
+
 class ProtocolMeta(type):
     """
     Meta-Class that will keep track of *all* message types declared
     Also builds the message field lookups from the Django-model-style message class definitions
     """
 
-    def __init__(cls,name,bases,dct):
+    def __init__(cls, name, bases, dct):
         #register the message type
-        if not hasattr(cls,'message_registry'):
-            cls.protocol_registry= {}
+        if not hasattr(cls, 'message_registry'):
+            cls.protocol_registry = {}
         else:
             protocol_name = name if not hasattr(cls, 'name') else cls.name
             if protocol_name in cls.protocol_registry:
-                raise InvalidProtocolDeclaration(protocol_name + " has already been declared. Please choose a different protocol name")
+                raise InvalidProtocolDeclaration(protocol_name + " has already been declared." +
+                                                 "Please choose a different protocol name")
 
             cls.protocol_registry[protocol_name] = cls
 
@@ -30,6 +37,7 @@ class ProtocolMeta(type):
 
 class BaseProtocol(object):
     __metaclass__ = ProtocolMeta
+
 
 
     @classmethod

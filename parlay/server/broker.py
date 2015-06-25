@@ -1,8 +1,14 @@
 
 from twisted.internet import reactor
-import json
 from parlay.protocols.protocol import BaseProtocol
+
 from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
+from twisted.application import internet, service
+from twisted.web import static, server
+import os
+
+# path to the root parlay folder
+PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 
 class Broker(object):
     """
@@ -185,41 +191,21 @@ class Broker(object):
         """
         Start up and run the broker. This method call with not return
         """
+        from parlay.protocols.websocket import BrokerWebsocketBaseProtocol
+
         #listen for websocket connections on port 8085
         factory = WebSocketServerFactory("ws://localhost:8085")
         factory.protocol = BrokerWebsocketBaseProtocol
 
         self._reactor.listenTCP(8085, factory)
+
+        #http server
+        root = static.File(PARLAY_PATH + "/ui/app")
+        site = server.Site(root)
+        self._reactor.listenTCP(8080, site)
         self._reactor.run()
 
 
-class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
-    """
-    When a client connects over a websocket, this is the protocol that will handle the communication
-    """
-
-
-    def onConnect(self, request):
-        self.broker = Broker.get_instance()
-
-    def onClose(self, wasClean, code, reason):
-        #clean up after ourselves
-        self.broker.unsubscribe_all(self)
-
-    def send_message_as_JSON(self, msg):
-        """
-        Send a message dictionary as JSON
-        """
-        print("Sending")
-        self.sendMessage(json.dumps(msg))
-
-    def onMessage(self, payload, isBinary):
-        if not isBinary:
-            print payload
-            msg = json.loads(payload)
-            self.broker.publish(msg, self.send_message_as_JSON)
-        else:
-            print "Binary messages not supported yet"
 
 
 
