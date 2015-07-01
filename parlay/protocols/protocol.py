@@ -21,7 +21,7 @@ class ProtocolMeta(type):
 
     def __init__(cls, name, bases, dct):
         #register the message type
-        if not hasattr(cls, 'message_registry'):
+        if not hasattr(cls, 'protocol_registry'):
             cls.protocol_registry = {}
         else:
             protocol_name = name if not hasattr(cls, 'name') else cls.name
