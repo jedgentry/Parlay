@@ -2,7 +2,7 @@
 .. py:module:: parlay.protocols
 
 ***********************************
-H1 -- Protocols
+Protocols
 ***********************************
 
 Broker messages are just key-value pairs stored in python dictionaries. The only general requirment for a message is that
