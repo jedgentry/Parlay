@@ -149,7 +149,7 @@ class Broker(object):
         if msg['topics']['type'] != "broker":
             raise KeyError("handle_broker_message can only handle messages with 'topics''type' == 'broker'")
 
-        reply = {'topics': {'type': 'broker', 'response': msg['request']+"_response"}, 'contents': {}}
+        reply = {'topics': {'type': 'broker', 'response': msg['topics']['request']+"_response"}, 'contents': {}}
         request = msg['topics']['request']
 
         if request == 'get_protocols':
