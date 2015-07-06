@@ -172,9 +172,61 @@ class Broker(object):
                 reply['contents'] = {'error': "No such protocol"}
             else:
                 # we have the protocol! open it
-                BaseProtocol.protocol_registry[protocol_name].open(self, **open_params)
-                reply['contents'] = {'status': 'ok'}
+                try:
+                    p = BaseProtocol.protocol_registry[protocol_name].open(self, **open_params)
+                    self.protocols.append(p)
+                    reply['contents'] = {'status': 'ok'}
+                except Exception as e:
+                    reply['contents'] = {'status': "Error while opening: " + str(e)}
+
             message_callback(reply)
+
+        elif request == 'get_open_protocols':
+            # respond with the string repr of each protocol
+            try:
+                reply['contents']['protocols'] = [str(x) for x in self.protocols]
+                reply['contents']['status'] = 'ok'
+            except Exception as e:
+                reply['contents']['status'] = 'Error while listing protocols: ' + str(e)
+
+            message_callback(reply)
+
+        elif request == 'close_protocol':
+            #close the protocol with the string repr given
+            open_protocols = [str(x) for x in self.protocols]
+            reply['contents']['protocols'] = open_protocols
+
+            to_close = msg['contents']['protocol']
+            #see if its exits!
+            if to_close not in open_protocols:
+                reply['contents']['status'] = "no such open protocol: " + to_close
+                message_callback(reply)
+                return
+
+            new_protocol_list = []
+            try:
+                for x in self.protocols:
+                    if str(x) == to_close:
+                        x.close()
+                    else:
+                        new_protocol_list.append(x)
+
+                self.protocols = new_protocol_list
+                #recalc list
+                reply['contents']['protocols'] = [str(x) for x in self.protocols]
+                message_callback(reply)
+            except Exception as e:
+                reply['contents']['status'] = "Error while closing protocol " + str(e)
+                message_callback(reply)
+
+        elif request == "get_discovery":
+            d_list = []
+            for p in self.protocols:
+                d_list.append()
+
+
+
+
 
 
     def handle_subscribe_message(self, msg, message_callback):
@@ -200,7 +252,7 @@ class Broker(object):
         self._reactor.listenTCP(8085, factory)
 
         #http server
-        root = static.File(PARLAY_PATH + "/ui/dist")
+        root = static.File(PARLAY_PATH + "/ui/")
         site = server.Site(root)
         self._reactor.listenTCP(8080, site)
         self._reactor.run()

@@ -118,4 +118,64 @@ Example error Response
         * port : /dev/ttyUSB1
         * baurdrate : 9600
 
+
+List Open Protocols
+-----------------------------
+
+Message format:
+* topics
+    * type : broker
+    * request : get_open_protocols
+
+* contents:
+
+
+
+Example Response:
+* topics
+    * type : broker
+    * response : get_open_protocols_response
+
+
+* contents:
+
+    * open_protocols: ['Serial on /dev/ttyUSB0','Websocket on 8085']
+
+
+Close a Protocol
+---------------------------------
+Message format:
+* topics
+    * type : broker
+    * request : close_protocol
+
+* contents:
+    * protocol: 'Serial on /dev/ttyUSB0'
+
+
+
+Example Response:
+* topics
+    * type : broker
+    * response : close_response
+
+
+* contents:
+    * status : ok
+    * open_protocols: ['Websocket on 8085']
+
+
+Example Error Response:
+* topics
+    * type : broker
+    * response : close_response
+
+
+* contents:
+    * status : 'No such protocol  \'Serial on /dev/ttyUSB0\' '
+    * open_protocols: ['Websocket on 8085']
+
+
+
+
 """
