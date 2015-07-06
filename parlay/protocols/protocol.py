@@ -25,6 +25,7 @@ class ProtocolMeta(type):
             cls.protocol_registry = {}
         else:
             protocol_name = name if not hasattr(cls, 'name') else cls.name
+            cls._protocol_name = protocol_name
             if protocol_name in cls.protocol_registry:
                 raise InvalidProtocolDeclaration(protocol_name + " has already been declared." +
                                                  "Please choose a different protocol name")

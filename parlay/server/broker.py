@@ -1,5 +1,5 @@
 
-from twisted.internet import reactor
+from twisted.internet import reactor, defer
 from parlay.protocols.protocol import BaseProtocol
 
 from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
@@ -149,7 +149,9 @@ class Broker(object):
         if msg['topics']['type'] != "broker":
             raise KeyError("handle_broker_message can only handle messages with 'topics''type' == 'broker'")
 
-        reply = {'topics': {'type': 'broker', 'response': msg['topics']['request']+"_response"}, 'contents': {}}
+        reply = {'topics': {'type': 'broker', 'response': msg['topics']['request']+"_response"},
+                 'contents': {'status': "STATUS NOT FILLED IN" } }
+
         request = msg['topics']['request']
 
         if request == 'get_protocols':
@@ -220,9 +222,33 @@ class Broker(object):
                 message_callback(reply)
 
         elif request == "get_discovery":
+
+            #TODO caching and saving
             d_list = []
+            discovery = []
             for p in self.protocols:
-                d_list.append()
+                d = p.get_discovery()
+                #add this protocols discovery
+                d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
+                                                          'children': x}))
+                d.addErrback(d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
+                                                          'children': [], 'error': str(x)})))
+                d_list.append(p.get_discovery)
+
+            #wait for all to be finished
+            all_d = defer.gatherResults(d_list, consumeErrors=True)
+            def discovery_done(*args):
+                reply['contents']['status'] = 'okay'
+                reply['contents']['discovery'] = discovery
+                message_callback(reply)
+
+            def discovery_error(*args):
+                reply['contents']['status'] = str(args)
+                reply['contents']['discovery'] = discovery
+                message_callback(reply)
+
+            all_d.addCallback(discovery_done)
+            all_d.addErrback(discovery_error)
 
 
 

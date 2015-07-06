@@ -41,7 +41,7 @@ Message format:
 Example response:
 
 * topics
-
+    * status : ok
     * type : broker
     * response : get_protocols
 
@@ -81,7 +81,7 @@ Message format:
 
     * protocol : Serial
     * params :
-
+        * status : ok
         * port : /dev/ttyUSB1
         * baurdrate : 9600
 
@@ -98,7 +98,7 @@ Example response:
     * status : ok
     * protocol : Serial
     * params :
-
+        * status : ok
         * port : /dev/ttyUSB1
         * baurdrate : 9600
 
@@ -177,5 +177,57 @@ Example Error Response:
 
 
 
+Discover attached endpoints
+----------------------------------
+In order to discover attached endpoints, send a 'discover' command to the broker.
+The broker will respond back with a list of attached endpoints.
+
+Message format:
+
+* topics
+    * type : broker
+    * request : discover
+
+* contents
+    * force : true | false (optional. default=false)
+
+The response will be a list of objects where each object will have a protocol name
+and a list of children.  Each child will be an endpoint. Each endpoint will have a 'name'
+and a 'type' field telling which endpoint type it is, and an option 'children' field that will
+be a list of other endpoint objects with the same requirements.  Depending on the 'type' of the
+endpoint, there may be more fields in the object besides just 'type','name', (optional) 'interfaces',m and (optionally)
+'children'.
+
+Example response:
+* topics :
+    * type: broker
+    * response: discover_response
+
+* contents : (list)
+
+    [
+        * type : protocol
+        * name : serial_SSCOM
+        * children : (list)
+            [
+                * name : Motor System
+                * type : SSCOM_SYSTEM/SYSTEM
+                * children : (list)
+                [
+                    * name : Motor 1
+                    * type : SSCOM/CommandResponse/Endpoint
+                    * interface : [ Motor, Stepper Motor ]
+                    * commands : { 5 : PREPARE, 105: MOVE_TO_POS, ...}   ('type' specific key/value)
+                    ,
+                    * name : Controller
+                    * type : SSCOM/CommandResponse/Endpoint
+                    * commands : { 5 : PREPARE, 105: START_RUN, ...}   ('type' specific key/value)
+                    ,
+                    *.......
+                ]
+
+
+            ]
+    ]
 
 """
