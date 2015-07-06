@@ -78,7 +78,7 @@ class BaseProtocol(object):
         :rtype: dict
         """
         # (don't use argspec because it is needlesly strict and fails on perfectly valid Cython functions)
-        defaults = cls.open.func_defaults
+        defaults = cls.open.func_defaults if cls.open.func_defaults is not None else []
         params = cls.get_open_params()
         # cut params to only the last x (defaults are always at the end of the signature)
         params = params[len(params) - len(defaults):]

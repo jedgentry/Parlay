@@ -4,17 +4,17 @@
     
     <md-content layout-margin layout-wrap layout="row" ng-switch="displayCards">
         
-        <parlay-endpoint-card-item ng-switch-when="true" ng-repeat="endpoint in endpointManager.active_endpoints"></parlay-endpoint-card-item>
+        <parlay-endpoint-card-item ng-switch-when="true" ng-repeat="endpoint in filterEndpoints()"></parlay-endpoint-card-item>
         
         <md-list ng-switch-when="false" flex>
-            <parlay-endpoint-list-item ng-repeat="endpoint in endpointManager.active_endpoints"></parlay-endpoint-list-item>
+            <parlay-endpoint-list-item ng-repeat="endpoint in filterEndpoints()"></parlay-endpoint-list-item>
         </md-list>
         
     </md-content>
     
-    <md-button class="md-fab md-fab-bottom-right" ng-click="setupEndpoint()">
+    <md-button class="md-fab md-fab-bottom-right" ng-click="configureProtocol($event)">
         <md-icon style="line-height: 40px;"><ng-md-icon class="white" icon="add"></ng-md-icon></md-icon>
-        <md-tooltip>Add endpoint</md-tooltip>
+        <md-tooltip>Configure Protocol</md-tooltip>
     </md-button>
     
 </div>

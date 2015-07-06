@@ -7,15 +7,14 @@ module.exports = function (grunt) {
     'pkg': grunt.file.readJSON('package.json'),
 
     'meta': {
-      'source': [
-	    'app.js',
-        'parlay_components/**/*.js'
-      ],
+      'source': ['app.js', 'parlay_components/**/*.js'],
+      'vendorCompontents': 'vendor_components/**/**/*.js',
       'dist_destination': 'dist',
       'dev_destination': 'dev',
       'doc_destination': 'doc',
       'bowerComponents': [
         'bower_components/angular/angular.js',
+        'bower_components/angular-messages/angular-messages.js',
         'bower_components/angular-material/angular-material.js',
         'bower_components/angular-material/angular-material-mocks.js',
         'bower_components/angular-ui-router/release/angular-ui-router.js',
@@ -31,7 +30,7 @@ module.exports = function (grunt) {
       'staticComponents': [
         'static_components/ng-websocket/ng-websocket.js'
       ],
-      'tests': 'test/**/*.js',
+      'tests': 'parlay_components/**/test/*.js',
       'compiledHtml': 'tmp/templates.js',
       'htmlDirectives': 'parlay_components/**/directives/*.html',
       'htmlViews': 'parlay_components/**/views/*.html',
@@ -116,7 +115,7 @@ module.exports = function (grunt) {
         'options': {
           'livereload': true
         },
-        'files': '<%= meta.source %>',
+        'files': ['<%= meta.source %>', '<%= meta.vendorCompontents %>'],
         'tasks': ['jshint:dev', 'karma:dev', 'newer:copy:dev']
       },
       'stylesheets': {
@@ -160,17 +159,19 @@ module.exports = function (grunt) {
           'reporters': ['progress', 'coverage'],
           'preprocessors': {
             'parlay_components/*.js': ['coverage'],
-            'parlay_components/**/*.js': ['coverage']
+            'parlay_components/**/*.js': ['coverage'],
+            'vendor_components/**/*.js': ['coverage']
           },
           'coverageReporter': {
             'type': 'html',
             'dir': 'coverage'
           },
           'files': [
-			'<%= meta.bowerComponents %>',
+			      '<%= meta.bowerComponents %>',
             '<%= meta.staticComponents %>',
             '<%= meta.compiledHtml %>',
             '<%= meta.source %>',
+            '<%= meta.vendorCompontents %>',
             '<%= meta.tests %>'
           ],
         }
@@ -194,11 +195,11 @@ module.exports = function (grunt) {
         'options': {
           'debug': true,
         },
-        'src': '<%= meta.source %>',
+        'src': ['<%= meta.source %>', '<%= meta.vendorCompontents %>'],
         'gruntfile': 'Gruntfile.js'
       },
       'dist': {
-        'src': '<%= meta.source %>'
+        'src': ['<%= meta.source %>', '<%= meta.vendorCompontents %>']
       }
     },
 
@@ -233,7 +234,7 @@ module.exports = function (grunt) {
       },
       'dev': {
         'files': [
-          {'expand': true, 'src': ['<%= meta.source %>', '<%= meta.compiledHtml %>', '<%= meta.stylesheets %>'], 'dest': '<%= meta.dev_destination %>'},
+          {'expand': true, 'src': ['<%= meta.source %>', '<%= meta.vendorCompontents %>', '<%= meta.compiledHtml %>', '<%= meta.stylesheets %>'], 'dest': '<%= meta.dev_destination %>'},
           {'expand': true, 'src': '<%= meta.commonFiles %>', 'dest': '<%= meta.dev_destination %>'}
         ]
       }
@@ -257,7 +258,7 @@ module.exports = function (grunt) {
       },
       'dist': {
         'files': {
-          '<%= meta.dist_destination %>/<%= pkg.namelower %>.min.js': ['<%= meta.source %>', '<%= meta.compiledHtml %>']
+          '<%= meta.dist_destination %>/<%= pkg.namelower %>.min.js': ['<%= meta.source %>', '<%= meta.vendorCompontents %>', '<%= meta.compiledHtml %>']
         }
       }
     },
