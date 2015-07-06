@@ -231,9 +231,9 @@ class Broker(object):
                 #add this protocols discovery
                 d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
                                                           'children': x}))
-                d.addErrback(d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
-                                                          'children': [], 'error': str(x)})))
-                d_list.append(p.get_discovery)
+                d.addErrback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
+                                                          'children': [], 'error': str(x)}))
+                d_list.append(p.get_discovery())
 
             #wait for all to be finished
             all_d = defer.gatherResults(d_list, consumeErrors=True)
