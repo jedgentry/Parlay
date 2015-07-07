@@ -6,6 +6,7 @@ from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerPr
 from twisted.application import internet, service
 from twisted.web import static, server
 import os
+import json
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -177,7 +178,7 @@ class Broker(object):
                 try:
                     p = BaseProtocol.protocol_registry[protocol_name].open(self, **open_params)
                     self.protocols.append(p)
-                    reply['contents'] = {'status': 'ok'}
+                    reply['contents'] = {'name': str(p), 'status': 'ok'}
                 except Exception as e:
                     reply['contents'] = {'status': "Error while opening: " + str(e)}
 
@@ -186,7 +187,8 @@ class Broker(object):
         elif request == 'get_open_protocols':
             # respond with the string repr of each protocol
             try:
-                reply['contents']['protocols'] = [str(x) for x in self.protocols]
+                reply['contents']['protocols'] = [{"name": str(x), "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
+                                                  for x in self.protocols]
                 reply['contents']['status'] = 'ok'
             except Exception as e:
                 reply['contents']['status'] = 'Error while listing protocols: ' + str(e)
@@ -222,34 +224,46 @@ class Broker(object):
                 message_callback(reply)
 
         elif request == "get_discovery":
+            cached_file_name = PARLAY_PATH + "/cached_discovery.json"
+            # if we're forcing a refresh, or have no cache
+            if msg['contents'].get('force', False) or not os.path.isfile(cached_file_name):
+                d_list = []
+                discovery = []
+                for p in self.protocols:
+                    d = p.get_discovery()
+                    #add this protocols discovery
+                    d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': str(x),
+                                                              'protocol_type': getattr(x, "_protocol_type_name",
+                                                                                       "UNKNOWN"),
+                                                              'children': x}))
+                    d.addErrback(lambda x: discovery.append({'type': 'Protocol', 'name': str(x),
+                                                             'protocol_type': getattr(x, "_protocol_type_name",
+                                                                                      "UNKNOWN"),
+                                                             'children': [], 'error': str(x)}))
+                    d_list.append(p.get_discovery())
 
-            #TODO caching and saving
-            d_list = []
-            discovery = []
-            for p in self.protocols:
-                d = p.get_discovery()
-                #add this protocols discovery
-                d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
-                                                          'children': x}))
-                d.addErrback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
-                                                          'children': [], 'error': str(x)}))
-                d_list.append(p.get_discovery())
+                #wait for all to be finished
+                all_d = defer.gatherResults(d_list, consumeErrors=True)
+                def discovery_done(*args):
+                    reply['contents']['status'] = 'okay'
+                    reply['contents']['discovery'] = discovery
+                    message_callback(reply)
 
-            #wait for all to be finished
-            all_d = defer.gatherResults(d_list, consumeErrors=True)
-            def discovery_done(*args):
-                reply['contents']['status'] = 'okay'
-                reply['contents']['discovery'] = discovery
-                message_callback(reply)
+                def discovery_error(*args):
+                    reply['contents']['status'] = str(args)
+                    reply['contents']['discovery'] = discovery
+                    message_callback(reply)
 
-            def discovery_error(*args):
-                reply['contents']['status'] = str(args)
-                reply['contents']['discovery'] = discovery
-                message_callback(reply)
-
-            all_d.addCallback(discovery_done)
-            all_d.addErrback(discovery_error)
-
+                all_d.addCallback(discovery_done)
+                all_d.addErrback(discovery_error)
+                with open(cached_file_name, 'w') as outfile:
+                    json.dump(discovery, outfile)
+            else:
+                with open(cached_file_name) as json_data:
+                    d = json.load(json_data)
+                    reply['contents']['status'] = 'okay'
+                    reply['contents']['discovery'] = d
+                    message_callback(reply)
 
 
 
