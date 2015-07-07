@@ -35,16 +35,35 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', function (ParlaySocket,
      * Requests available protocols for connection from the Broker.
      * @returns {$q.defer.promise} Resolved with available protocols.
      */
-    Public.requestProtocols = function () {
-        
+    Public.requestAvailableProtocols = function () {
         return Public.sendRequest('get_protocols', {}).then(function (response) {
             return Object.keys(response).map(function (protocol_name) {
-                var protocol = response[protocol_name];
+                
+                var protocol = this[protocol_name];
                 
                 protocol.name = protocol_name;
                 
                 return protocol;
-            }, response);
+            }, response).map(function (protocol) {
+                return {
+                    name: protocol.name,
+                    parameters: protocol.params.reduce(function (param_obj, current_param) {
+                        param_obj[current_param] = protocol.defaults[current_param];
+                        return param_obj;
+                    }, {})
+                };
+            });
+        });
+    };
+    
+    /**
+     * Requests open protocols for connection from the Broker.
+     * @returns {$q.defer.promise} Resolved with open protocols.
+     */
+    Public.requestOpenProtocols = function () {
+        return Public.sendRequest('get_open_protocols', {}).then(function (response) {
+            if (response.status === 'ok') return response.protocols;
+            else Private.handleError(response);            
         });
     };
     
@@ -92,7 +111,16 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', function (ParlaySocket,
      * @returns {$q.defer.promise} Resolve when response is recieved with available endpoints.
      */
     Public.requestDiscovery = function () {        
-        return Public.sendRequest('get_discovery', {});
+        return Public.sendRequest('get_discovery', {}).then(function (contents) {
+             return contents.discovery;
+        });
+    };
+    
+    /**
+     * Registers a callback on discovery.
+     */
+    Public.onDiscovery = function (callbackFunc) {
+        return Private.onMessage({'response': 'get_discovery_response'}, callbackFunc);
     };
     
     /**
@@ -116,6 +144,20 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', function (ParlaySocket,
                 resolve(response);
             });
         });
+    };
+    
+    Private.onMessage = function (response_topics, response_callback) {
+        response_topics.type = 'broker';
+        
+        return Private.socket.onMessage(response_topics, response_callback);
+    };
+    
+    /**
+     * Handles directing error to correct place.
+     * @param {Object} Response contents from Broker.
+     */
+    Private.handleError = function () {
+        // Do something.
     };
     
     Public.onMessage = Private.socket.onMessage;

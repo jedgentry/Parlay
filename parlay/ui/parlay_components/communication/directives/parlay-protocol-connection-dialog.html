@@ -4,14 +4,14 @@
             <div class="md-toolbar-tools">
                 <h2>Protocol Connections</h2>
                 <span flex></span>
-                <md-button class="md-icon-button" ng-click="hide()">
+                <md-button class="md-icon-button" ng-click="hide()"  aria-label="Close connection display dialog">
                     <md-icon><ng-md-icon icon="close" aria-label="Close dialog"></ng-md-icon></md-icon>
                 </md-button>
             </div>
         </md-toolbar>
         <md-dialog-content>
             <md-list ng-show="open_protocols.length">
-                <md-list-item ng-repeat="protocol in open_protocols">
+                <md-list-item ng-repeat="protocol in cached_protocols">
                     <p>{{protocol.name}}</p>
                     <md-button class="md-icon-button" ng-click="closeProtocol(protocol)" ><md-icon class="md-warn" aria-label="Disconnect protocol"><ng-md-icon icon="close"></ng-md-icon></md-icon></md-button>
                 </md-list-item>

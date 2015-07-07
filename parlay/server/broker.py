@@ -223,8 +223,6 @@ class Broker(object):
                 message_callback(reply)
 
         elif request == "get_discovery":
-
-
             cached_file_name = PARLAY_PATH + "/cached_discovery.json"
             # if we're forcing a refresh, or have no cache
             if msg['contents'].get('force', False) or not os.path.isfile(cached_file_name):
@@ -237,7 +235,7 @@ class Broker(object):
                                                               'children': x}))
                     d.addErrback(d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
                                                               'children': [], 'error': str(x)})))
-                    d_list.append(p.get_discovery)
+                    d_list.append(p.get_discovery())
 
                 #wait for all to be finished
                 all_d = defer.gatherResults(d_list, consumeErrors=True)
