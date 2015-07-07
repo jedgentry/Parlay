@@ -178,7 +178,7 @@ class Broker(object):
                 try:
                     p = BaseProtocol.protocol_registry[protocol_name].open(self, **open_params)
                     self.protocols.append(p)
-                    reply['contents'] = {'status': 'ok'}
+                    reply['contents'] = {'name': str(p), 'status': 'ok'}
                 except Exception as e:
                     reply['contents'] = {'status': "Error while opening: " + str(e)}
 
@@ -187,7 +187,8 @@ class Broker(object):
         elif request == 'get_open_protocols':
             # respond with the string repr of each protocol
             try:
-                reply['contents']['protocols'] = [str(x) for x in self.protocols]
+                reply['contents']['protocols'] = [{"name": str(x), "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
+                                                  for x in self.protocols]
                 reply['contents']['status'] = 'ok'
             except Exception as e:
                 reply['contents']['status'] = 'Error while listing protocols: ' + str(e)
@@ -231,10 +232,14 @@ class Broker(object):
                 for p in self.protocols:
                     d = p.get_discovery()
                     #add this protocols discovery
-                    d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
+                    d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': str(x),
+                                                              'protocol_type': getattr(x, "_protocol_type_name",
+                                                                                       "UNKNOWN"),
                                                               'children': x}))
-                    d.addErrback(d.addCallback(lambda x: discovery.append({'type': 'Protocol', 'name': p._protocol_name,
-                                                              'children': [], 'error': str(x)})))
+                    d.addErrback(lambda x: discovery.append({'type': 'Protocol', 'name': str(x),
+                                                             'protocol_type': getattr(x, "_protocol_type_name",
+                                                                                      "UNKNOWN"),
+                                                             'children': [], 'error': str(x)}))
                     d_list.append(p.get_discovery())
 
                 #wait for all to be finished

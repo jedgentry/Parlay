@@ -98,6 +98,7 @@ Example response:
     * status : ok
     * protocol : Serial
     * params :
+        * name : Serial on /dev/ttyUSB0
         * status : ok
         * port : /dev/ttyUSB1
         * baurdrate : 9600
@@ -139,7 +140,7 @@ Example Response:
 
 * contents:
 
-    * open_protocols: ['Serial on /dev/ttyUSB0','Websocket on 8085']
+    * open_protocols: [{'name': 'Serial on /dev/ttyUSB0', 'protocol_type': 'SSCOM_Serial'}, {'name': 'Websocket on 8085', 'protocol_type': 'Websocket'}]
 
 
 Close a Protocol
@@ -207,7 +208,8 @@ Example response:
 
     [
         * type : protocol
-        * name : serial_SSCOM
+        * name : Serial on /dev/ttyUSB0
+        * protocol_type : SSCOM_Serial   ('protocol' type specific key/value)
         * children : (list)
             [
                 * name : Motor System
