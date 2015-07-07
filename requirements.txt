@@ -1,0 +1,6 @@
+autobahn==0.10.4
+coverage==3.7.1
+six==1.9.0
+Twisted==15.2.1
+txaio==1.0.0
+zope.interface==4.1.2
