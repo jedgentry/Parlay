@@ -85,6 +85,14 @@ class BaseProtocol(object):
         params = params[len(params) - len(defaults):]
         return dict(zip(params, defaults))
 
+
+    def get_protocol_discovery_meta_info(self):
+        """
+        This will return protocol meta-info that will be returned with every discovery message.
+        This is a good place to store things like enuemrations or protocol status to pass to the UI
+        """
+        return {}
+
     def get_discovery(self):
         """
         This will get called when a discovery message is sent out. Return a deferred that will be called back with

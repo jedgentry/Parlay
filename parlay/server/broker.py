@@ -232,15 +232,21 @@ class Broker(object):
                 for p in self.protocols:
                     d = p.get_discovery()
                     #add this protocols discovery
-                    d.addCallback(lambda x, p=p: discovery.append({'type': 'Protocol', 'name': str(p),
-                                                              'protocol_type': getattr(p, "_protocol_type_name",
+                    def callback(x, protocol=p, error=None):
+                        protocol_discovery = {'type': 'Protocol', 'name': str(protocol),
+                                                              'protocol_type': getattr(protocol, "_protocol_type_name",
                                                                                        "UNKNOWN"),
-                                                              'children': x}))
-                    d.addErrback(lambda x, p=p: discovery.append({'type': 'Protocol', 'name': str(p),
-                                                             'protocol_type': getattr(p, "_protocol_type_name",
-                                                                                      "UNKNOWN"),
-                                                             'children': [], 'error': str(x)}))
-                    d_list.append(p.get_discovery())
+                                                              'children': x}
+                        #extend with meta info
+                        protocol_discovery.update(p.get_protocol_discovery_meta_info())
+                        if error is not None:
+                            protocol_discovery['error'] = x
+                        discovery.append(protocol_discovery)
+
+                    d.addCallback(callback)
+                    d.addErrback(lambda e: callback([], error=e))
+
+                    d_list.append(d)
 
                 #wait for all to be finished
                 all_d = defer.gatherResults(d_list, consumeErrors=True)
