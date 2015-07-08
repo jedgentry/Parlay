@@ -303,7 +303,10 @@ class Broker(object):
         self._reactor.listenTCP(8080, site)
         self._reactor.run()
 
-if __name__ == "__main__":
+def main():
     d = Broker(reactor)
-    print "Hello Broker"
+    print "\n Broker is running...\n"
     d.run()
+
+if __name__ == "__main__":
+    main()
