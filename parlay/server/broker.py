@@ -298,7 +298,7 @@ class Broker(object):
         self._reactor.listenTCP(8085, factory)
 
         #http server
-        root = static.File(PARLAY_PATH + "/ui/")
+        root = static.File(PARLAY_PATH + "/ui/dist")
         site = server.Site(root)
         self._reactor.listenTCP(8080, site)
         self._reactor.run()
