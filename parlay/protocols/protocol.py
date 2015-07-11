@@ -57,6 +57,16 @@ class BaseProtocol(object):
         """
         raise NotImplementedError()
 
+    def close(self):
+        """
+        Override this with a generic method that will close the protocol.
+
+        e.g.
+        @classmethod
+        def close():
+        """
+        raise NotImplementedError()
+
     @classmethod
     def get_open_params(cls):
         """
