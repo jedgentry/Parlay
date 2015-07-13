@@ -279,7 +279,7 @@ class Broker(object):
 
 
     def handle_subscribe_message(self, msg, message_callback):
-        self.subscribe(message_callback, **(msg['contents']['topic']))
+        self.subscribe(message_callback, **(msg['contents']['topics']))
         resp_msg = msg.copy()
         resp_msg['topics']['event'] = 'subscribe_response'
         resp_msg['contents']['status'] = 'ok'
