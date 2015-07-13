@@ -21,7 +21,7 @@ class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
         """
         Send a message dictionary as JSON
         """
-        print("Sending")
+        print("->" + str(msg))
         self.sendMessage(json.dumps(msg))
 
     def onMessage(self, payload, isBinary):
