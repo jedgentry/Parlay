@@ -1,15 +1,16 @@
-var protocols = angular.module('bit.protocols', ['parlay.socket']);
+var bit_protocols = angular.module('bit.protocols', ['parlay.socket', 'promenade.broker']);
 
-protocols.value('BrokerAddress', 'ws://' + location.hostname + ':8085');
-
-protocols.factory('SSCOM_Serial', ['ParlaySocket', 'BrokerAddress', '$q', function (ParlaySocket, BrokerAddress, $q) {
+bit_protocols.factory('SSCOM_Serial', ['ParlaySocket', 'PromenadeBroker', '$q', function (ParlaySocket, PromenadeBroker, $q) {
+    
     var Private = {
         type: 'SSCOM_Serial',
         common_status: null,
         message_types: null,
         data_types: null,
         current_message_id: 200,
-        socket: ParlaySocket(BrokerAddress)
+        from_device: 0x01,
+        from_system: 0xf2,
+        from: 0xf201
     };
     
     var Public = {};
@@ -40,25 +41,41 @@ protocols.factory('SSCOM_Serial', ['ParlaySocket', 'BrokerAddress', '$q', functi
         return ++Private.current_message_id;
     };
     
-    Public.sendCommand = function (command) {
-        
-        command.topics.message_id = Private.consumeMessageId();
-        command.topics.from_device = 0x01;
-        command.topics.from_system = 0xf2;
-        command.topics.from = 0xf201;
-        
-        var response_topics = {
-            from: command.topics.to,
-            to: command.topics.from,
-            message_id: command.topics.message_id
+    Private.buildMessage = function (message) {
+        message.topics.message_id = Private.consumeMessageId();
+        message.topics.from_device = Private.from_device;
+        message.topics.from_system = Private.from_system;
+        message.topics.from = Private.from;
+        return message;
+    };
+    
+    Private.buildResponse = function (message) {
+        return {
+            from: message.topics.to,
+            to: message.topics.from,
+            message_id: message.topics.message_id
         };
+    };
+    
+    Private.subscribe = function () {
+        PromenadeBroker.sendSubscribe({to: Private.from}).then(function (response) {
+            //debugger;
+        });
+    };
+    
+    Public.sendCommand = function (message) {
+        
+        message = Private.buildMessage(message);
         
         return $q(function(resolve, reject) {
-            Private.socket.sendMessage(command.topics, command.contents, response_topics, function (response) {
+            ParlaySocket.sendMessage(message.topics, message.contents, Private.buildResponse(message), function (response) {
                 resolve(response);
             });
         });
     };
     
+    Private.subscribe();
+    
     return Public;
+    
 }]);

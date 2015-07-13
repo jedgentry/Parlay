@@ -1,16 +1,12 @@
 var broker = angular.module('promenade.broker', ['parlay.socket']);
 
-broker.value('BrokerAddress', 'ws://' + location.hostname + ':8085');
-
-broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', function (ParlaySocket, $q, BrokerAddress) {
+broker.factory('PromenadeBroker', ['ParlaySocket', '$q', function (ParlaySocket, $q) {
     var Public = {};
     
-    var Private = {
-        socket: ParlaySocket(BrokerAddress)
-    };
+    var Private = {};
     
     Public.getBrokerAddress = function () {
-        return BrokerAddress;
+        return ParlaySocket.getAddress();
     };
     
     /**
@@ -18,7 +14,7 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
      * @returns {$q.defer.promise} Requests the ParlaySocket to open.
      */
     Public.connect = function () {
-        return Private.socket.open();
+        return ParlaySocket.open();
     };
     
     /**
@@ -26,7 +22,7 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
      * @returns {$q.defer.promise} Requests the ParlaySocket to close.
      */
     Public.disconnect = function () {
-        return Private.socket.close();
+        return ParlaySocket.close();
     };
     
     /**
@@ -34,7 +30,7 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
      * @returns {Boolean} Requests the ParlaySocket connection status.
      */
     Public.isConnected = function () {
-        return Private.socket.isConnected();
+        return ParlaySocket.isConnected();
     };
     
     /**
@@ -59,7 +55,7 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
     /**
      * Opens protocol.
      * @param {Object} configuration - Configuration object we should configure a new protocol connection with.
-     * @returns {$q.defer.promise} Resolve when response is recieved with result of open request from Broker.
+     * @returns {$q.defer.promise} Resolve when response is received with result of open request from Broker.
      */
     Public.openProtocol = function (configuration) {
         return Public.sendRequest('open_protocol', {'protocol_name': configuration.name, 'params': configuration.parameters});
@@ -68,7 +64,7 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
     /**
      * Closes protocol.
      * @param {Object} protocol - Configured open protocol object.
-     * @returns {$q.defer.promise} Resolve when response is recieved with result of close request from Broker.
+     * @returns {$q.defer.promise} Resolve when response is received with result of close request from Broker.
      */
     Public.closeProtocol = function (protocol) {
         return Public.sendRequest('close_protocol', {'protocol': protocol.name});
@@ -77,7 +73,7 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
     /**
      * Request the Broker for a discovery.
      * @param {Boolean} is_forced - Force cached invalidation.
-     * @returns {$q.defer.promise} Resolve when response is recieved with available endpoints.
+     * @returns {$q.defer.promise} Resolve when response is received with available endpoints.
      */
     Public.requestDiscovery = function (is_forced) {
         return Public.sendRequest('get_discovery', {'force': is_forced}).then(function (contents) {
@@ -94,22 +90,33 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
     
     /**
      * Sends request message to Broker.
-     * @returns {$q.defer.promise} Resolve when response is recieved.
+     * @returns {$q.defer.promise} Resolve when response is received.
      */
     Public.sendRequest = function (request, contents) {
         return Private.sendMessage({request: request}, contents, {response: request + '_response'});
     };
     
     /**
+     * Sends subscribe message to Broker.
+     * @returns {$q.defer.promise} Resolve when response is received.
+     */
+    Public.sendSubscribe = function (request) {
+        // return Private.sendRequest();
+        return $q(function (resolve, reject) {
+            resolve('ok');
+        });
+    };
+    
+    /**
      * Sends message to the Broker.
-     * @returns {$q.defer.promise} Resolve when response is recieved.
+     * @returns {$q.defer.promise} Resolve when response is received.
      */
     Private.sendMessage = function (topics, contents, response_topics) {
         topics.type = 'broker';
         response_topics.type = 'broker';
         
         return $q(function (resolve, reject) {
-            Private.socket.sendMessage(topics, contents, response_topics, function (response) {
+            ParlaySocket.sendMessage(topics, contents, response_topics, function (response) {
                 resolve(response);
             });
         });
@@ -118,7 +125,7 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
     Private.onMessage = function (response_topics, response_callback) {
         response_topics.type = 'broker';
         
-        return Private.socket.onMessage(response_topics, response_callback);
+        return ParlaySocket.onMessage(response_topics, response_callback);
     };
     
     /**
@@ -129,10 +136,10 @@ broker.factory('PromenadeBroker', ['ParlaySocket', '$q', 'BrokerAddress', functi
         // Do something.
     };
     
-    Public.onMessage = Private.socket.onMessage;
-    Public.onOpen = Private.socket.onOpen;
-    Public.onClose = Private.socket.onClose;
-    Public.onError = Private.socket.onError;
+    Public.onMessage = ParlaySocket.onMessage;
+    Public.onOpen = ParlaySocket.onOpen;
+    Public.onClose = ParlaySocket.onClose;
+    Public.onError = ParlaySocket.onError;
     
     return Public;
 }]);

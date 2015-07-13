@@ -12,22 +12,42 @@ protocols.factory('Protocol', ['$injector', function ($injector) {
             type: configuration.protocol_type
         };
         
-        Public.addDiscoveryInfo = function (info) {
-            var instance;
-            instance = Private.vendor_protocols.find(function (protocol) {
-                return protocol.protocol_type === info.protocol_type;
+        /**
+         * Returns vendor protocol that matches the type requested.
+         * @param {String} type - protocol type
+         * @returns {Object} vendor protocol
+         */
+        Private.getVendorProtocol = function (type) {
+            return Private.vendor_protocols.find(function (protocol) {
+                return protocol.getType() === type;
             });
-            if (instance === undefined) {
-                try {
-                    instance = $injector.get(info.protocol_type);
-                    Private.vendor_protocols.push(instance);    
-                } catch (error) {
-                    var pattern = new RegExp('([A-z]+) <-');
-                    console.warn('Configuration for ' + pattern.exec(error.message)[1] + ' was not found.');
-                }                
-            }
-            if (instance !== undefined) instance.addDiscoveryInfo(info);
         };
+        
+        /**
+         * Register vendor protocol.
+         * @param {Object} configuration - Configuration details for a vendor protocol.
+         */
+        Private.registerVendorProtocol = function (configuration) {
+            if (Private.getVendorProtocol(configuration.protocol_type) === undefined) {
+                try {
+                    Private.vendor_protocols.push($injector.get(configuration.protocol_type));
+                } catch (e) {
+                    console.warn('Configuration for ' + RegExp('([A-z]+) <-').exec(e.message)[1] + ' was not found.');                     
+                }                
+            }            
+        };
+        
+        /**
+         * Adds discovery information to applicable vendor protocol.
+         * @param {Object} info - Discovery information
+         */
+        Public.addDiscoveryInfo = function (info) {
+            var instance = Private.getVendorProtocol(info.protocol_type);
+            if (instance !== undefined) instance.addDiscoveryInfo(info);                   
+            else console.warn('Vendor protocol not defined for ' + info.name + ' of type ' + info.protocol_type + '.');
+        };
+        
+        Private.registerVendorProtocol(configuration);
         
         return Public;        
     };
@@ -248,6 +268,21 @@ protocols.controller('ProtocolConfigurationController', ['$scope', '$mdDialog', 
         };
     }
     
+    /**
+     * Returns the number of parameters that the selected protocol has.
+     * @returns {Number} number of parameters for selected_protocol
+     */
+    $scope.selectedProtocolNumberOfParameters = function () {
+        return Object.keys($scope.selected_protocol.parameters).length > 0;
+    };
+    
+    /**
+     * Checks if selected protocol has any configuration parameters.
+     * @returns {Boolean} True if it has any parameters, false otherwise
+     */
+    $scope.selectedProtocolHasParameters = function () {
+        return $scope.selectedProtocolNumberOfParameters() > 0;
+    };
     /**
      * Rejects the $mdDialog promise.
      * @returns {$q.defer.promise} Rejects $mdDialog promise.

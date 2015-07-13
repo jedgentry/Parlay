@@ -1,44 +1,29 @@
 var socket = angular.module('parlay.socket', ['ngWebsocket', 'ngMaterial']);
 
-socket.factory('ParlaySocketService', function () {
-    var ParlaySocketService = {};
+socket.value('BrokerAddress', 'ws://' + location.hostname + ':8085');
+
+socket.factory('ParlaySocket', ['ParlaySocketService', function (ParlaySocketService) {
+    var Private = {};
     
-    // Stores registered sockets by URL.
-    ParlaySocketService.registeredSockets = {};
-    
-    /**
-     * Determine registration status of requested URL.
-     * @param {String} url - WebSocket server URL
-     * @returns {Boolean} 
-     */
-    ParlaySocketService.has = function (url) {
-        return ParlaySocketService.get(url) !== undefined;
-    };
+    // Stores registered socket.
+    Private.registeredSocket = undefined;
     
     /**
-     * Return ParlaySocket registered to requested URL.
-     * @param {String} url - WebSocket server URL
+     * Return registered ParlaySocket.
      * @returns {ParlaySocket} registered ParlaySocket instance or undefined.
      */
-    ParlaySocketService.get = function(url) {
-        if (ParlaySocketService.registeredSockets[url] !== undefined) return ParlaySocketService.registeredSockets[url];
-        else return undefined;
+    Private.get = function () {
+        if (ParlaySocketService.registeredSocket === undefined) {
+            ParlaySocketService.registeredSocket = ParlaySocketService();
+        }
+        return ParlaySocketService.registeredSocket;
     };
     
-    /**
-     * Register a socket to a URL.
-     * @params {String} url - WebSocket server URL
-     * @params {ParlaySocket} ParlaySocket to register with service
-     */
-    ParlaySocketService.register = function (url, socket) {
-        ParlaySocketService.registeredSockets[url] = socket;  
-    };
+    return Private.get();
     
-    return ParlaySocketService;
-    
-});
+}]);
 
-socket.factory('ParlaySocket', ['ParlaySocketService', '$websocket', '$q', '$rootScope', '$mdToast', function (ParlaySocketService, $websocket, $q, $rootScope, $mdToast) {
+socket.factory('ParlaySocketService', ['BrokerAddress', '$websocket', '$q', '$rootScope', '$mdToast', function (BrokerAddress, $websocket, $q, $rootScope, $mdToast) {
     
     var Private = {
         rootScope: $rootScope,
@@ -54,6 +39,14 @@ socket.factory('ParlaySocket', ['ParlaySocketService', '$websocket', '$q', '$roo
      */
     Private.isMock = function () {
         return Private.socket.$mockup();
+    };
+    
+    /**
+     * Returns $websocket's config url, where it is connected to.
+     * @returns {String} hostname and port
+     */
+    Private.getAddress = function () {
+        return Private.socket.$$config.url;
     };
     
     /**
@@ -160,38 +153,17 @@ socket.factory('ParlaySocket', ['ParlaySocketService', '$websocket', '$q', '$roo
         }));
     };
     
-    return function (config) {
+    return function (mock) {
         
         var Public = {};
         
-        if (typeof config === 'string') {
-            // Check to see if we have already registered a socket connection to the requested URL.
-            if (ParlaySocketService.has(config)) return ParlaySocketService.get(config);
-            else ParlaySocketService.register(config, Public);
-            
-            // If a module has already instantiated the singleton WebSocket instance grab it.
-            // Otherwise setup a new WebSocket.
+        if (mock === undefined || typeof mock === 'object') {            
             Private.socket = $websocket.$new({
-                url: config,
+                url: BrokerAddress,
                 protocol: [],
                 enqueue: true,
                 reconnect: false,
-                mock: false
-            });
-        }
-        else if (typeof config === 'object') {
-            // Check to see if we have already registered a socket connection to the requested URL.
-            if (ParlaySocketService.has(config.url)) return ParlaySocketService.get(config.url);
-            else ParlaySocketService.register(config.url, Public);
-    
-            // If a module has already instantiated the singleton WebSocket instance grab it.
-            // Otherwise setup a new WebSocket.
-            Private.socket = $websocket.$new({
-                url: config.url,
-                protocol: [],
-                enqueue: true,
-                reconnect: false,
-                mock: config.mock === undefined ? false : config.mock
+                mock: mock
             });
         }
         else {
@@ -339,6 +311,14 @@ socket.factory('ParlaySocket', ['ParlaySocketService', '$websocket', '$q', '$roo
         Public.isConnected = function () {
             Public.connected = Private.socket.$status() === Private.socket.$OPEN;
             return Public.connected;
+        };
+        
+        /**
+         * Returns host location where socket is connected.
+         * @returns {String} hostname and port string
+         */
+        Public.getAddress = function () {
+            return Private.getAddress();
         };
         
         return Public;
