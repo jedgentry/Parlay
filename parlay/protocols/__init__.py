@@ -21,6 +21,21 @@ See a protocol's documentation for any specifics about the format of its message
 Common protocol message definitions
 ########################################
 
+Subscribe Messages
+======================================
+Message format:
+
+* topics
+    * type : subscribe
+* contents
+    * topics : {to_system : 100, }
+
+
+Expected result:
+* topics
+    * type : subscribe_response
+* contents
+    * status : ok
 
 Broker Messages
 ======================================
