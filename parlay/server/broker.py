@@ -173,16 +173,26 @@ class Broker(object):
             if protocol_name not in BaseProtocol.protocol_registry:
                 reply['topics']['response'] = 'error'
                 reply['contents'] = {'error': "No such protocol"}
+                message_callback(reply) # send right away
             else:
                 # we have the protocol! open it
-                try:
-                    p = BaseProtocol.protocol_registry[protocol_name].open(self, **open_params)
+                protocol_class = BaseProtocol.protocol_registry[protocol_name]
+                d = defer.maybeDeferred(protocol_class.open, self, **open_params)
+
+                def finished_open(p):
+                    """We've finished opening the protocol"""
                     self.protocols.append(p)
                     reply['contents'] = {'name': str(p), 'status': 'ok'}
-                except Exception as e:
-                    reply['contents'] = {'status': "Error while opening: " + str(e)}
+                    message_callback(reply)
 
-            message_callback(reply)
+                d.addCallback(finished_open)
+
+                def error_opening(e):
+                    """ OOPS error while opening"""
+                    reply['contents'] = {'status': "Error while opening: " + str(e)}
+                    message_callback(reply)
+
+                d.addErrback(error_opening)
 
         elif request == 'get_open_protocols':
             # respond with the string repr of each protocol
@@ -233,7 +243,7 @@ class Broker(object):
                 d_list = []
                 discovery = []
                 for p in self.protocols:
-                    d = p.get_discovery()
+                    d = defer.maybeDeferred(p.get_discovery)
                     #add this protocols discovery
                     def callback(x, protocol=p, error=None):
                         protocol_discovery = {'type': 'Protocol', 'name': str(protocol),
