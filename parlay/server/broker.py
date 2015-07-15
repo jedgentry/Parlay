@@ -228,6 +228,7 @@ class Broker(object):
                 self.protocols = new_protocol_list
                 #recalc list
                 reply['contents']['protocols'] = [str(x) for x in self.protocols]
+                reply['contents']['status'] = "ok"
                 message_callback(reply)
             except NotImplementedError as e:
                 reply['contents']['status'] = "Error while closing protocol. Protocol does not define close() method"
