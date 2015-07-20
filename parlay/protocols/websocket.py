@@ -16,6 +16,7 @@ class BrokerWebsocketBaseProtocol(WebSocketServerProtocol, BaseProtocol):
     def onClose(self, wasClean, code, reason):
         #clean up after ourselves
         self.broker.unsubscribe_all(self)
+        self.broker._clean_trie()
 
     def send_message_as_JSON(self, msg):
         """

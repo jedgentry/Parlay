@@ -140,15 +140,75 @@ class Broker(object):
         listeners.append((func, owner))
         root_list[None] = listeners
 
-    #TODO: unsubscribe from specific topic k/v pair list
-    def unsubscribe_all(self, owner, root_list = None):
+
+    def unsbscribe(self, owner, topics):
+        """
+        unsubscribe owner from all subscriptions that match topics. Only EXACT matches will be unsubscribed
+        """
+
+        keys = sorted(topics.keys())
+        root_list = self._listeners
+
+        #go down the trie
+        for k in keys:
+            v = topics[k]
+
+            if k not in root_list:
+                return  # not subscribed
+            if v not in root_list[k]:
+                return  # not subscribed
+            #go down a level
+            root_list = root_list[k][v]
+
+        #now that we're done, that means that we are subscribed and we have the leaf in root_list.
+        listeners = root_list.get(None, [])
+        #filter out any subscriptions by 'owner'
+        root_list[None] = [x for x in listeners if x.owner != owner]
+
+
+    def _clean_trie(self, root_list=None):
+        """
+        Internal method called to clean out the trie from subscription keys that no longer have any subscriptions
+        :param root_list : sub-trie to clean, or None for root of trie
+        :result : number of subscriptions in the sub-trie
+        """
+
+        # base case
+        if root_list is None:
+            root_list = self._listeners
+
+        #total subscriptions in this subtrie
+        total_sub = 0
+        for k in root_list.keys():
+            if k is not None:  # skip the special NONE key (that's used for callback list)
+                for v in root_list[k]:
+                    num_sub = self._clean_trie(root_list[k][v])
+                    # remove a sub-trie if it doesn't have any subscriptions in it
+                    if num_sub == 0:
+                        del root_list[k][v]
+                    else:  # our total_sub is the sum of our subtries + any subscriptions at our level
+                        total_sub += num_sub
+            # delete the k if there are no v under it
+            if len(root_list[k]) == 0:
+                del root_list[k]
+
+        # add subscriptions ar our level
+        total_sub += len(root_list.get(None, []))
+
+        return total_sub
+
+
+
+
+
+    def unsubscribe_all(self, owner, root_list=None):
         """
         Unsubscribe all function in our list that have a n owner that matches 'owner'
         """
         if root_list is None:
             root_list = self._listeners
 
-        if None in root_list:   # don't bother checking if thre's no listeners here
+        if None in root_list:   # don't bother checking if there's no listeners here
             root_list[None] = [x for x in root_list[None] if x[1] != owner]
 
         for k in root_list:
@@ -156,6 +216,8 @@ class Broker(object):
                 for v in root_list[k]:
                         #call it again
                         self.unsubscribe_all(owner, root_list[k][v])
+
+
 
 
 
@@ -317,6 +379,7 @@ class Broker(object):
 
         #send the reply
         message_callback(resp_msg)
+
 
 
     def run(self):
