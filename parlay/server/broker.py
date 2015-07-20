@@ -1,4 +1,24 @@
+"""
 
+The broker is the main message router of the parlay system. The broker uses a standard publish/subscribe paradigm.
+Modules that want to send message 'publish' the message to the broker and the broker sends a copy of that message to
+ every connection that has 'subscribed' to messages with a matching topic signature. For more information on message types
+ and structures.
+
+ All messages must be key-value pairs (typically JSON strings or python dictionaries). The only requirement for messages
+ is that every message must have, at its top level, a 'topics' key and a 'contents' key. 'topics' must be a key value pairing
+ and can be subscribed to. 'contents' can be an object of any type and can **not** be subscribed to.
+
+ Any message that isn't a 'special type' is implicitly a command to 'publish' that message.
+
+ There are two 'special type' messages that are *not* published. The are distinguished by the 'type' topic.
+ * 'type': 'broker' messages  are special commands to the broker. These messages and their foramt is defined on the protocol
+  documentation page
+
+ * 'type': 'subscribe' messages are a command to the broker to subscribe to a specific combination of topics. The 'contents'
+ in a subscribe message must be simply the key 'topics' and a key-value pair of topics/values to subscribe to.
+ e.g. :  (in JSON) {'topics':{'type':'subscribe'},'contents':{'topics':{'to':'Motor 1', 'id': 12345} } }
+"""
 from twisted.internet import reactor, defer
 from parlay.protocols.protocol import BaseProtocol
 

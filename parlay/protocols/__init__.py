@@ -5,17 +5,18 @@
 Protocols
 ***********************************
 
-Broker messages are just key-value pairs stored in python dictionaries. The only general requirment for a message is that
+Broker messages are just key-value pairs stored in python dictionaries. The only general requirement for a message is that
 it must have a 'topics' key and a 'contents' key at the root of the dictionary. Topics can be *subscribed* to and contents
 can not. There are no other hard requirements for messages.
 
-Each messaging protocol can define its own requirements for the types of messages it is expecting. Typically a messases
+Each messaging protocol can define its own requirements for the types of messages it is expecting. Typically a message
 'type' is stored in msg['topics']['type']. This message type field is optional but **strongly** recommended.
 For example broker messages have a type of 'broker'. So a broker message looks like::
     {'topics': {'type': 'broker', 'request':'get_protocols'}, 'contents': {} }
 
 
 See a protocol's documentation for any specifics about the format of its message type.
+
 
 
 Common protocol message definitions
