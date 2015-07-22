@@ -75,6 +75,8 @@ class Broker(object):
             self.handle_broker_message(msg, write_method)
         elif topic_type == 'subscribe':
             self.handle_subscribe_message(msg, write_method)
+        elif topic_type == 'unsubscribe':
+            self.handle_unsubscribe_message(msg, write_method)
         #generic publish for all other messages
         else:
             self._publish(msg)
@@ -140,8 +142,7 @@ class Broker(object):
         listeners.append((func, owner))
         root_list[None] = listeners
 
-
-    def unsbscribe(self, owner, topics):
+    def unsubscribe(self, owner, topics):
         """
         unsubscribe owner from all subscriptions that match topics. Only EXACT matches will be unsubscribed
         """
@@ -380,7 +381,20 @@ class Broker(object):
         #send the reply
         message_callback(resp_msg)
 
+    def handle_unsubscribe_message(self, msg, message_callback):
+        if hasattr(message_callback, 'im_self') and message_callback.im_self is not None:
+            owner = message_callback.im_self
+        else:
+            raise ValueError("Function {} passed to handle_unsubscribe_message() ".format(message_callback.__name__) +
+                             "must be a bound method of an object")
 
+        self.unsubscribe(owner, msg['contents']['topics'])
+        resp_msg = msg.copy()
+        resp_msg['topics']['type'] = 'unsubscribe_response'
+        resp_msg['contents']['status'] = 'ok'
+
+        #send the reply
+        message_callback(resp_msg)
 
     def run(self):
         """

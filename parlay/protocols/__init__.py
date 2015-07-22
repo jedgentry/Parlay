@@ -210,9 +210,9 @@ Message format:
 
 The response will be a list of objects where each object will have a protocol name
 and a list of children.  Each child will be an endpoint. Each endpoint will have a 'name'
-and a 'type' field telling which endpoint type it is, and an option 'children' field that will
+and a 'type' field telling which endpoint type it is, and an optional 'children' field that will
 be a list of other endpoint objects with the same requirements.  Depending on the 'type' of the
-endpoint, there may be more fields in the object besides just 'type','name', (optional) 'interfaces',m and (optionally)
+endpoint, there may be more fields in the object besides just 'type','name', (optional) 'interfaces', and (optionally)
 'children'.
 
 Example response:
@@ -226,10 +226,12 @@ Example response:
         * type : protocol
         * name : Serial on /dev/ttyUSB0
         * protocol_type : SSCOM_Serial   ('protocol' type specific key/value)
+        * message_types : [(0, "Command"),(1,"Command Response")]
+        * status_types : [(0,"STATUS_OKAY"), ...]
         * children : (list)
             [
                 * name : Motor System
-                * type : SSCOM_SYSTEM/SYSTEM
+                * type : SSCOM_SYSTEM/COMMAND_RESPONSE_SYSTEM/SYSTEM
                 * children : (list)
                 [
                     * name : Motor 1
