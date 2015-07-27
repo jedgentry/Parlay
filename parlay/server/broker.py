@@ -330,10 +330,10 @@ class Broker(object):
                     d = defer.maybeDeferred(p.get_discovery)
                     #add this protocols discovery
                     def callback(x, protocol=p, error=None):
-                        protocol_discovery = {'type': 'Protocol', 'name': str(protocol),
+                        protocol_discovery = {'TEMPLATE': 'Protocol', 'NAME': str(protocol),
                                                               'protocol_type': getattr(protocol, "_protocol_type_name",
                                                                                        "UNKNOWN"),
-                                                              'children': x}
+                                                              'CHILDREN': x}
                         #extend with meta info
                         protocol_discovery.update(p.get_protocol_discovery_meta_info())
                         if error is not None:
