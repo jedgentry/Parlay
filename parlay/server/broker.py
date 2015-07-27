@@ -348,7 +348,7 @@ class Broker(object):
                 #wait for all to be finished
                 all_d = defer.gatherResults(d_list, consumeErrors=True)
                 def discovery_done(*args):
-                    reply['contents']['status'] = 'okay'
+                    reply['contents']['status'] = 'ok'
                     reply['contents']['discovery'] = discovery
                     message_callback(reply)
 
@@ -364,7 +364,7 @@ class Broker(object):
             else:
                 with open(cached_file_name) as json_data:
                     d = json.load(json_data)
-                    reply['contents']['status'] = 'okay'
+                    reply['contents']['status'] = 'ok'
                     reply['contents']['discovery'] = d
                     message_callback(reply)
 
