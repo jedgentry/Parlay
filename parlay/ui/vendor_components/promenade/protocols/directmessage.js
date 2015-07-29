@@ -1,14 +1,14 @@
-var direct_message = angular.module('promenade.protocols.directmessage', ['parlay.protocols', 'promenade.endpoints.directmessage']);
+var direct_message = angular.module('promenade.protocols.directmessage', ['parlay.protocols', 'promenade.endpoints.standardendpoint']);
 
-direct_message.factory('PromenadeDirectMessageProtocol', ['ParlayProtocol', 'PromenadeDirectMessageEndpoint', function (ParlayProtocol, PromenadeDirectMessageEndpoint) {
+direct_message.factory('PromenadeDirectMessageProtocol', ['ParlayProtocol', 'PromenadeStandardEndpoint', function (ParlayProtocol, PromenadeStandardEndpoint) {
     
     function PromenadeDirectMessageProtocol(configuration) {
         'use strict';
         ParlayProtocol.call(this, configuration);
         this.current_message_id = 200;
-        this.from_device = 0x01;
-        this.from_system = 0xf2;
-        this.from = 0xf201;
+        this.id = 0xf201;
+        
+        this.endpoint_factory = PromenadeStandardEndpoint;        
     }
     
     PromenadeDirectMessageProtocol.prototype = Object.create(ParlayProtocol.prototype);
@@ -28,29 +28,23 @@ direct_message.factory('PromenadeDirectMessageProtocol', ['ParlayProtocol', 'Pro
     
     PromenadeDirectMessageProtocol.prototype.buildMessageTopics = function (message) {
         var new_message = angular.copy(message);
-        new_message.topics.message_id = this.consumeMessageId();
-        new_message.topics.from_device = this.from_device;
-        new_message.topics.from_system = this.from_system;
-        new_message.topics.from = this.from;
+        new_message.topics.MSG_ID = this.consumeMessageId();
+        new_message.topics.FROM = this.id;
         return new_message;
     };
     
     PromenadeDirectMessageProtocol.prototype.buildResponseTopics = function (message) {
         return {
-            from: message.topics.to,
-            from_system: message.topics.to_system,
-            message_type: 2,
-            message_type_name: 'COMMAND_RESPONSE',
-            to: message.topics.from,
-            to_system: message.topics.from_system,
-            message_id: message.topics.message_id
+            FROM: message.topics.TO,
+            TO: message.topics.FROM,
+            MSG_ID: message.topics.MSG_ID
         };
     };
     
     PromenadeDirectMessageProtocol.prototype.buildSubscriptionTopics = function () {
         return {
             topics: {
-                to_system: this.from_system
+                TO: this.id
             }
         };
     };
@@ -64,15 +58,7 @@ direct_message.factory('PromenadeDirectMessageProtocol', ['ParlayProtocol', 'Pro
         var response_topics = this.buildResponseTopics(new_message);
         return this.sendMessage(new_message.topics, new_message.contents, response_topics);
     };
-    
-    PromenadeDirectMessageProtocol.prototype.addDiscoveryInfo = function (info) {
-        ParlayProtocol.prototype.addDiscoveryInfo.call(this, info);
         
-        this.available_endpoints = info.children.map(function (endpoint) {
-            return new PromenadeDirectMessageEndpoint(endpoint, this);
-        }, this);
-    };
-    
     return PromenadeDirectMessageProtocol;
     
 }]);

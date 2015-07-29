@@ -38,6 +38,10 @@ class Broker(object):
     """
     instance = None
 
+    # discovery info for the broker
+    _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "interfaces": ['broker'],
+                  "CHILDREN": []}
+
     def __init__(self, reactor):
         assert(Broker.instance is None)
 
@@ -330,10 +334,10 @@ class Broker(object):
                     d = defer.maybeDeferred(p.get_discovery)
                     #add this protocols discovery
                     def callback(x, protocol=p, error=None):
-                        protocol_discovery = {'type': 'Protocol', 'name': str(protocol),
+                        protocol_discovery = {'TEMPLATE': 'Protocol', 'NAME': str(protocol),
                                                               'protocol_type': getattr(protocol, "_protocol_type_name",
                                                                                        "UNKNOWN"),
-                                                              'children': x}
+                                                              'CHILDREN': x}
                         #extend with meta info
                         protocol_discovery.update(p.get_protocol_discovery_meta_info())
                         if error is not None:
@@ -348,11 +352,17 @@ class Broker(object):
                 #wait for all to be finished
                 all_d = defer.gatherResults(d_list, consumeErrors=True)
                 def discovery_done(*args):
-                    reply['contents']['status'] = 'okay'
+
+                    #append the discovery for the broker
+                    discovery.append(Broker._discovery)
+                    reply['contents']['status'] = 'ok'
                     reply['contents']['discovery'] = discovery
                     message_callback(reply)
 
                 def discovery_error(*args):
+                    #append the discovery for the broker
+                    discovery.append(Broker._discovery)
+                    
                     reply['contents']['status'] = str(args)
                     reply['contents']['discovery'] = discovery
                     message_callback(reply)
@@ -364,7 +374,7 @@ class Broker(object):
             else:
                 with open(cached_file_name) as json_data:
                     d = json.load(json_data)
-                    reply['contents']['status'] = 'okay'
+                    reply['contents']['status'] = 'ok'
                     reply['contents']['discovery'] = d
                     message_callback(reply)
 

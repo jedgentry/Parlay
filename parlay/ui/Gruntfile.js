@@ -7,16 +7,17 @@ module.exports = function (grunt) {
     'pkg': grunt.file.readJSON('package.json'),
 
     'vendor': {
-      'promenade': grunt.file.readJSON('vendor_components/promenade/vendor.json'),
-      'bit': grunt.file.readJSON('vendor_components/bit/vendor.json')
+      'promenade': grunt.file.readJSON('vendor_components/promenade/vendor.json')
     },
 
     'meta': {
       'source': ['app.js', 'parlay_components/*/*.js'],
-      'vendorCompontents': ['<%= vendor.promenade.protocols %>', '<%= vendor.promenade.endpoints %>', '<%= vendor.bit.endpoints %>', '<%= vendor.bit.protocols %>'],
+      'vendorCompontents': ['<%= vendor.promenade.protocols %>', '<%= vendor.promenade.endpoints %>'],
       'dist_destination': 'dist',
       'dev_destination': 'dev',
       'doc_destination': 'doc',
+      'tmp_destination': 'tmp',
+      'coverage_destination': 'coverage',
       'bowerComponents': [
         'bower_components/angular/angular.js',
         'bower_components/angular-messages/angular-messages.js',
@@ -30,14 +31,15 @@ module.exports = function (grunt) {
         'bower_components/ace-builds/src/mode-python.js',
         'bower_components/angular-ui-ace/ui-ace.js',
         'bower_components/angular-mocks/angular-mocks.js',
-        'bower_components/es6-shim/es6-shim.js'
+        'bower_components/es6-shim/es6-shim.js',
+        'bower_components/angular-recursion/angular-recursion.js'
       ],
       'staticComponents': [
         'static_components/ng-websocket/ng-websocket.js'
       ],
-      'tests': 'parlay_components/*/test/*.js',
-      'compiledHtml': 'tmp/templates.js',
-      'htmlDirectives': ['parlay_components/**/directives/*.html', '<%= vendor.bit.directives %>', '<%= vendor.promenade.directives %>'],
+      'tests': ['parlay_components/*/test/*.js', '<%= vendor.promenade.tests %>'],
+      'compiledHtml': '<%= meta.tmp_destination %>/templates.js',
+      'htmlDirectives': ['parlay_components/**/directives/*.html', '<%= vendor.promenade.directives %>'],
       'htmlViews': 'parlay_components/**/views/*.html',
       'commonFiles': ['bower_components/angular-material/angular-material.css', 'bower_components/ace-builds/src/mode-python.js', 'static_components/ng-websocket/ng-websocket.js'],
       'stylesheets': 'css/*.css'
@@ -151,8 +153,9 @@ module.exports = function (grunt) {
       },
       'coverage': {
         'path': function () {
-          var reports = grunt.file.expand('coverage/PhantomJS*/index.html');
-          return reports[reports.length - 1].toString();
+          	var reports = grunt.file.expand('coverage/PhantomJS*/index.html');
+          	console.log(reports);
+          	return reports[reports.length - 1].toString();
         }
       }
     },
@@ -169,7 +172,7 @@ module.exports = function (grunt) {
           },
           'coverageReporter': {
             'type': 'html',
-            'dir': 'coverage'
+            'dir': '<%= meta.coverage_destination %>'
           },
           'files': [
             '<%= meta.bowerComponents %>',
@@ -201,7 +204,7 @@ module.exports = function (grunt) {
           'esnext': true,
           'debug': true
         },
-        'src': ['<%= meta.source %>', '<%= meta.vendorCompontents %>'],
+        'src': ['<%= meta.source %>', '<%= meta.vendorCompontents %>', '<%= meta.tests %>'],
         'gruntfile': 'Gruntfile.js'
       },
       'dist': {
@@ -229,7 +232,9 @@ module.exports = function (grunt) {
     'clean': {
       'dist': '<%= meta.dist_destination %>',
       'dev': '<%= meta.dev_destination %>',
-      'doc': '<%= meta.doc_destination %>'
+      'doc': '<%= meta.doc_destination %>',
+      'tmp': '<%= meta.tmp_destination %>',
+      'coverage': '<%= meta.coverage_destination %>'
     },
 
     'copy': {

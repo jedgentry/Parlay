@@ -12,23 +12,35 @@ endpoints.config(function($stateProvider) {
 endpoints.factory('ParlayEndpoint', function () {
     
     function NotImplementedError(method) {
-        console.warn(method + ' is not implemented for ' + this.getName());
+        console.warn(method + ' is not implemented for ' + this.name);
     }
     
     function ParlayEndpoint(data, protocol) {
-        this.endpoint_name = data.name;
+        
+        Object.defineProperty(this, 'name', {
+            value: data.NAME,
+            enumerable: true,
+            writeable: false,
+            configurable: false
+        });
+        
+        Object.defineProperty(this, 'protocol', {
+            value: protocol,
+            writeable: false,
+            enumerable: false,
+            configurable: false
+        });
+        
         this.type = 'ParlayEndpoint';
-        this.protocol = protocol;
+        
+        this.interfaces = data.INTERFACES;
+        
         this.directives = {
             toolbar: [],
             tabs: []
         };
-        this.interfaces = data.interfaces;
+        
     }
-    
-    ParlayEndpoint.prototype.getName = function () {
-        return this.endpoint_name;
-    };
     
     ParlayEndpoint.prototype.getType = function () {
         return this.type;
@@ -81,32 +93,12 @@ endpoints.factory('EndpointManager', ['PromenadeBroker', 'ProtocolManager', func
 
 endpoints.controller('EndpointController', ['$scope', '$mdToast', '$mdDialog', 'EndpointManager', function ($scope, $mdToast, $mdDialog, EndpointManager) {
     
-    $scope.isDiscovering = false;
-    
     $scope.filterEndpoints = function () {
         return EndpointManager.getActiveEndpoints();
     };
     
     $scope.requestDiscovery = function () {
-        $scope.isDiscovering = true;
-        EndpointManager.requestDiscovery().then(function (result) {
-            $scope.isDiscovering = false;
-            
-            var content_string;
-            if (result.length === 0) {
-                content_string = 'Successfully discovered 0 devices. Check protocol connections?';
-            }
-            else if (result.length === 1) {
-                content_string = 'Successfully discovered ' + result[0].name + '.';
-            }
-            else {
-                content_string = 'Successfully discovered ' + result.length + ' devices.';
-            }
-            
-            $mdToast.show($mdToast.simple()
-                .content(content_string)
-                .position('bottom left'));
-        });
+        EndpointManager.requestDiscovery();
     };
         
 }]);
@@ -114,12 +106,11 @@ endpoints.controller('EndpointController', ['$scope', '$mdToast', '$mdDialog', '
 endpoints.controller('ParlayEndpointSearchController', ['$scope', 'EndpointManager', function ($scope, EndpointManager) {
             
     $scope.searching = false;
-    $scope.search_icon = 'search';
     $scope.selected_item = null;
     
     $scope.selectEndpoint = function (endpoint) {
         // Change is detected after we set endpoint to null.
-        if (endpoint === null) return;
+        if (endpoint === null || endpoint === undefined) return;
         EndpointManager.activateEndpoint(endpoint);
         $scope.selected_item = null;
         $scope.search_text = null;
@@ -130,13 +121,7 @@ endpoints.controller('ParlayEndpointSearchController', ['$scope', 'EndpointManag
      */
     $scope.toggleSearch = function () {
         $scope.searching = !$scope.searching;
-        if (!$scope.searching) {
-            $scope.search_text = null;
-            $scope.search_icon = 'search';
-        }
-        else {
-            $scope.search_icon = 'close';
-        }
+        if (!$scope.searching) $scope.search_text = null;
     };
 
     /**
@@ -160,15 +145,20 @@ endpoints.controller('ParlayEndpointSearchController', ['$scope', 'EndpointManag
     };
 }]);
 
+/* istanbul ignore next */
 endpoints.directive('parlayEndpointSearch', function () {
     return {
         scope: {},
         templateUrl: '../parlay_components/endpoints/directives/parlay-endpoint-search.html',
-        controller: 'ParlayEndpointSearchController'
+        controller: 'ParlayEndpointSearchController',
+        link: function ($scope, element, attributes) {
+            $scope.$watch('searching', function (newValue, oldValue, $scope) {
+                $scope.search_icon = $scope.searching ? 'close' : 'search'; 
+            });
+        }
     };
 });
 
-/* istanbul ignore next */
 endpoints.directive('parlayEndpointCard', ['$compile', function ($compile) {
     return {
         templateUrl: '../parlay_components/endpoints/directives/parlay-endpoint-card.html',

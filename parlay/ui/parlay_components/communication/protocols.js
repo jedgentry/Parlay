@@ -2,8 +2,8 @@ var protocols = angular.module('parlay.protocols', ['promenade.broker', 'ngMater
 
 protocols.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', 'PromenadeBroker', '$q', function (ParlaySocket, ParlayEndpoint, PromenadeBroker, $q) {
 
-    function NotImplementedError(method) {
-        console.warn(method + ' is not implemented for ' + this.getName());
+    function NotImplementedError(method, name) {
+        console.warn(method + ' is not implemented for ' + name);
     }
     
     function ParlayProtocol(configuration) {
@@ -16,6 +16,8 @@ protocols.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', 'Promenad
         this.log = [];        
         this.subscription_listener_dereg = null;        
         this.on_message_callbacks = [];
+        
+        this.endpoint_factory = ParlayEndpoint;
         
         this.fields = {};
     }
@@ -33,9 +35,8 @@ protocols.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', 'Promenad
             return endpoint === suspect;
         });
         
-        if (index > -1) this.available_endpoints.splice(index, 1);
-        
-        this.active_endpoints.push(endpoint);
+        if (index > -1) this.active_endpoints.push(this.available_endpoints.splice(index, 1)[0]);
+        else throw endpoint.name + ' does not belong to ' + this.getName();
     };
     
     ParlayProtocol.prototype.getAvailableEndpoints = function () {
@@ -69,8 +70,8 @@ protocols.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', 'Promenad
     
     ParlayProtocol.prototype.unsubscribe = function () {
         PromenadeBroker.sendUnsubscribe(this.buildSubscriptionTopics()).then(function (response) {
-            this.afterClose();
-        });
+            this.onClose();
+        }.bind(this));
     };
     
     ParlayProtocol.prototype.hasSubscription = function() {
@@ -91,7 +92,7 @@ protocols.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', 'Promenad
     };
     
     ParlayProtocol.prototype.onOpen = function () {
-        throw NotImplementedError('onOpen');
+        NotImplementedError('onOpen', this.getName());
     };
     
     ParlayProtocol.prototype.onClose = function () {
@@ -105,13 +106,11 @@ protocols.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', 'Promenad
     
     ParlayProtocol.prototype.buildFieldMethods = function (keys) {
         keys.forEach(function (key) {
+            /* istanbul ignore else  */
             if (!this[key]) {
                 Object.defineProperty(Object.getPrototypeOf(this), key, {
                     get: function() {
                         return this.fields[key];
-                    },
-                    set: function(value) {
-                        this.fields[key] = value;
                     }
                 });    
             }            
@@ -132,13 +131,20 @@ protocols.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', 'Promenad
         return Object.keys(this.fields);
     };
     
+    ParlayProtocol.prototype.addEndpoints = function (endpoints) {
+        this.available_endpoints = endpoints.map(function (endpoint) {
+            return new this.endpoint_factory(endpoint, this);
+        }, this);
+    };
+    
     ParlayProtocol.prototype.addDiscoveryInfo = function (info) {
         this.buildFields(info);
         this.buildFieldMethods(Object.keys(info));
+        this.addEndpoints(info.CHILDREN);
     };
     
     ParlayProtocol.prototype.buildSubscriptionTopics = function () {
-        throw NotImplementedError('buildSubscriptionTopics');  
+        NotImplementedError('buildSubscriptionTopics', this.getName());
     };  
     
     return ParlayProtocol;
@@ -189,18 +195,19 @@ protocols.factory('ProtocolManager', ['$injector', 'PromenadeBroker', '$q', func
      */
     Public.closeProtocol = function (protocol) {
         return PromenadeBroker.closeProtocol(protocol.getName()).then(function (response) {
-            if (response.status !== 'ok') return $q.reject(response);
-            else {
+            if (response.status === 'ok') {
+                // Search for open protocol requested to be closed.
                 var index = Private.open_protocols.findIndex(function (suspect) {
                     return protocol.getName() === suspect.getName();
                 });
                 
-                Private.getOpenProtocol(protocol.getName()).onClose();                
-                
-                if (index > -1) Private.open_protocols.splice(index, 1);
+                // Remove if we find the protocol, then call it's onClose method.
+                /* istanbul ignore else */
+                if (index > -1) Private.open_protocols.splice(index, 1)[0].onClose();
                 
                 return response;
             }
+            else return $q.reject(response);
         });
     };
     
@@ -217,6 +224,13 @@ protocols.factory('ProtocolManager', ['$injector', 'PromenadeBroker', '$q', func
     };
     
     /**
+     * 
+     */
+    Public.requestDiscovery = function () {
+        return PromenadeBroker.requestDiscovery(true);
+    };
+    
+    /**
      * Requests available protocols.
      * @returns {$q.defer.promise} Resolved when request response is recieved.
      */
@@ -230,22 +244,6 @@ protocols.factory('ProtocolManager', ['$injector', 'PromenadeBroker', '$q', func
      */
     Private.requestOpenProtocols = function () {
         return PromenadeBroker.requestOpenProtocols();
-    };    
-    
-    /**
-     * Check if a protocol is opened with the given name.
-     * @returns {Boolean} Returns true if it does, false if it doesn't.
-     */
-    Private.hasOpenProtocol = function (name) {
-        return Private.getOpenProtocol(name) !== undefined;
-    };
-    
-    /**
-     * Check if a protocol is available with the given name.
-     * @returns {Boolean} Returns true if it does, false if it doesn't.
-     */
-    Private.hasAvailableProtocol = function (name) {
-        return Private.getAvailableProtocol(name) !== undefined;
     };
     
     /**
@@ -254,16 +252,6 @@ protocols.factory('ProtocolManager', ['$injector', 'PromenadeBroker', '$q', func
      */
     Private.getOpenProtocol = function (name) {
         return Private.open_protocols.find(function (protocol) {
-            return name === protocol.getName();
-        });
-    };
-    
-    /**
-     * Return a available protocol with the given name.
-     * @returns {Object} Returns protocol configuration object.
-     */
-    Private.getAvailableProtocol = function (name) {
-        return Private.available_protocols.find(function (protocol) {
             return name === protocol.getName();
         });
     };
@@ -316,7 +304,7 @@ protocols.factory('ProtocolManager', ['$injector', 'PromenadeBroker', '$q', func
      * @param {Object} info - Discovery information which may be vendor specific.
      */
     Private.addDiscoveryInfoToOpenProtocol = function (info) {
-        Private.getOpenProtocol(info.name).addDiscoveryInfo(info);
+        Private.getOpenProtocol(info.NAME).addDiscoveryInfo(info);
     };    
     
     /**
@@ -360,42 +348,22 @@ protocols.controller('ProtocolConfigurationController', ['$scope', '$mdDialog', 
     $scope.connecting = false;
     
     /**
-     * Returns a protocols that pass the filterFunction generated by the query string.
+     * Returns protocols that pass the filterFunction generated by the query string.
      * @param {String} query - name of potential protocol.
      * @returns {Array} filtered protocols.
      */
-    $scope.querySearch = function (query) {
-        return query ? ProtocolManager.getAvailableProtocols().filter(filterFunction(query)) : ProtocolManager.getAvailableProtocols();
-    };
-    
-    /**
-     * Builds a filter function with the query string.
-     * @param {String} query - name of protocol by which to build the filterFunction. 
-     * @returns {Function} function which will filter protocols by the query string.
-     */    
-    function filterFunction(query) {
+    $scope.filterProtocols = function (query) {
         var lowercaseQuery = angular.lowercase(query);
-        return function filterFn(protocol) {
-            return angular.lowercase(protocol.name).indexOf(lowercaseQuery) >= 0;
-        };
-    }
-    
-    /**
-     * Returns the number of parameters that the selected protocol has.
-     * @returns {Number} number of parameters for selected_protocol
-     */
-    $scope.selectedProtocolNumberOfParameters = function () {
-        return Object.keys($scope.selected_protocol.parameters).length > 0;
+        return query ? ProtocolManager.getAvailableProtocols().filter(function(protocol) {
+            return angular.lowercase(protocol.name).indexOf(lowercaseQuery) > -1;
+        }) : ProtocolManager.getAvailableProtocols();
     };
     
     /**
-     * Checks if selected protocol has any configuration parameters.
-     * @returns {Boolean} True if it has any parameters, false otherwise
+     * Returns default options that pass the filterFunction generated by the query string.
+     * @param {String} query - name of potential default.
+     * @returns {Array} filtered default.
      */
-    $scope.selectedProtocolHasParameters = function () {
-        return $scope.selectedProtocolNumberOfParameters() > 0;
-    };
-    
     $scope.filterDefaults = function (defaults, query) {
         var lowercaseQuery = angular.lowercase(query);
         return query ? defaults.filter(function(default_string) {
@@ -404,9 +372,17 @@ protocols.controller('ProtocolConfigurationController', ['$scope', '$mdDialog', 
     };
     
     /**
-     * Rejects the $mdDialog promise.
-     * @returns {$q.defer.promise} Rejects $mdDialog promise.
+     * Checks if selected protocol has any configuration parameters.
+     * @returns {Boolean} True if it has any parameters, false otherwise
      */
+    $scope.selectedProtocolHasParameters = function () {
+        return Object.keys($scope.selected_protocol.parameters).length > 0;
+    };
+    
+    /**
+     * Rejects the $mdDialog promise used to launch this controller.
+     */
+    /* istanbul ignore next */
     $scope.cancel = function () {
         $mdDialog.cancel();
     };
@@ -425,9 +401,13 @@ protocols.controller('ProtocolConfigurationController', ['$scope', '$mdDialog', 
                             return param_obj;
                         }, {})
         }).then(function (response) {
+            /* istanbul ignore next */
             $mdToast.show($mdToast.simple()
-                .content('Connected successfully to ' + response.name + '.')
-                .position('bottom left').hideDelay(3000));
+                .content('Connected to ' + response.name + '.')
+                .action('Discover')
+                .position('bottom left').hideDelay(3000)).then(function (result) {
+                    if (result === 'ok') ProtocolManager.requestDiscovery(true);
+                });
             $mdDialog.hide(response);
         }).catch(function (response) {
             $scope.connecting = false;
@@ -487,16 +467,18 @@ protocols.controller('ParlayConnectionListController', ['$scope', '$mdDialog', '
      * Closes protocol then spawns toast notifying user.
      * @param {Object} protocol - Protocol configuration object.
      */
+    /* istanbul ignore next */
     $scope.closeProtocol = function (protocol) {
         ProtocolManager.closeProtocol(protocol).then(function (result) {
             $mdToast.show($mdToast.simple()
-                .content('Successfully closed ' + protocol.getName() + '.'));
+                .content('Closed ' + protocol.getName() + '.'));
         }).catch(function (result) {
             $mdToast.show($mdToast.simple()
                 .content(result.status));  
         });
     };
     
+    /* istanbul ignore next */
     $scope.viewProtocolConnectionDetails = function (event, protocol) {
         $mdDialog.show({
             targetEvent: event,
@@ -513,6 +495,7 @@ protocols.controller('ParlayConnectionListController', ['$scope', '$mdDialog', '
      * Show protocol configuration dialog and have ProtocolManager open a protocol.
      * @param {Event} - Event generated when button is selected. Allows use to have origin for dialog display animation.
      */
+    /* istanbul ignore next */
     $scope.openConfiguration = function (event) {
         // Show a configuraton dialog allowing us to setup a protocol configuration.
         $mdDialog.show({
@@ -523,25 +506,6 @@ protocols.controller('ParlayConnectionListController', ['$scope', '$mdDialog', '
         });
     };
     
-}]);
-
-protocols.controller('ParlayConnectionStatusController', ['$scope', '$mdDialog', 'PromenadeBroker', function ($scope, $mdDialog, PromenadeBroker) {
-    $scope.connection_icon = 'cloud_off';
-        
-    $scope.viewConnections = function (event) {
-        $mdDialog.show({
-            targetEvent: event,
-            clickOutsideToClose: true,
-            controller: 'ParlayConnectionListController',
-            templateUrl: '../parlay_components/communication/directives/parlay-connection-list-dialog.html'
-        });
-    };
-    
-    $scope.$watch(function () {
-        return PromenadeBroker.isConnected();
-    }, function (connected) {
-        $scope.connection_icon = connected ? 'cloud' : 'cloud_off';
-    });
 }]);
 
 protocols.controller('ProtocolConnectionDetailController', ['$scope', '$mdDialog', 'protocol', function ($scope, $mdDialog, protocol) {
@@ -564,4 +528,35 @@ protocols.controller('ProtocolConnectionDetailController', ['$scope', '$mdDialog
     
     $scope.hide = $mdDialog.hide;
     
+}]);
+
+protocols.controller('ParlayConnectionStatusController', ['$scope', '$mdDialog', 'PromenadeBroker', function ($scope, $mdDialog, PromenadeBroker) {
+    $scope.connection_icon = 'cloud_off';
+    
+    /* istanbul ignore next */
+    $scope.viewConnections = function (event) {
+        $mdDialog.show({
+            targetEvent: event,
+            clickOutsideToClose: true,
+            controller: 'ParlayConnectionListController',
+            templateUrl: '../parlay_components/communication/directives/parlay-connection-list-dialog.html'
+        });
+    };    
+    
+}]);
+
+/* istanbul ignore next */
+protocols.directive('parlayConnectionStatus', ['PromenadeBroker', function (PromenadeBroker) {
+    return {
+        scope: {},
+        templateUrl: '../parlay_components/navigation/directives/parlay-connection-status.html',
+        controller: 'ParlayConnectionStatusController',
+        link: function ($scope, element, attributes) {
+            $scope.$watch(function () {
+                return PromenadeBroker.isConnected();
+            }, function (connected) {
+                $scope.connection_icon = connected ? 'cloud' : 'cloud_off';
+            });
+        }
+    };
 }]);
