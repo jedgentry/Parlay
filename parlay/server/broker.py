@@ -410,11 +410,11 @@ class Broker(object):
         """
         Start up and run the broker. This method call with not return
         """
-        from parlay.protocols.websocket import BrokerWebsocketBaseProtocol
+        from parlay.protocols.websocket import ParlayWebSocketProtocol
 
         #listen for websocket connections on port 8085
         factory = WebSocketServerFactory("ws://localhost:8085")
-        factory.protocol = BrokerWebsocketBaseProtocol
+        factory.protocol = ParlayWebSocketProtocol
 
         self._reactor.listenTCP(8085, factory)
 
