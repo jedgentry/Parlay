@@ -29,8 +29,10 @@ standard_endpoint.factory('PromenadeStandardEndpoint', ['ParlayEndpoint', functi
                     hidden: field.HIDDEN !== undefined ? field.HIDDEN : false
                 };
                 
+                /* istanbul ignore else */
                 if (field.DROPDOWN_OPTIONS !== undefined) {
                     
+                    /* istanbul ignore else */
                     if (typeof field.DROPDOWN_OPTIONS[0] === 'string') {
                         fieldObject.options = field.DROPDOWN_OPTIONS;
                     }
@@ -72,12 +74,6 @@ standard_endpoint.factory('PromenadeStandardEndpoint', ['ParlayEndpoint', functi
         }
     });
     
-    Object.defineProperty(PromenadeStandardEndpoint.prototype, 'message_types', {
-        get: function () {
-            return this.content_fields.message_type;
-        }
-    });
-    
     Object.defineProperty(PromenadeStandardEndpoint.prototype, 'data_types', {
         get: function () {
             return this.protocol.data_types;
@@ -87,7 +83,7 @@ standard_endpoint.factory('PromenadeStandardEndpoint', ['ParlayEndpoint', functi
     Object.defineProperty(PromenadeStandardEndpoint.prototype, 'log', {
        get: function () {
            return this.protocol.getLog().filter(function (message) {
-                return message.topics.FROM === this.id;
+                return message.TOPICS.FROM === this.id;
             }, this);
        } 
     });
@@ -105,7 +101,8 @@ standard_endpoint.factory('PromenadeStandardEndpoint', ['ParlayEndpoint', functi
     };
     
     PromenadeStandardEndpoint.prototype.matchesQuery = function (query) {
-        return this.matchesType(query) || this.matchesId(query) || this.matchesName(query);
+        var lowercase_query = angular.lowercase(query);
+        return this.matchesType(lowercase_query) || this.matchesId(lowercase_query) || this.matchesName(lowercase_query);
     };
     
     PromenadeStandardEndpoint.prototype.getMessageId = function () {
@@ -114,8 +111,8 @@ standard_endpoint.factory('PromenadeStandardEndpoint', ['ParlayEndpoint', functi
     
     PromenadeStandardEndpoint.prototype.generateTopics = function () {
         return {
-            'TO': this.id,
-            'MSG_TYPE': 'COMMAND'
+            TO: this.id,
+            MSG_TYPE: 'COMMAND'
         };
     };
     
@@ -136,8 +133,8 @@ standard_endpoint.factory('PromenadeStandardEndpoint', ['ParlayEndpoint', functi
     
     PromenadeStandardEndpoint.prototype.generateMessage = function (message) {
         return {
-            'topics': this.generateTopics(),
-            'contents': this.generateContents(message)
+            'TOPICS': this.generateTopics(),
+            'CONTENTS': this.generateContents(message)
         };
     };
     
@@ -167,8 +164,21 @@ standard_endpoint.controller('PromenadeStandardEndpointCommandController', ['$sc
         var extracted_message = {};
         
         for (var field in $scope.message) {
-            if (angular.isObject($scope.message[field])) extracted_message[field] = $scope.message[field].value;
-            else extracted_message[field] = $scope.message[field];
+            var param_name, field_type ;
+            if (field.indexOf('_') > -1) {
+                var split_field = field.split('_');
+
+                field_type = split_field[split_field.length - 1];
+
+                param_name = split_field.slice(0, split_field.length - 1).join('_');
+            }
+            else {
+                param_name = field;
+            }
+
+            if (angular.isArray($scope.message[field])) extracted_message[param_name] = field_type === 'NUMBERS' ? $scope.message[field].map(parseFloat) : $scope.message[field];
+            else if (angular.isObject($scope.message[field])) extracted_message[param_name] = $scope.message[field].value;
+            else extracted_message[param_name] = $scope.message[field];
         }
         
         return extracted_message;
@@ -231,7 +241,10 @@ standard_endpoint.directive('promenadeStandardEndpointCardCommandContainer', ['R
         controller: function ($scope) {
             $scope.$watchCollection('fields', function (newV, oldV, $scope) {
                 for (var field in newV) {
-                    $scope.message[newV[field].msg_key] = newV[field].default;
+                    $scope.message[newV[field].msg_key + '_' + newV[field].input] = newV[field].default;
+                    if (!$scope.message[newV[field].msg_key + '_' + newV[field].input] && (newV[field].input === 'NUMBERS' || newV[field].input === 'STRINGS')) {
+                        $scope.message[newV[field].msg_key + '_' + newV[field].input] = [];
+                    }
                 }                 
             });
         }

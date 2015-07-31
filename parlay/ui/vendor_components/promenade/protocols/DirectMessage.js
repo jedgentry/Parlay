@@ -6,7 +6,7 @@ direct_message.factory('PromenadeDirectMessageProtocol', ['ParlayProtocol', 'Pro
         'use strict';
         ParlayProtocol.call(this, configuration);
         this.current_message_id = 200;
-        this.from = 0xf201;
+        this.id = 0xf201;
         
         this.endpoint_factory = PromenadeStandardEndpoint;        
     }
@@ -28,35 +28,35 @@ direct_message.factory('PromenadeDirectMessageProtocol', ['ParlayProtocol', 'Pro
     
     PromenadeDirectMessageProtocol.prototype.buildMessageTopics = function (message) {
         var new_message = angular.copy(message);
-        new_message.topics.MSG_ID = this.consumeMessageId();
-        new_message.topics.FROM = this.from;
+        new_message.TOPICS.MSG_ID = this.consumeMessageId();
+        new_message.TOPICS.FROM = this.id;
         return new_message;
     };
     
     PromenadeDirectMessageProtocol.prototype.buildResponseTopics = function (message) {
         return {
-            FROM: message.topics.TO,
-            TO: message.topics.FROM,
-            MSG_ID: message.topics.MSG_ID
+            FROM: message.TOPICS.TO,
+            TO: message.TOPICS.FROM,
+            MSG_ID: message.TOPICS.MSG_ID
         };
     };
     
     PromenadeDirectMessageProtocol.prototype.buildSubscriptionTopics = function () {
         return {
-            topics: {
-                TO: this.from
+            TOPICS: {
+                TO: this.id
             }
         };
     };
     
     PromenadeDirectMessageProtocol.prototype.buildSubscriptionListenerTopics = function () {
-        return this.buildSubscriptionTopics().topics;
+        return this.buildSubscriptionTopics().TOPICS;
     };
     
     PromenadeDirectMessageProtocol.prototype.sendCommand = function (message) {
         var new_message = this.buildMessageTopics(message);
         var response_topics = this.buildResponseTopics(new_message);
-        return this.sendMessage(new_message.topics, new_message.contents, response_topics);
+        return this.sendMessage(new_message.TOPICS, new_message.CONTENTS, response_topics);
     };
         
     return PromenadeDirectMessageProtocol;

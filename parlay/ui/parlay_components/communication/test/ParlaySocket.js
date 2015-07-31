@@ -197,8 +197,8 @@
                 
                 it('verbose message', function (done) {
                     ParlaySocketService.onMessage({"type":"motor"}, function (response) {
-                        expect(response.topics).toEqual({"type":"motor"});
-                        expect(response.contents).toEqual({"data":"test"});
+                        expect(response.TOPICS).toEqual({"type":"motor"});
+                        expect(response.CONTENTS).toEqual({"data":"test"});
                         done();
                     }, true);
                     ParlaySocketService.sendMessage({"type":"motor"}, {"data":"test"});

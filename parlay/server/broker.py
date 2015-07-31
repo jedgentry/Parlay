@@ -6,8 +6,8 @@ Modules that want to send message 'publish' the message to the broker and the br
  and structures.
 
  All messages must be key-value pairs (typically JSON strings or python dictionaries). The only requirement for messages
- is that every message must have, at its top level, a 'topics' key and a 'contents' key. 'topics' must be a key value pairing
- and can be subscribed to. 'contents' can be an object of any type and can **not** be subscribed to.
+ is that every message must have, at its top level, a 'topics' key and a 'CONTENTS' key. 'topics' must be a key value pairing
+ and can be subscribed to. 'CONTENTS' can be an object of any type and can **not** be subscribed to.
 
  Any message that isn't a 'special type' is implicitly a command to 'publish' that message.
 
@@ -15,9 +15,9 @@ Modules that want to send message 'publish' the message to the broker and the br
  * 'type': 'broker' messages  are special commands to the broker. These messages and their foramt is defined on the protocol
   documentation page
 
- * 'type': 'subscribe' messages are a command to the broker to subscribe to a specific combination of topics. The 'contents'
- in a subscribe message must be simply the key 'topics' and a key-value pair of topics/values to subscribe to.
- e.g. :  (in JSON) {'topics':{'type':'subscribe'},'contents':{'topics':{'to':'Motor 1', 'id': 12345} } }
+ * 'type': 'subscribe' messages are a command to the broker to subscribe to a specific combination of topics. The 'CONTENTS'
+ in a subscribe message must be simply the key 'TOPICS' and a key-value pair of TOPICS/values to subscribe to.
+ e.g. :  (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 """
 from twisted.internet import reactor, defer
 from parlay.protocols.protocol import BaseProtocol
@@ -73,7 +73,7 @@ class Broker(object):
         :param msg : The message to publish
         :param write_method : the protocol's method to callback if the broker needs to send a response
         """
-        topic_type = msg['topics'].get('type', None)
+        topic_type = msg['TOPICS'].get('type', None)
         #handle broker and subscribe messages special
         if topic_type == 'broker':
             self.handle_broker_message(msg, write_method)
@@ -100,17 +100,17 @@ class Broker(object):
         for func, owner in root_list.get(None, []):
             func(msg)
 
-        topics = msg['topics']
+        TOPICS = msg['TOPICS']
         #for each key in the listeners list
-        for k in topics.keys():
+        for k in TOPICS.keys():
             #if the key exists and  values match, then call any functions
             #or look further
                                   # root_list[k] is the value, which is a key to another dictionary
                                  #The None key in that dictionary will contain a list of funcs to call
                                 # (Any other key will lead to yet another dictionary of keys and values)
-            if k in root_list and topics[k] in root_list[k]:
+            if k in root_list and TOPICS[k] in root_list[k]:
                 #recurse
-                self._publish(msg, root_list[k][topics[k]])
+                self._publish(msg, root_list[k][TOPICS[k]])
 
 
     def subscribe(self, func, **kwargs):
@@ -146,17 +146,17 @@ class Broker(object):
         listeners.append((func, owner))
         root_list[None] = listeners
 
-    def unsubscribe(self, owner, topics):
+    def unsubscribe(self, owner, TOPICS):
         """
-        unsubscribe owner from all subscriptions that match topics. Only EXACT matches will be unsubscribed
+        unsubscribe owner from all subscriptions that match TOPICS. Only EXACT matches will be unsubscribed
         """
 
-        keys = sorted(topics.keys())
+        keys = sorted(TOPICS.keys())
         root_list = self._listeners
 
         #go down the trie
         for k in keys:
-            v = topics[k]
+            v = TOPICS[k]
 
             if k not in root_list:
                 return  # not subscribed
@@ -234,13 +234,13 @@ class Broker(object):
 
         message_callback is the function to call to send the message back to the protocol
         """
-        if msg['topics']['type'] != "broker":
-            raise KeyError("handle_broker_message can only handle messages with 'topics''type' == 'broker'")
+        if msg['TOPICS']['type'] != "broker":
+            raise KeyError("handle_broker_message can only handle messages with 'TOPICS''type' == 'broker'")
 
-        reply = {'topics': {'type': 'broker', 'response': msg['topics']['request']+"_response"},
-                 'contents': {'status': "STATUS NOT FILLED IN" } }
+        reply = {'TOPICS': {'type': 'broker', 'response': msg['TOPICS']['request']+"_response"},
+                 'CONTENTS': {'status': "STATUS NOT FILLED IN" } }
 
-        request = msg['topics']['request']
+        request = msg['TOPICS']['request']
 
         if request == 'get_protocols':
             reg = BaseProtocol.protocol_registry
@@ -250,16 +250,16 @@ class Broker(object):
                 protocols[name]["params"] = reg[name].get_open_params()
                 protocols[name]["defaults"] = reg[name].get_open_params_defaults()
 
-            reply['contents'] = protocols
+            reply['CONTENTS'] = protocols
             message_callback(reply)
 
         elif request == 'open_protocol':
-            protocol_name = msg['contents']['protocol_name']
-            open_params = msg['contents'].get('params', {})
+            protocol_name = msg['CONTENTS']['protocol_name']
+            open_params = msg['CONTENTS'].get('params', {})
             # make sure we know about the protocol
             if protocol_name not in BaseProtocol.protocol_registry:
-                reply['topics']['response'] = 'error'
-                reply['contents'] = {'error': "No such protocol"}
+                reply['TOPICS']['response'] = 'error'
+                reply['CONTENTS'] = {'error': "No such protocol"}
                 message_callback(reply) # send right away
             else:
                 # we have the protocol! open it
@@ -269,14 +269,14 @@ class Broker(object):
                 def finished_open(p):
                     """We've finished opening the protocol"""
                     self.protocols.append(p)
-                    reply['contents'] = {'name': str(p), 'status': 'ok'}
+                    reply['CONTENTS'] = {'name': str(p), 'status': 'ok'}
                     message_callback(reply)
 
                 d.addCallback(finished_open)
 
                 def error_opening(e):
                     """ OOPS error while opening"""
-                    reply['contents'] = {'status': "Error while opening: " + str(e)}
+                    reply['CONTENTS'] = {'status': "Error while opening: " + str(e)}
                     message_callback(reply)
 
                 d.addErrback(error_opening)
@@ -284,23 +284,23 @@ class Broker(object):
         elif request == 'get_open_protocols':
             # respond with the string repr of each protocol
             try:
-                reply['contents']['protocols'] = [{"name": str(x), "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
+                reply['CONTENTS']['protocols'] = [{"name": str(x), "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
                                                   for x in self.protocols]
-                reply['contents']['status'] = 'ok'
+                reply['CONTENTS']['status'] = 'ok'
             except Exception as e:
-                reply['contents']['status'] = 'Error while listing protocols: ' + str(e)
+                reply['CONTENTS']['status'] = 'Error while listing protocols: ' + str(e)
 
             message_callback(reply)
 
         elif request == 'close_protocol':
             #close the protocol with the string repr given
             open_protocols = [str(x) for x in self.protocols]
-            reply['contents']['protocols'] = open_protocols
+            reply['CONTENTS']['protocols'] = open_protocols
 
-            to_close = msg['contents']['protocol']
+            to_close = msg['CONTENTS']['protocol']
             #see if its exits!
             if to_close not in open_protocols:
-                reply['contents']['status'] = "no such open protocol: " + to_close
+                reply['CONTENTS']['status'] = "no such open protocol: " + to_close
                 message_callback(reply)
                 return
 
@@ -314,20 +314,20 @@ class Broker(object):
 
                 self.protocols = new_protocol_list
                 #recalc list
-                reply['contents']['protocols'] = [str(x) for x in self.protocols]
-                reply['contents']['status'] = "ok"
+                reply['CONTENTS']['protocols'] = [str(x) for x in self.protocols]
+                reply['CONTENTS']['status'] = "ok"
                 message_callback(reply)
             except NotImplementedError as e:
-                reply['contents']['status'] = "Error while closing protocol. Protocol does not define close() method"
+                reply['CONTENTS']['status'] = "Error while closing protocol. Protocol does not define close() method"
                 message_callback(reply)
             except Exception as e:
-                reply['contents']['status'] = "Error while closing protocol " + str(e)
+                reply['CONTENTS']['status'] = "Error while closing protocol " + str(e)
                 message_callback(reply)
 
         elif request == "get_discovery":
             cached_file_name = PARLAY_PATH + "/cached_discovery.json"
             # if we're forcing a refresh, or have no cache
-            if msg['contents'].get('force', False) or not os.path.isfile(cached_file_name):
+            if msg['CONTENTS'].get('force', False) or not os.path.isfile(cached_file_name):
                 d_list = []
                 discovery = []
                 for p in self.protocols:
@@ -355,16 +355,16 @@ class Broker(object):
 
                     #append the discovery for the broker
                     discovery.append(Broker._discovery)
-                    reply['contents']['status'] = 'ok'
-                    reply['contents']['discovery'] = discovery
+                    reply['CONTENTS']['status'] = 'ok'
+                    reply['CONTENTS']['discovery'] = discovery
                     message_callback(reply)
 
                 def discovery_error(*args):
                     #append the discovery for the broker
                     discovery.append(Broker._discovery)
                     
-                    reply['contents']['status'] = str(args)
-                    reply['contents']['discovery'] = discovery
+                    reply['CONTENTS']['status'] = str(args)
+                    reply['CONTENTS']['discovery'] = discovery
                     message_callback(reply)
 
                 all_d.addCallback(discovery_done)
@@ -374,8 +374,8 @@ class Broker(object):
             else:
                 with open(cached_file_name) as json_data:
                     d = json.load(json_data)
-                    reply['contents']['status'] = 'ok'
-                    reply['contents']['discovery'] = d
+                    reply['CONTENTS']['status'] = 'ok'
+                    reply['CONTENTS']['discovery'] = d
                     message_callback(reply)
 
 
@@ -383,10 +383,10 @@ class Broker(object):
 
 
     def handle_subscribe_message(self, msg, message_callback):
-        self.subscribe(message_callback, **(msg['contents']['topics']))
+        self.subscribe(message_callback, **(msg['CONTENTS']['TOPICS']))
         resp_msg = msg.copy()
-        resp_msg['topics']['type'] = 'subscribe_response'
-        resp_msg['contents']['status'] = 'ok'
+        resp_msg['TOPICS']['type'] = 'subscribe_response'
+        resp_msg['CONTENTS']['status'] = 'ok'
 
         #send the reply
         message_callback(resp_msg)
@@ -398,10 +398,10 @@ class Broker(object):
             raise ValueError("Function {} passed to handle_unsubscribe_message() ".format(message_callback.__name__) +
                              "must be a bound method of an object")
 
-        self.unsubscribe(owner, msg['contents']['topics'])
+        self.unsubscribe(owner, msg['CONTENTS']['TOPICS'])
         resp_msg = msg.copy()
-        resp_msg['topics']['type'] = 'unsubscribe_response'
-        resp_msg['contents']['status'] = 'ok'
+        resp_msg['TOPICS']['type'] = 'unsubscribe_response'
+        resp_msg['CONTENTS']['status'] = 'ok'
 
         #send the reply
         message_callback(resp_msg)
