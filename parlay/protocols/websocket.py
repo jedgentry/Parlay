@@ -32,7 +32,7 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
             msg = json.loads(payload)
             #if we're not waiting for discovery, or if we are but it's not a didscovery message)
             if self._discovery_response_defer is None or \
-                            msg['topics'].get('response', None) != 'get_protocol_discovery_response':
+                            msg['topics'].get('type', None) != 'get_protocol_discovery_response':
                 self.broker.publish(msg, self.send_message_as_JSON)
             else:
                 # discovery!

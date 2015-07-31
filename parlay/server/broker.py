@@ -186,7 +186,7 @@ class Broker(object):
         total_sub = 0
         for k in root_list.keys():
             if k is not None:  # skip the special NONE key (that's used for callback list)
-                for v in root_list[k]:
+                for v in root_list[k].keys():
                     num_sub = self._clean_trie(root_list[k][v])
                     # remove a sub-trie if it doesn't have any subscriptions in it
                     if num_sub == 0:
