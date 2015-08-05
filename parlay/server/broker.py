@@ -223,7 +223,12 @@ class Broker(object):
                         self.unsubscribe_all(owner, root_list[k][v])
 
 
-
+    def untrack_protocol(self, protocol):
+        """
+        Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
+        """
+        self.unsubscribe_all(protocol)
+        self.protocols.remove(protocol)
 
 
     def handle_broker_message(self, msg, message_callback):

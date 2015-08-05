@@ -15,8 +15,9 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
     _discovery_response_defer = None
 
     def onClose(self, wasClean, code, reason):
+        print "Closing:" + str(self)
         #clean up after ourselves
-        self.broker.unsubscribe_all(self)
+        self.broker.untrack_protocol(self)
         self.broker._clean_trie()
 
     def send_message_as_JSON(self, msg):
