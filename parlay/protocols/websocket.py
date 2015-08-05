@@ -32,11 +32,11 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
             msg = json.loads(payload)
             #if we're not waiting for discovery, or if we are but it's not a didscovery message)
             if self._discovery_response_defer is None or \
-                            msg['topics'].get('type', None) != 'get_protocol_discovery_response':
+                            msg['TOPICS'].get('type', None) != 'get_protocol_discovery_response':
                 self.broker.publish(msg, self.send_message_as_JSON)
             else:
                 # discovery!
-                self._discovery_response_defer.callback(msg['contents'].get('discovery', []))
+                self._discovery_response_defer.callback(msg['CONTENTS'].get('discovery', []))
                 self._discovery_response_defer = None
         else:
             print "Binary messages not supported yet"
@@ -53,7 +53,7 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
         if self._discovery_response_defer is not None:
             return self._discovery_response_defer
 
-        self.send_message_as_JSON({'topics': {'type': 'get_protocol_discovery'}, 'contents': {}})
+        self.send_message_as_JSON({'TOPICS': {'type': 'get_protocol_discovery'}, 'CONTENTS': {}})
         self._discovery_response_defer = defer.Deferred()
 
         def timeout():
