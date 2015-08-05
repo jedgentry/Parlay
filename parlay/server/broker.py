@@ -269,14 +269,14 @@ class Broker(object):
                 def finished_open(p):
                     """We've finished opening the protocol"""
                     self.protocols.append(p)
-                    reply['CONTENTS'] = {'name': str(p), 'status': 'ok'}
+                    reply['CONTENTS'] = {'name': str(p), 'STATUS': 'ok'}
                     message_callback(reply)
 
                 d.addCallback(finished_open)
 
                 def error_opening(e):
                     """ OOPS error while opening"""
-                    reply['CONTENTS'] = {'status': "Error while opening: " + str(e)}
+                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(e)}
                     message_callback(reply)
 
                 d.addErrback(error_opening)
@@ -300,7 +300,7 @@ class Broker(object):
             to_close = msg['CONTENTS']['protocol']
             #see if its exits!
             if to_close not in open_protocols:
-                reply['CONTENTS']['status'] = "no such open protocol: " + to_close
+                reply['CONTENTS']['STATUS'] = "no such open protocol: " + to_close
                 message_callback(reply)
                 return
 
@@ -315,13 +315,13 @@ class Broker(object):
                 self.protocols = new_protocol_list
                 #recalc list
                 reply['CONTENTS']['protocols'] = [str(x) for x in self.protocols]
-                reply['CONTENTS']['status'] = "ok"
+                reply['CONTENTS']['STATUS'] = "ok"
                 message_callback(reply)
             except NotImplementedError as e:
-                reply['CONTENTS']['status'] = "Error while closing protocol. Protocol does not define close() method"
+                reply['CONTENTS']['STATUS'] = "Error while closing protocol. Protocol does not define close() method"
                 message_callback(reply)
             except Exception as e:
-                reply['CONTENTS']['status'] = "Error while closing protocol " + str(e)
+                reply['CONTENTS']['STATUS'] = "Error while closing protocol " + str(e)
                 message_callback(reply)
 
         elif request == "get_discovery":
