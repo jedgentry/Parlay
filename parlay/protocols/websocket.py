@@ -68,5 +68,5 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
         return self._discovery_response_defer
 
     def __str__(self):
-        return "Websocket at " + str(self.http_request_host)
+        return "Websocket at " + str(self.peer)
 
