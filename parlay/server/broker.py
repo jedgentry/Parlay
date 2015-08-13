@@ -434,9 +434,9 @@ class Broker(object):
         Start up and run the broker. This method call with not return
         """
         from parlay.protocols.websocket import ParlayWebSocketProtocol
-        if mode == Broker.Modes.PRODUCTION:
+        if mode == Broker.Modes.DEVELOPMENT:
             print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
-            print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g. :" + \
+            print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
                   "broker.run(mode=Broker.Modes.PRODUCTION)"
 
         #interface to listen on. In Development mode listen on everything
