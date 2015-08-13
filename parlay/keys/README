@@ -7,5 +7,12 @@ THEY ARE NOT SECURE. You *MUST* change these if you want secure comminucations i
 
 All keys labeled broker.* are used by the broker. Keys labeled remote.* are used by the broker for remote communication (e.g. remote service applications where the broker is a client)
 
+here is ane xample of how to generate keys:
+
+openssl genrsa -out server.key 2048
+openssl req -new -key server.key -out server.csr
+openssl x509 -req -days 3650 -in server.csr -signkey server.key -out server.crt
+openssl x509 -in server.crt -out server.pem
+
 
 
