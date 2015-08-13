@@ -1,0 +1,11 @@
+!!!WARNING: CHANGE THESE KEYS FOR SECURE COMMUNICATIONS!!!
+
+THESE files are the SSL keys used by the Broker for secure connections. 
+
+Given that these keys are the default and the private keys are publicly handed out
+THEY ARE NOT SECURE. You *MUST* change these if you want secure comminucations in Parlay
+
+All keys labeled broker.* are used by the broker. Keys labeled remote.* are used by the broker for remote communication (e.g. remote service applications where the broker is a client)
+
+
+

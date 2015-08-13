@@ -19,10 +19,10 @@ Modules that want to send message 'publish' the message to the broker and the br
  in a subscribe message must be simply the key 'TOPICS' and a key-value pair of TOPICS/values to subscribe to.
  e.g. :  (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 """
-from twisted.internet import reactor, defer
+from twisted.internet import reactor, defer, ssl
 from parlay.protocols.protocol import BaseProtocol
 
-from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
+from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol, listenWS
 from twisted.application import internet, service
 from twisted.web import static, server
 import os
@@ -30,6 +30,7 @@ import json
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
+BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
 class Broker(object):
     """
@@ -42,7 +43,19 @@ class Broker(object):
     _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "interfaces": ['broker'],
                   "CHILDREN": []}
 
-    def __init__(self, reactor):
+    class Modes:
+        """
+        These are the modes that the broker can run in.
+        * Development mode is purposefully easy to use an insecure to allow logging and
+        easy control of the parlay system
+        * Production mode is locked down and *more* secure (Security should always be
+        validated independently)
+        """
+        DEVELOPMENT = "DEVELOPER_MODE"
+        PRODUCTION = "PRODUCTION_MODE"
+
+
+    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
         assert(Broker.instance is None)
 
         #the currently connected protocols
@@ -55,6 +68,11 @@ class Broker(object):
 
         #THERE CAN BE ONLY ONE
         Broker.instance = self
+
+        self.websocket_port = websocket_port
+        self.http_port = http_port
+        self.https_port = https_port
+        self.secure_websocket_port = secure_websocket_port
 
     @staticmethod
     def get_instance():
@@ -411,22 +429,44 @@ class Broker(object):
         #send the reply
         message_callback(resp_msg)
 
-    def run(self):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False):
         """
         Start up and run the broker. This method call with not return
         """
         from parlay.protocols.websocket import ParlayWebSocketProtocol
+        if mode == Broker.Modes.PRODUCTION:
+            print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
+            print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g. :" + \
+                  "broker.run(mode=Broker.Modes.PRODUCTION)"
 
-        #listen for websocket connections on port 8085
-        factory = WebSocketServerFactory("ws://localhost:8085")
+        #interface to listen on. In Development mode listen on everything
+        #in production mode, only listen on localhost
+        interface = '127.0.0.1' if mode == Broker.Modes.PRODUCTION else ""
+
+        #ssl websocket
+        contextFactory = ssl.DefaultOpenSSLContextFactory(PARLAY_PATH+'/keys/broker.key', PARLAY_PATH+'/keys/broker.crt')
+
+        factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
         factory.protocol = ParlayWebSocketProtocol
+        factory.setProtocolOptions(allowHixie76=True)
+        listenWS(factory, contextFactory, interface=interface)
 
-        self._reactor.listenTCP(8085, factory)
+        webdir = static.File(PARLAY_PATH + "/ui/dist")
+        webdir.contentTypes['.crt'] = 'application/x-x509-ca-cert'
+        web = server.Site(webdir)
+        self._reactor.listenSSL(self.https_port, web, contextFactory, interface=interface)
 
-        #http server
-        root = static.File(PARLAY_PATH + "/ui/dist")
-        site = server.Site(root)
-        self._reactor.listenTCP(8080, site)
+        if not ssl_only:
+            #listen for websocket connections on port 8085
+            factory = WebSocketServerFactory("ws://localhost:" + str(self.websocket_port))
+            factory.protocol = ParlayWebSocketProtocol
+            self._reactor.listenTCP(self.websocket_port, factory, interface=interface)
+
+            #http server
+            root = static.File(PARLAY_PATH + "/ui/dist")
+            site = server.Site(root)
+            self._reactor.listenTCP(self.http_port, site, interface=interface)
+
         self._reactor.run()
 
 def main():
