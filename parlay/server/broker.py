@@ -73,6 +73,7 @@ class Broker(object):
         self.http_port = http_port
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
+        self._run_mode = Broker.Modes.PRODUCTION  # safest default
 
     @staticmethod
     def get_instance():
@@ -405,6 +406,14 @@ class Broker(object):
                     message_callback(reply)
 
         elif request == "eval_statement":
+            #This feature is very powerful and *very* dangerous in a production environment.
+            #Let's turn it off in production for safety
+            if self._run_mode != Broker.Modes.DEVELOPMENT:
+                reply['CONTENTS']['status'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
+                reply['CONTENTS']['result'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
+                message_callback(reply)
+                return
+
             result = threads.deferToThread(eval, msg['CONTENTS']['statement'])
 
             def eval_done(r):
@@ -451,6 +460,7 @@ class Broker(object):
             print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
                   "broker.run(mode=Broker.Modes.PRODUCTION)"
 
+        self._run_mode = mode
         #interface to listen on. In Development mode listen on everything
         #in production mode, only listen on localhost
         interface = '127.0.0.1' if mode == Broker.Modes.PRODUCTION else ""
