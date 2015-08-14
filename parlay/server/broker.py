@@ -1,6 +1,13 @@
 """
 
-The broker is the main message router of the parlay system. The broker uses a standard publish/subscribe paradigm.
+The broker is the main message router of the parlay system. It should be run like:
+
+broker = Broker()
+broker.run()  # Development mode. For production mode run like  broker.run(mode=Broker.Modes.PRODUCTION)
+
+The bo
+
+The broker uses a standard publish/subscribe paradigm.
 Modules that want to send message 'publish' the message to the broker and the broker sends a copy of that message to
  every connection that has 'subscribed' to messages with a matching topic signature. For more information on message types
  and structures.
