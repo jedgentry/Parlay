@@ -19,7 +19,7 @@ Modules that want to send message 'publish' the message to the broker and the br
  in a subscribe message must be simply the key 'TOPICS' and a key-value pair of TOPICS/values to subscribe to.
  e.g. :  (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 """
-from twisted.internet import reactor, defer, ssl
+from twisted.internet import reactor, defer, ssl, threads
 from parlay.protocols.protocol import BaseProtocol
 
 from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol, listenWS
@@ -246,7 +246,10 @@ class Broker(object):
         Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
         """
         self.unsubscribe_all(protocol)
-        self.protocols.remove(protocol)
+        try:
+            self.protocols.remove(protocol)
+        except ValueError:
+            pass
 
 
     def handle_broker_message(self, msg, message_callback):
@@ -401,7 +404,16 @@ class Broker(object):
                     reply['CONTENTS']['discovery'] = d
                     message_callback(reply)
 
+        elif request == "eval_statement":
+            result = threads.deferToThread(eval, msg['CONTENTS']['statement'])
 
+            def eval_done(r):
+                reply['CONTENTS']['status'] = 'ok'
+                reply['CONTENTS']['result'] = str(r)
+                message_callback(reply)
+
+            result.addCallback(eval_done)
+            result.addErrback(eval_done)
 
 
 
