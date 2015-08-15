@@ -5,7 +5,26 @@ The broker is the main message router of the parlay system. It should be run lik
 broker = Broker()
 broker.run()  # Development mode. For production mode run like  broker.run(mode=Broker.Modes.PRODUCTION)
 
-The bo
+The Default mode for the Broker is DEVELOPER mode. In DEVELOPER mode, the broker will listen on HTTP, HTTPS, Websocket and Secure Websocket ports
+Every interface (e.g. Ethernet, WiFi, localhost, etc) is listened on in DEVELOPER mode. This means, even over encrypted
+channels like https, that DEVELOPER mode is **insecure** and will allow anyone with an network connection to issue
+commands, inject messages, log messages, and load the web-based parlay UI.  This is highly useful when debugging or
+commanding remote systems, but is *not* recommended to be used in a production environment.
+
+PRODUCTION mode, listens on HTTP, HTTPS, Websocket and Secure Websocket just like in DEVELOPER mode, however it *only*
+listens on the 'localhost' interface, which means that the broker will only connect with  processes and scripts on
+the local device. Since this mode does not allow arbitrary connections, it is safe to be used in a production environment
+
+If only secure communication protocols (HTTPS and WSS (Secure Websocket) ) are desired, the broker may be run with
+a 'secure only' flag in either mode.
+e.g.: broker.run(self, mode=Modes.DEVELOPMENT, ssl_only=True) or broker.run(self, mode=Modes.PRODUCTION, ssl_only=True)
+The default keys shipped with Parlay are shipped with every instance, and are therefore *not* secure. If security is
+desired, you must generate your own SSL certificates and overwrite the default certificate files in the parlay/keys/
+directory.
+
+See the README in the parlay/keys/ directory for more information on how to generate secure certificates for Parlay.
+
+
 
 The broker uses a standard publish/subscribe paradigm.
 Modules that want to send message 'publish' the message to the broker and the broker sends a copy of that message to
