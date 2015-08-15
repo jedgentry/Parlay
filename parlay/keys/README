@@ -9,10 +9,10 @@ All keys labeled broker.* are used by the broker. Keys labeled remote.* are used
 
 here is an example of how to generate keys on a Linux bash shell using openssl:
 
-openssl genrsa -out server.key 2048
-openssl req -new -key server.key -out server.csr
-openssl x509 -req -days 3650 -in server.csr -signkey server.key -out server.crt
-openssl x509 -in server.crt -out server.pem
+openssl genrsa -out broker.key 4096
+openssl req -new -key broker.key -out broker.csr
+openssl x509 -req -days 7650 -in broker.csr -signkey broker.key -out broker.crt
+openssl x509 -in broker.crt -out broker.pem
 
 
 
