@@ -492,17 +492,22 @@ class Broker(object):
         interface = '127.0.0.1' if mode == Broker.Modes.PRODUCTION else ""
 
         #ssl websocket
-        contextFactory = ssl.DefaultOpenSSLContextFactory(PARLAY_PATH+'/keys/broker.key', PARLAY_PATH+'/keys/broker.crt')
+        try:
+            from OpenSSL.SSL import Context
+            ssl_context_factory = BrokerSSlContextFactory()
 
-        factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
-        factory.protocol = ParlayWebSocketProtocol
-        factory.setProtocolOptions(allowHixie76=True)
-        listenWS(factory, contextFactory, interface=interface)
+            factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
+            factory.protocol = ParlayWebSocketProtocol
+            factory.setProtocolOptions(allowHixie76=True)
+            listenWS(factory, ssl_context_factory, interface=interface)
 
-        webdir = static.File(PARLAY_PATH + "/ui/dist")
-        webdir.contentTypes['.crt'] = 'application/x-x509-ca-cert'
-        web = server.Site(webdir)
-        self._reactor.listenSSL(self.https_port, web, contextFactory, interface=interface)
+            webdir = static.File(PARLAY_PATH + "/ui/dist")
+            webdir.contentTypes['.crt'] = 'application/x-x509-ca-cert'
+            web = server.Site(webdir)
+            self._reactor.listenSSL(self.https_port, web, ssl_context_factory, interface=interface)
+
+        except ImportError:
+            print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
 
         if not ssl_only:
             #listen for websocket connections on port 8085
@@ -516,6 +521,28 @@ class Broker(object):
             self._reactor.listenTCP(self.http_port, site, interface=interface)
 
         self._reactor.run()
+
+
+class BrokerSSlContextFactory(ssl.ContextFactory):
+    """
+    A more secure context factory than the default one. Only supports high secuirty encryption ciphers and exchange
+    formats. Last Updated August 2015
+    """
+
+    def getContext(self):
+        """Return a SSL.Context object. override in subclasses."""
+
+        ssl_context_factory = ssl.DefaultOpenSSLContextFactory(PARLAY_PATH+'/keys/broker.key',
+                                                               PARLAY_PATH+'/keys/broker.crt')
+        # We only want to use 'High' and 'Medium' ciphers, not 'Weak' ones. We want *actual* security here.
+        ssl_context = ssl_context_factory.getContext()
+        # perfect forward secrecy ciphers
+        ssl_context.set_cipher_list('EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH' +
+                                    '+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL' +
+                                    '!eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS')
+        return ssl_context
+
+
 
 def main():
     d = Broker(reactor)
