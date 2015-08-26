@@ -10,7 +10,6 @@ parlay/ui/app/npm-debug.log
 .DS_Store
 parlay/ui/npm-debug.log
 parlay/ui/dev
-parlay/ui/dist
 parlay/ui/doc
 parlay/ui/coverage
 parlay/ui/tmp

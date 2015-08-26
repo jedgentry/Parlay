@@ -1,6 +1,32 @@
 """
 
-The broker is the main message router of the parlay system. The broker uses a standard publish/subscribe paradigm.
+The broker is the main message router of the parlay system. It should be run like:
+
+broker = Broker()
+broker.run()  # Development mode. For production mode run like  broker.run(mode=Broker.Modes.PRODUCTION)
+
+The Default mode for the Broker is DEVELOPER mode. In DEVELOPER mode, the broker will listen on HTTP, HTTPS, Websocket and Secure Websocket ports
+Every interface (e.g. Ethernet, WiFi, localhost, etc) is listened on in DEVELOPER mode. This means, even over encrypted
+channels like https, that DEVELOPER mode is **insecure** and will allow anyone with an network connection to issue
+commands, inject messages, log messages, and load the web-based parlay UI.  This is highly useful when debugging or
+commanding remote systems, but is *not* recommended to be used in a production environment.
+
+PRODUCTION mode, listens on HTTP, HTTPS, Websocket and Secure Websocket just like in DEVELOPER mode, however it *only*
+listens on the 'localhost' interface, which means that the broker will only connect with  processes and scripts on
+the local device. Since this mode does not allow arbitrary connections, it is safe to be used in a production environment
+
+If only secure communication protocols (HTTPS and WSS (Secure Websocket) ) are desired, the broker may be run with
+a 'secure only' flag in either mode.
+e.g.: broker.run(self, mode=Modes.DEVELOPMENT, ssl_only=True) or broker.run(self, mode=Modes.PRODUCTION, ssl_only=True)
+The default keys shipped with Parlay are shipped with every instance, and are therefore *not* secure. If security is
+desired, you must generate your own SSL certificates and overwrite the default certificate files in the parlay/keys/
+directory.
+
+See the README in the parlay/keys/ directory for more information on how to generate secure certificates for Parlay.
+
+
+
+The broker uses a standard publish/subscribe paradigm.
 Modules that want to send message 'publish' the message to the broker and the broker sends a copy of that message to
  every connection that has 'subscribed' to messages with a matching topic signature. For more information on message types
  and structures.
@@ -19,10 +45,10 @@ Modules that want to send message 'publish' the message to the broker and the br
  in a subscribe message must be simply the key 'TOPICS' and a key-value pair of TOPICS/values to subscribe to.
  e.g. :  (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 """
-from twisted.internet import reactor, defer
+from twisted.internet import reactor, defer, ssl, threads
 from parlay.protocols.protocol import BaseProtocol
 
-from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
+from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol, listenWS
 from twisted.application import internet, service
 from twisted.web import static, server
 import os
@@ -30,6 +56,7 @@ import json
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
+BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
 class Broker(object):
     """
@@ -42,7 +69,19 @@ class Broker(object):
     _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "interfaces": ['broker'],
                   "CHILDREN": []}
 
-    def __init__(self, reactor):
+    class Modes:
+        """
+        These are the modes that the broker can run in.
+        * Development mode is purposefully easy to use an insecure to allow logging and
+        easy control of the parlay system
+        * Production mode is locked down and *more* secure (Security should always be
+        validated independently)
+        """
+        DEVELOPMENT = "DEVELOPER_MODE"
+        PRODUCTION = "PRODUCTION_MODE"
+
+
+    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
         assert(Broker.instance is None)
 
         #the currently connected protocols
@@ -55,6 +94,12 @@ class Broker(object):
 
         #THERE CAN BE ONLY ONE
         Broker.instance = self
+
+        self.websocket_port = websocket_port
+        self.http_port = http_port
+        self.https_port = https_port
+        self.secure_websocket_port = secure_websocket_port
+        self._run_mode = Broker.Modes.PRODUCTION  # safest default
 
     @staticmethod
     def get_instance():
@@ -186,7 +231,7 @@ class Broker(object):
         total_sub = 0
         for k in root_list.keys():
             if k is not None:  # skip the special NONE key (that's used for callback list)
-                for v in root_list[k]:
+                for v in root_list[k].keys():
                     num_sub = self._clean_trie(root_list[k][v])
                     # remove a sub-trie if it doesn't have any subscriptions in it
                     if num_sub == 0:
@@ -223,7 +268,15 @@ class Broker(object):
                         self.unsubscribe_all(owner, root_list[k][v])
 
 
-
+    def untrack_protocol(self, protocol):
+        """
+        Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
+        """
+        self.unsubscribe_all(protocol)
+        try:
+            self.protocols.remove(protocol)
+        except ValueError:
+            pass
 
 
     def handle_broker_message(self, msg, message_callback):
@@ -269,14 +322,14 @@ class Broker(object):
                 def finished_open(p):
                     """We've finished opening the protocol"""
                     self.protocols.append(p)
-                    reply['CONTENTS'] = {'name': str(p), 'status': 'ok'}
+                    reply['CONTENTS'] = {'name': str(p), 'STATUS': 'ok'}
                     message_callback(reply)
 
                 d.addCallback(finished_open)
 
                 def error_opening(e):
                     """ OOPS error while opening"""
-                    reply['CONTENTS'] = {'status': "Error while opening: " + str(e)}
+                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(e)}
                     message_callback(reply)
 
                 d.addErrback(error_opening)
@@ -300,7 +353,7 @@ class Broker(object):
             to_close = msg['CONTENTS']['protocol']
             #see if its exits!
             if to_close not in open_protocols:
-                reply['CONTENTS']['status'] = "no such open protocol: " + to_close
+                reply['CONTENTS']['STATUS'] = "no such open protocol: " + to_close
                 message_callback(reply)
                 return
 
@@ -315,13 +368,13 @@ class Broker(object):
                 self.protocols = new_protocol_list
                 #recalc list
                 reply['CONTENTS']['protocols'] = [str(x) for x in self.protocols]
-                reply['CONTENTS']['status'] = "ok"
+                reply['CONTENTS']['STATUS'] = "ok"
                 message_callback(reply)
             except NotImplementedError as e:
-                reply['CONTENTS']['status'] = "Error while closing protocol. Protocol does not define close() method"
+                reply['CONTENTS']['STATUS'] = "Error while closing protocol. Protocol does not define close() method"
                 message_callback(reply)
             except Exception as e:
-                reply['CONTENTS']['status'] = "Error while closing protocol " + str(e)
+                reply['CONTENTS']['STATUS'] = "Error while closing protocol " + str(e)
                 message_callback(reply)
 
         elif request == "get_discovery":
@@ -378,7 +431,24 @@ class Broker(object):
                     reply['CONTENTS']['discovery'] = d
                     message_callback(reply)
 
+        elif request == "eval_statement":
+            #This feature is very powerful and *very* dangerous in a production environment.
+            #Let's turn it off in production for safety
+            if self._run_mode != Broker.Modes.DEVELOPMENT:
+                reply['CONTENTS']['status'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
+                reply['CONTENTS']['result'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
+                message_callback(reply)
+                return
 
+            result = threads.deferToThread(eval, msg['CONTENTS']['statement'])
+
+            def eval_done(r):
+                reply['CONTENTS']['status'] = 'ok'
+                reply['CONTENTS']['result'] = str(r)
+                message_callback(reply)
+
+            result.addCallback(eval_done)
+            result.addErrback(eval_done)
 
 
 
@@ -406,23 +476,73 @@ class Broker(object):
         #send the reply
         message_callback(resp_msg)
 
-    def run(self):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False):
         """
         Start up and run the broker. This method call with not return
         """
-        from parlay.protocols.websocket import BrokerWebsocketBaseProtocol
+        from parlay.protocols.websocket import ParlayWebSocketProtocol
+        if mode == Broker.Modes.DEVELOPMENT:
+            print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
+            print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
+                  "broker.run(mode=Broker.Modes.PRODUCTION)"
 
-        #listen for websocket connections on port 8085
-        factory = WebSocketServerFactory("ws://localhost:8085")
-        factory.protocol = BrokerWebsocketBaseProtocol
+        self._run_mode = mode
+        #interface to listen on. In Development mode listen on everything
+        #in production mode, only listen on localhost
+        interface = '127.0.0.1' if mode == Broker.Modes.PRODUCTION else ""
 
-        self._reactor.listenTCP(8085, factory)
+        #ssl websocket
+        try:
+            from OpenSSL.SSL import Context
+            ssl_context_factory = BrokerSSlContextFactory()
 
-        #http server
-        root = static.File(PARLAY_PATH + "/ui/dist")
-        site = server.Site(root)
-        self._reactor.listenTCP(8080, site)
+            factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
+            factory.protocol = ParlayWebSocketProtocol
+            factory.setProtocolOptions(allowHixie76=True)
+            listenWS(factory, ssl_context_factory, interface=interface)
+
+            webdir = static.File(PARLAY_PATH + "/ui/dist")
+            webdir.contentTypes['.crt'] = 'application/x-x509-ca-cert'
+            web = server.Site(webdir)
+            self._reactor.listenSSL(self.https_port, web, ssl_context_factory, interface=interface)
+
+        except ImportError:
+            print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
+
+        if not ssl_only:
+            #listen for websocket connections on port 8085
+            factory = WebSocketServerFactory("ws://localhost:" + str(self.websocket_port))
+            factory.protocol = ParlayWebSocketProtocol
+            self._reactor.listenTCP(self.websocket_port, factory, interface=interface)
+
+            #http server
+            root = static.File(PARLAY_PATH + "/ui/dist")
+            site = server.Site(root)
+            self._reactor.listenTCP(self.http_port, site, interface=interface)
+
         self._reactor.run()
+
+
+class BrokerSSlContextFactory(ssl.ContextFactory):
+    """
+    A more secure context factory than the default one. Only supports high secuirty encryption ciphers and exchange
+    formats. Last Updated August 2015
+    """
+
+    def getContext(self):
+        """Return a SSL.Context object. override in subclasses."""
+
+        ssl_context_factory = ssl.DefaultOpenSSLContextFactory(PARLAY_PATH+'/keys/broker.key',
+                                                               PARLAY_PATH+'/keys/broker.crt')
+        # We only want to use 'High' and 'Medium' ciphers, not 'Weak' ones. We want *actual* security here.
+        ssl_context = ssl_context_factory.getContext()
+        # perfect forward secrecy ciphers
+        ssl_context.set_cipher_list('EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH' +
+                                    '+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL' +
+                                    '!eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS')
+        return ssl_context
+
+
 
 def main():
     d = Broker(reactor)

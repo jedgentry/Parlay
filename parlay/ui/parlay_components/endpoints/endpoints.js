@@ -1,211 +1,27 @@
-var endpoints = angular.module('parlay.endpoints', ['ui.router', 'ngMaterial', 'ngMessages', 'ngMdIcons', 'templates-main', 'parlay.protocols', 'promenade.broker']);
+var endpoints = angular.module('parlay.endpoints', ['ui.router', 'parlay.endpoints.manager', 'parlay.endpoints.search', 'parlay.endpoints.endpoint', 'parlay.endpoints.controller']);
 
 /* istanbul ignore next */
 endpoints.config(function($stateProvider) {
     $stateProvider.state('endpoints', {
         url: '/endpoints',
         templateUrl: '../parlay_components/endpoints/views/base.html',
-        controller: 'EndpointController'
+        controller: 'ParlayEndpointController'
     });
 });
 
-endpoints.factory('ParlayEndpoint', function () {
-    
-    function NotImplementedError(method) {
-        console.warn(method + ' is not implemented for ' + this.name);
-    }
-    
-    function ParlayEndpoint(data, protocol) {
-        
-        Object.defineProperty(this, 'name', {
-            value: data.NAME,
-            enumerable: true,
-            writeable: false,
-            configurable: false
-        });
-        
-        Object.defineProperty(this, 'protocol', {
-            value: protocol,
-            writeable: false,
-            enumerable: false,
-            configurable: false
-        });
-        
-        this.type = 'ParlayEndpoint';
-        
-        this.interfaces = data.INTERFACES;
-        
-        this.directives = {
-            toolbar: [],
-            tabs: []
-        };
-        
-    }
-    
-    ParlayEndpoint.prototype.getType = function () {
-        return this.type;
-    };
-    
-    ParlayEndpoint.prototype.getDirectives = function () {
-        return [this.directives];
-    };
-    
-    ParlayEndpoint.prototype.activate = function () {
-        this.protocol.activateEndpoint(this);
-    };
-    
-    ParlayEndpoint.prototype.matchesQuery = function (query) {
-        NotImplementedError('matchesQuery');
-    };
-    
-    return ParlayEndpoint;
-    
-});
-
-endpoints.factory('EndpointManager', ['PromenadeBroker', 'ProtocolManager', function (PromenadeBroker, ProtocolManager) {
-    
-    var Private = {};
-    
-    var Public = {};
-    
-    Public.getActiveEndpoints = function () {
-        return ProtocolManager.getOpenProtocols().reduce(function (previous, current) {
-            return previous.concat(current.getActiveEndpoints());
-        }, []);
-    };
-    
-    Public.getAvailableEndpoints = function () {
-        return ProtocolManager.getOpenProtocols().reduce(function (previous, current) {
-            return previous.concat(current.getAvailableEndpoints());
-        }, []);
-    };
-    
-    Public.requestDiscovery = function () {
-        return PromenadeBroker.requestDiscovery(true);
-    };
-    
-    Public.activateEndpoint = function (endpoint) {
-        endpoint.activate();
-    };
-        
-    return Public;
-}]);
-
-endpoints.controller('EndpointController', ['$scope', 'EndpointManager', function ($scope, EndpointManager) {
-    
-    $scope.filterEndpoints = function () {
-        return EndpointManager.getActiveEndpoints();
-    };
-    
-    $scope.requestDiscovery = function () {
-        EndpointManager.requestDiscovery();
-    };
-        
-}]);
-
-endpoints.controller('ParlayEndpointSearchController', ['$scope', 'EndpointManager', function ($scope, EndpointManager) {
-            
-    $scope.searching = false;
-    $scope.selected_item = null;
-    
-    $scope.selectEndpoint = function (endpoint) {
-        // Change is detected after we set endpoint to null.
-        if (endpoint === null || endpoint === undefined) return;
-        EndpointManager.activateEndpoint(endpoint);
-        $scope.selected_item = null;
-        $scope.search_text = null;
-    };
-    
-    /**
-     * Display search bar and cleans state of search on close.
-     */
-    $scope.toggleSearch = function () {
-        $scope.searching = !$scope.searching;
-        if (!$scope.searching) $scope.search_text = null;
-    };
-
-    /**
-     * Search for endpoints.
-     * @param {String} query - Name of endpoint to find.
-     */
-    $scope.querySearch = function(query) {
-        return query ? EndpointManager.getAvailableEndpoints().filter($scope.createFilterFor(query)) : EndpointManager.getAvailableEndpoints();
-    };
-
-    /**
-     * Create filter function for a query string
-     * @param {String} query - Name of endpoint to query by.
-     */
-    $scope.createFilterFor = function(query) {
-        var lowercaseQuery = angular.lowercase(query);
-
-        return function filterFn(endpoint) {
-            return endpoint.matchesQuery(lowercaseQuery);
-        };
-    };
-}]);
-
 /* istanbul ignore next */
-endpoints.directive('parlayEndpointSearch', function () {
+endpoints.directive('parlayEndpointsToolbar', ['$mdMedia', function ($mdMedia) {
     return {
-        scope: {},
-        templateUrl: '../parlay_components/endpoints/directives/parlay-endpoint-search.html',
-        controller: 'ParlayEndpointSearchController',
+        templateUrl: '../parlay_components/endpoints/directives/parlay-endpoints-toolbar.html',
         link: function ($scope, element, attributes) {
-            $scope.$watch('searching', function (newValue, oldValue, $scope) {
-                $scope.search_icon = $scope.searching ? 'close' : 'search'; 
-            });
-        }
-    };
-});
-
-endpoints.directive('parlayEndpointCard', ['$compile', function ($compile) {
-    return {
-        templateUrl: '../parlay_components/endpoints/directives/parlay-endpoint-card.html',
-        link: function (scope, element, attributes) {
-            
-            // Converts directive names to snake-case which Angular requires during directive compilation.
-            function snake_case(name) {
-                return name.replace(/[A-Z]/g, function(letter, pos) {
-                    return (pos ? '-' : '') + letter.toLowerCase();
-                });
-            }
-            
-            // Locate locations where we are going to insert dynamic directives.
-            var toolbar = element[0].querySelector('div.md-toolbar-tools');
-            var tabs = element[0].querySelector('md-tabs');
-            
-            var endpoints = scope.endpoint.getDirectives();
-            
-            // Append toolbar directives.
-            endpoints.filter(function (endpoint) {
-                return endpoint.hasOwnProperty('toolbar');
-            }).reduce(function (previous, endpoint) {
-                return previous.concat(endpoint.toolbar.map(function (directive) {
-                    return '<' + snake_case(directive, '-') + ' endpoint="endpoint" layout-fill layout="row" layout-align="space-between center"></' + snake_case(directive, '-') + '>';    
-                }));
-            }, []).forEach(function (directive_string) {
-                toolbar.appendChild($compile(directive_string)(scope)[0]);
-            });
-            
-            // Append tabs directives.
-            endpoints.filter(function (endpoint) {
-                return endpoint.hasOwnProperty('tabs');
-            }).reduce(function (previous, endpoint) {
-                return previous.concat(endpoint.tabs.map(function (directive) {
-                    return '<' + snake_case(directive, '-') + ' endpoint="endpoint"></' + snake_case(directive, '-') + '>';
-                }));
-            }, []).forEach(function (directive_string) {
-                tabs.appendChild($compile(directive_string)(scope)[0]);
+	        
+	        // Watch the size of the screen, if we are on a screen size that's greater than a small screen we should always display labels.
+            $scope.$watch(function () {
+	            return $mdMedia('gt-sm');
+            }, function (large_screen) {
+	            $scope.large_screen = large_screen;
             });
             
         }
     };
 }]);
-
-/* istanbul ignore next */
-endpoints.directive('parlayEndpointsToolbar', function () {
-    return {
-        templateUrl: '../parlay_components/endpoints/directives/parlay-endpoints-toolbar.html'
-    };
-});

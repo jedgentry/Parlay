@@ -250,4 +250,42 @@ Example response:
             ]
     ]
 
+
+Execute Python statement
+----------------------------------
+
+When in DEVELOPMENT mode, the broker allows remote protocols to execute arbitrary python statements. If in any other mode
+the broker will REJECT the command and not execute the statement.
+
+Message format:
+
+* topics
+    * type : broker
+    * request : eval_statement
+
+* contents
+    * statement : the statement to evaluate as a string. This must be a single valid python statement (e.g.: 1+1 or [x for x in range(10)])
+
+
+Example response:
+
+* topics
+    * type : broker
+    * request : eval_statement_response
+
+* contents
+    * status : ok
+    * result : 2  (the result of the statement 1+1)
+
+
+Example Error Response:
+
+* topics
+    * type : broker
+    * request : eval_statement_response
+
+* contents
+    * status : ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE
+    * result : ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE
+
 """
