@@ -79,7 +79,7 @@ class ParlayScript(WebSocketClientProtocol):
         msg['TOPICS']['MSG_ID'] = self.getMessageID()
         msg['TOPICS']['TO'] = to
         msg['TOPICS']['FROM'] = self.name
-
+        msg['CONTENT']['COMMAND']= command
         return msg
 
 
