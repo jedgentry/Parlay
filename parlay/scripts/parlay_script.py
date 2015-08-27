@@ -3,69 +3,72 @@ Define a base class for creating a client script
 """
 
 from twisted.internet import threads,reactor, defer
-from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
 from autobahn.twisted.websocket import  WebSocketClientProtocol, WebSocketClientFactory
 import json
 import sys
-import collections
+import traceback
 
-
-
-
-default_timeout = 10
+default_timeout = 2
 message_id = 1
-DEFAULT_ENGINE_WEBSOCKET_PORT = 8888
+DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
-def get_message_id():
-    global message_id
-    #wrap at maxint
-    if message_id >= sys.maxint:
-        message_id = 0
-    current = message_id
-    message_id = current + 1
-    return current
+
 
 class ParlayScript(WebSocketClientProtocol):
-    """Base object for all Avilon test scripts"""
+    """Base object for all Parlay scripts"""
 
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
 
-    @classmethod
-    def register_instance_listener(cls, listener):
-        """
-        Register a new instance listener that will be notified when there is a new instance
-        """
-        cls._instance_listeners.append(listener)
 
     def __init__(self):
-        # messages received as passed through this list of listeners.
-        self._listeners = []
-        self.async_errors = []
-        self.name = self.__class__.__name__ + ".py"
+
         self.reactor = reactor
+        self.msg_listeners = []
+        self.system_errors = []
+        self.system_events = []
+        self.name = self.__class__.__name__ + ".py"
+
+        # Add this listener so it will be first in the list to pickup errors, warnings and events.
+        self.addListener(self._system_listener)
+
+
+    def open(self, protocol,**params):
+        """
+
+        :param protocol: protocol being used
+        :param params: other parameters
+        :return:
+        """
+        """
+        :param protocol:
+        :param params:
+        :return:
+        """
+        msg = {'TOPICS':{'type':'broker', 'request':'open_protocol'},"CONTENTS":{'protocol':protocol,'params':params}}
+        self.reactor.callFromThread(self.sendMessage,json.dumps(msg))
 
     def onConnect(self, response):
         WebSocketClientProtocol.onConnect(self, response)
-        # schedule a clean call
+        # schedule calling the script entry
         self.reactor.callLater(0, self._start_script)
 
 
-    def addListener(self, listener, timeout=None):
+    def addListener(self, listener_function):
         """
-        use this to add listener functions to the listener list
+        Add  functions to the listener list
         """
-        self._listeners.append(listener)  # ONLY APPEND NO PREPEND OR INSERT
+        self.msg_listeners.append(listener_function)
 
 
 
     ##################################################################################################################
-    ###################  The functions below are for this base class and are not usually used by the script ###########
+    ###################  The functions below are used by the script ###############################
 
     def makeCommand(self,to, command, response_req = True,**kwargs):
         """
-        Put the necessary info into the message to get it to the engine
+        Prepare a message for the broker to disperse
         """
         msg = {'TOPICS':{},'CONTENTS':kwargs}
 
@@ -73,82 +76,52 @@ class ParlayScript(WebSocketClientProtocol):
         msg['TOPICS']['TX_TYPE']= 'DIRECT'
         msg['TOPICS']['MSG_TYPE']= 'COMMAND'
         msg['TOPICS']['RESPONSE_REQ']= response_req
-        msg['TOPICS']['MSG_ID'] = get_message_id()
+        msg['TOPICS']['MSG_ID'] = self.getMessageID()
         msg['TOPICS']['TO'] = to
         msg['TOPICS']['FROM'] = self.name
-
-
-
+        msg['CONTENT']['COMMAND']= command
         return msg
 
 
-    def sendCommand(self,msg,wait=True, timeout=default_timeout,ignore_async_errors = False):
+    def sendParlayMessage(self,msg, timeout=default_timeout):
         """
-        Send a command in the reactor thread and optionally wait for the
-        response to return or timeout.
+        Send a command.  This will be sent from the reactor thread.  If a response is required, we will wait
+        for it.
         """
+        wait = msg['TOPICS']['RESPONSE_REQ']
         if wait:
             #block the thread until we get a response or timeout
-            resp = threads.blockingCallFromThread(self.reactor,self.sendCommandWithDeferredWait,msg=msg, timeout=timeout,ignore_async_errors=ignore_async_errors)
+            resp = threads.blockingCallFromThread(self.reactor,self._sendParlayMessage,msg=msg, timeout=timeout)
             return resp
         else:
-            #send this to the reactor without blocking
-            #just send it from our thread
+            #send this to the reactor without waiting for a response
             self.reactor.callFromThread(self.sendMessage,json.dumps(msg))
 
-    def delay(self,time,ignore_async_errors=False):
-        threads.blockingCallFromThread(self.reactor,self.deferredDelay,time,ignore_async_errors=ignore_async_errors)
+    def sleep(self,timeout):
+        threads.blockingCallFromThread(self.reactor,self._sleep,timeout)
 
-    ####  Calls only made from the reactor thread ##
-    #### Do not call directly    ######
-    def deferredDelay(self,time,ignore_async_errors):
+    def _in_thread_run_script(self):
         """
-        This is what is run on the reactor side for a delay.  It will pickup message looking for errors, and
-        break out of the delay upon error.
-        :param time:
-        :return:
+        Run the script.
         """
-        response = defer.Deferred()
-        timer = None
-        def listener(new_msg):
-            # look for async errors and resume blocked thread if found
-            if len(self.async_errors) > 0:
-                # we got an error while waiting our delay.
-                # cancel out the timer
-                if timer is not None:
-                    timer.cancel()
-                #return the error to our waiting thread
-                error_msg = self.async_errors.pop()
-                response.errback(Failure(AsyncError(error_msg)))
-                return True # remove the listener
-            return False  # not for this listener - don't remove
+        try:
+            self.run_script()
 
-        def cb(msg):
-            #remove our listener
-            if listener in self._listeners:
-                self._listeners.remove(listener)
-            # see if this an error message or wait completed messsage
+        except:
+            # handle any exception thrown
+            exc_type,exc_value,exc_traceback = sys.exc_info()
+            print "Exception Error:  " ,exc_value
 
-            if msg['TOPIC']['MSG_TYPE'] == 'TIMEOUT':
-                # times up - no errors
-                response.callback(msg)
-            else:
-                # got an asynchronous error
-                response.errback(Failure(AsyncError(msg)))
+            # print traceback, excluding this file
+            exc_strings = traceback.format_list(traceback.extract_tb(exc_traceback))
+            exc_strings = [s for s in exc_strings if s.find("parlay_script.py")< 0 ]
+            for s in exc_strings:
+                print s
 
-        # if we already got an async error before starting the delay, setup a failure.
-        if not ignore_async_errors and len(self.async_errors)>0:
-            error_msg= self.async_errors.pop()
-            timer = self.reactor.callLater(0,cb,error_msg)
 
-        else: # set up our delay
-            timer = self.reactor.callLater(time,cb,{'TOPIC':{'MSG_TYPE':'TIMEOUT'}})
-            #add the listener for an async error response while we are waiting
-            if not ignore_async_errors:
-                self.addListener(listener)
-        return response
-
-    def sendCommandWithDeferredWait(self, msg,timeout,ignore_async_errors):
+    ####################### THe following  must be run from the reactor thread ####################################
+    #############################   Do not call directly from script thread #####################
+    def _sendParlayMessage(self, msg,timeout):
         """
         Send the command and wait for the callback.This must be called
         only from the reactor thread.
@@ -159,28 +132,28 @@ class ParlayScript(WebSocketClientProtocol):
         timer = None
         timeout_msg = {'TOPIC':{'MSG_TYPE':'TIMEOUT'}}
 
-        def listener(new_msg):
-            # if this is direct to us, give result back to blocked caller
-            if new_msg['TOPIC']['MSG_TYPE']== 'RESPONSE':
-                if new_msg['TOPIC']['TO'] == self.name and new_msg['MSG_ID']==msg['TOPIC']['MSG_ID']:
+        def listener(received_msg):
+            # See if this is the response we are waiting for
+            if received_msg['TOPIC']['MSG_TYPE']== 'RESPONSE':
+                if received_msg['TOPIC']['TO'] == self.name and received_msg['MSG_ID']== msg['TOPIC']['MSG_ID']:
                     if timer is not None:
-                        #haven't timed out yet. Clear the timer
+                        #Clear the timer
                         timer.cancel()
-                    if new_msg['MSG_STATUS']== 'ERROR':
-                         #return error to blocked thread
-                        response.errback(Failure(ErrorResponse(new_msg)))
+                    if received_msg['MSG_STATUS']== 'ERROR':
+                         #return error to waiting thread
+                        response.errback(Failure(ErrorResponse(received_msg)))
                     else:
-                        #all good
-                        response.callback(new_msg)
-                    return True  # remove this
-            else: #not to us - but may be an asynchronous error
-                if len(self.async_errors)> 0 and not ignore_async_errors:
+                        #send the response back to the waiting thread
+                        response.callback(received_msg)
+                    return True  # remove this listener from the list
+
+            else: #not our response.  Check for a system error.
+                if len(self.system_errors)> 0 :
                     if timer is not None:
                         # clear out the timer
                         timer.cancel()
-                         # report an error to the waiting thread
-                    error_msg = self.async_errors.pop()
-                    response.errback(Failure(AsyncError(error_msg)))
+                    # report an error to the waiting thread
+                    response.errback(Failure(SystemError(self.system_errors.pop(0))))
                     return True # remove this listener
 
             return False  # not for this listener - don't remove
@@ -188,111 +161,101 @@ class ParlayScript(WebSocketClientProtocol):
         def cb(msg):
             # got a timeout or started with an error
             # remove the listener
-            if listener in self._listeners:
-                self._listeners.remove(listener)
+            if listener in self.listener_list:
+                self.listener_list.remove(listener)
             #send failure to thread waiting.
-            response.errback(Failure(AsyncError(msg)))
+            response.errback(Failure(SystemError(msg)))
 
-        # if we got an async error before this call, setup a failure.
-        if len(self.async_errors)>0 and not ignore_async_errors:
-             error_msg = self.async_errors.pop()
-             timer = self.reactor.callLater(0,cb,error_msg)
+        # If we already have a system error, fail
+        if len(self.system_errors) > 0 :
+            self.timer = self.reactor.callLater(0,cb,self.system_errors.pop(0))
 
-        # set a timer, if one was requested
         else:
-            #set a timer if requested
+            # set a timeout, if requested
             if timeout > 0:
                 timer = self.reactor.callLater(timeout,cb,timeout_msg)
 
-            #setup a listener for the response
+            # add our listner to the listener ist
             self.addListener(listener)
 
             # send the message
             self.sendMessage(json.dumps(msg))
+
         return response
 
-    def _error_listener(self, msg):
+
+
+    def _sleep(self,timeout):
         """
-        listener called from the reactor thread  - always look for errors and store them
-        other listeners will see the stored error.  Note this is the first listener in the list, therefore
-        it will always be run before other listeners.
-        :param msg:
-        :return:
+        Support a script delay.  The delay will stop early with an error if there is a system error.
+        :param timeout:
+        :return:deferred
         """
-        """
-        :param msg:
-        :return:
-        """
-        # look for asynchronous errors.  Note: these will not have a message ID field.
-        if 'MSG_ID' not in msg['TOPICS']:
-            if 'MSG_STATUS'in msg and msg['MSG_STATUS'] == 'ERROR':
-                 # save the error
-                self.async_errors.append(msg)
-        return False
+        response = defer.Deferred()
+        timer = None
+        def listener(received_msg):
+            # look for system errors while we are waiting
+            if len(self.system_errors) > 0:
+                # cancel out the timer
+                if timer is not None:
+                    timer.cancel()
+                #return the error to our waiting thread
+                response.errback(Failure(SystemError(self.errors.pop(0))))
+                return True # remove the listener from the list
+            return False  #  don't remove
+
+        def cb(msg):
+            #remove our listener function if it is in the list.
+            if listener in self.msg_listeners:
+                self.listener_list.remove(listener)
+
+            # if this is the normal timeout, just send the timeout message
+            if msg['TOPIC']['MSG_TYPE'] == 'TIMEOUT':
+                # Timed out - no error
+                response.callback(msg)
+            else:
+                # Error
+                response.errback(Failure(SystemError(msg)))
+
+        # check we don't already have an error
+        if len(self.system_errors)>0 :
+             self.timer = self.reactor.callLater(0,cb,self.system_errors.pop(0))
+        else:
+            timer = self.reactor.callLater(timeout,cb,{'TOPIC':{'MSG_TYPE':'TIMEOUT'}})
+            self.addListener(listener)
+        return response
+
 
     def _start_script(self):
         """
         Init and run the script
         @param cleanup: Automatically clean up when we're done running
         """
-        #run the script and store its deferred
+        #run the script and run cleanup after.
+        defer = threads.deferToThread(self.in_thread_run_script)
+        defer.addBoth(self.cleanup)
 
-        d = threads.deferToThread(self.run_script_thread)
-        #when we're finished call the finished deferred's callback so everyone can be alerted!
-        d.addBoth(self.cleanup)
-
-    def run_script_thread(self):
+    def run_script(self):
         """
-        This runs the script and is in the script thread.
+        This should be overridden by the script class
         """
 
-        try:
-            self.run_script()
-
-        except:
-            self.printException()
-            raw_input("Exception: Press 'Enter' to continue.")
-
-    def onMessage(self, packet):
-        """
-        We got a message. Process any listeners that are waiting for messages
-        """
-        msg = json.loads(packet)
-        #see if we have a listener for this message
-        self._run_listeners(msg)
-
-    def _run_listeners(self, msg):
-        to_remove = []
-        for i, listener in enumerate(self._listeners):
-             if listener(msg):
-                to_remove.append(i)
-
-        #now remove all listeners in the list
-        if len(to_remove) > 0:
-            self._listeners = [x for i, x in enumerate(self._listeners) if i not in to_remove]
+        raise NotImplementedError()
 
 
-    # def _waitForDependencies(self, *args):
-    #     """
-    #     Returns a deferred that will be called once all dependencies are done
-    #     """
-    #     return defer.gatherResults(self._depends_on)
 
     def kill(self):
         """
-        kill the current script as soon as possible
+        kill the current script
         """
-        #self._run_script_coroutine.cancel()
-        #for x in self._depends_on:
-        #    x.cancel()
-
-        #clean up ASAP
         self.cleanup()
 
-
-
     def cleanup(self, *args):
-        """cleanup after we're finished"""
+        """
+        Cleanup after running the script
+        :param args:
+        :return:
+        """
 
         def internal_cleanup():
 
@@ -305,14 +268,48 @@ class ParlayScript(WebSocketClientProtocol):
         reactor.callLater(1, internal_cleanup)
 
 
-    def run_script(self):
+    def _system_listener(self, msg):
         """
-        Runs the actual script. Override this in your sub-script class
+        This should be the first listener in the list. It will store any non-response errors and events
+        :param msg:Msg from the broker
+        :return: False so that it is never removed
         """
 
-        raise NotImplementedError()
+        # If it is not a response and it is an error, save it in the list
+        if msg['TOPIC']['MSG_TYPE'] != 'RESPONSE':
+            status = msg.get('MSG_STATUS')
+            if status == 'ERROR':
+                self.system_errors.append(msg)
+            elif status == 'WARNING' or status == 'INFO':
+                self.system_events.append(msg)
+        return False
 
+    def onMessage(self, packet):
+        """
+        We got a message.  See who wants to process it.
+        """
+        msg = json.loads(packet)
+        # run it through the listeners for processing
+        self._runListeners(msg)
 
+    def _runListeners(self, msg):
+        remove_list = []
+        for i, listener in enumerate(self.msg_listeners):
+             if listener(msg):
+                remove_list.append(i)
+
+        # Now that we are done running the list, we can remove the ones slated for removal.
+        if len(remove_list) > 0:
+            self.msg_listeners = [x for i, x in enumerate(self.msg_listeners) if i not in remove_list]
+
+    @classmethod
+    def _getMessageId(cls):
+         #wrap at maxint to 1.  Reserve 0
+        if cls.message_id >= sys.maxint:
+            cls.message_id = 1
+        current = cls. message_id
+        cls.message_id += 1
+        return current
 
 
 def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE_WEBSOCKET_PORT,
@@ -330,26 +327,24 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
     if not reactor.running:
         reactor.run()
 
-
-
 class ErrorResponse(Exception):
     def __init__(self, error_msg):
-        self.response = error_msg
-        self.str = str(error_msg)
-        if 'description' in error_msg:
-            self.str = "Response Message: " + error_msg['description'] + '\n'+ self.str
+        self.error_msg = error_msg
+        self.description = error_msg['CONTENTS'].get('DESCRIPTION','')
+        self.str = "Response Error: " + self.description
 
     def __str__(self):
         return self.str
 
-
-
-class AsyncError(Exception):
+class SystemError(Exception):
+    """
+    This error class if for  asynchronous system errors.
+    """
     def __init__(self, error_msg):
-        self.response = error_msg
-        self.str = str(error_msg)
-        if 'DESCRIPTION' in error_msg['CONTENTS']:
-            self.str =  "Error: " + error_msg['CONTENTS']['DESCRIPTION'] + '\n' + self.str
+        self.error_msg = error_msg
+        self.description = error_msg['CONTENTS'].get('DESCRIPTION','')
+        self.code = error_msg['CONTENTS'].get('ERROR_CODE',0)
 
     def __str__(self):
-        return self.str
+        return "Critical Error: " + self.description
+
