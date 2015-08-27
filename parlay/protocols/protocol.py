@@ -39,7 +39,8 @@ class ProtocolMeta(type):
 class BaseProtocol(object):
     __metaclass__ = ProtocolMeta
 
-
+    def __init__(self):
+        self.endpoints = []
 
     @classmethod
     def open(cls, broker):
@@ -109,6 +110,9 @@ class BaseProtocol(object):
         all attached:
         endpoint types, message types, and connected endpoint instances
         """
-        raise NotImplementedError()
+        return {'TEMPLATE': 'Protocol', 'NAME': str(self),
+                                                              'protocol_type': getattr(self, "_protocol_type_name",
+                                                                                       "UNKNOWN"),
+                                                              'CHILDREN': [x.get_discovery() for x in self.endpoints]}
 
 

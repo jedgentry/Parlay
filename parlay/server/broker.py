@@ -330,6 +330,12 @@ class Broker(object):
 
                 def error_opening(e):
                     """ OOPS error while opening"""
+                    #print to std_err
+                    try:
+                        e.printTraceback()
+                    except:
+                        print(str(e))
+
                     reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(e)}
                     message_callback(reply)
 
@@ -387,19 +393,8 @@ class Broker(object):
                 for p in self.protocols:
                     d = defer.maybeDeferred(p.get_discovery)
                     #add this protocols discovery
-                    def callback(x, protocol=p, error=None):
-                        if not isinstance(x, list):
-                            error = "%s returned a non-list for discovery. Discovery must be a LIST of"\
-                                    "endpoints. See the documentation for more details on formatting"\
-                                    "discovery information" % str(p)
-                            sys.stderr.write(error + "\n")
-
-                        protocol_discovery = {'TEMPLATE': 'Protocol', 'NAME': str(protocol),
-                                                              'protocol_type': getattr(protocol, "_protocol_type_name",
-                                                                                       "UNKNOWN"),
-                                                              'CHILDREN': x}
-                        #extend with meta info
-                        protocol_discovery.update(p.get_protocol_discovery_meta_info())
+                    def callback(x, error=None):
+                        protocol_discovery = x
                         if error is not None:
                             protocol_discovery['error'] = x
                         discovery.append(protocol_discovery)

@@ -3,6 +3,7 @@ from parlay.server.broker import Broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
+from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command
 
 class SerialTerminal(BaseProtocol, LineReceiver):
     """
@@ -23,7 +24,7 @@ class SerialTerminal(BaseProtocol, LineReceiver):
         if isinstance(port, list):
             port = port[0]
 
-        SerialTerminal.delimiter = '\n'#delimiter
+        SerialTerminal.delimiter = '\n'  # delimiter
         p = SerialTerminal(port)
         SerialPort(p, port, broker._reactor, baudrate=9600)  # int(baudrate))
 
@@ -48,26 +49,26 @@ class SerialTerminal(BaseProtocol, LineReceiver):
         return defer.succeed(None)  # fake deferred since we don't have anything asynchornous to do
 
     def __init__(self, port):
+        BaseProtocol.__init__(self)
         self._parlay_name = port
-        self.broker.subscribe(self.onParlayMsg, TO=self._parlay_name)
-
-
-    def onParlayMsg(self, msg):
-        self.sendLine(str(msg['CONTENTS']['data']))
+        self.endpoints = [SerialEndpoint(self._parlay_name, self._parlay_name, self)]
 
     def lineReceived(self, line):
-        msg = {"TOPICS": {"TO": "UI", "TX_TYPE": "DIRECT", "MSG_TYPE": "DATA", "FROM": self._parlay_name},
-               "CONTENTS": {"DATA": line}}
-        self.broker.publish(msg, self.onParlayMsg)
+        # only 1 endpoint
+        self.endpoints[0].send_message(to="UI", contents={"DATA": line})
 
-    def get_discovery(self):
-        return [{
-            "NAME": self._parlay_name,
-            "ID": self._parlay_name,
-            "TEMPLATE": "STD_ENDPOINT",
-            "INTERFACES": [],
-            "CONTENT_FIELDS": [{"MSG_KEY": "data", "INPUT": "STRING"}]
-        }]
+
 
     def __str__(self):
         return "Serial Terminal @ " + self._parlay_name
+
+
+class SerialEndpoint(ParlayCommandEndpoint):
+
+    def __init__(self, endpoint_id, name, protocol):
+        ParlayCommandEndpoint.__init__(self, endpoint_id, name)
+        self._protocol = protocol
+
+    @parlay_command
+    def send_data(self, data):
+        self._protocol.sendLine(str(data))
