@@ -37,7 +37,11 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
                 self.broker.publish(msg, self.send_message_as_JSON)
             else:
                 # discovery!
-                self._discovery_response_defer.callback(msg['CONTENTS'].get('discovery', []))
+                # get skeleton
+                discovery = BaseProtocol.get_discovery(self)
+                #fill with discovered children
+                discovery['CHILDREN'] = msg['CONTENTS'].get('discovery', [])
+                self._discovery_response_defer.callback(discovery)
                 self._discovery_response_defer = None
         else:
             print "Binary messages not supported yet"
@@ -63,7 +67,7 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
                 self._discovery_response_defer.callback([])
                 self._discovery_response_defer = None
 
-        self.broker._reactor.callLater(2, timeout)
+        self.broker._reactor.callLater(3, timeout)
 
         return self._discovery_response_defer
 

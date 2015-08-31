@@ -53,6 +53,7 @@ from twisted.application import internet, service
 from twisted.web import static, server
 import os
 import json
+import sys
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -329,6 +330,12 @@ class Broker(object):
 
                 def error_opening(e):
                     """ OOPS error while opening"""
+                    #print to std_err
+                    try:
+                        e.printTraceback()
+                    except:
+                        print(str(e))
+
                     reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(e)}
                     message_callback(reply)
 
@@ -386,13 +393,8 @@ class Broker(object):
                 for p in self.protocols:
                     d = defer.maybeDeferred(p.get_discovery)
                     #add this protocols discovery
-                    def callback(x, protocol=p, error=None):
-                        protocol_discovery = {'TEMPLATE': 'Protocol', 'NAME': str(protocol),
-                                                              'protocol_type': getattr(protocol, "_protocol_type_name",
-                                                                                       "UNKNOWN"),
-                                                              'CHILDREN': x}
-                        #extend with meta info
-                        protocol_discovery.update(p.get_protocol_discovery_meta_info())
+                    def callback(x, error=None):
+                        protocol_discovery = x
                         if error is not None:
                             protocol_discovery['error'] = x
                         discovery.append(protocol_discovery)
@@ -403,7 +405,7 @@ class Broker(object):
                     d_list.append(d)
 
                 #wait for all to be finished
-                all_d = defer.gatherResults(d_list, consumeErrors=True)
+                all_d = defer.gatherResults(d_list, consumeErrors=False)
                 def discovery_done(*args):
 
                     #append the discovery for the broker
@@ -415,6 +417,7 @@ class Broker(object):
                 def discovery_error(*args):
                     #append the discovery for the broker
                     discovery.append(Broker._discovery)
+
                     
                     reply['CONTENTS']['status'] = str(args)
                     reply['CONTENTS']['discovery'] = discovery
