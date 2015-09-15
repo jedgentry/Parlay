@@ -159,7 +159,7 @@ class Broker(object):
                 self._publish(msg, root_list[k][TOPICS[k]])
 
 
-    def subscribe(self, func, **kwargs):
+    def subscribe(self, func, _owner_=None, **kwargs):
         """
         Register a listener. The kwargs is a dictionary of args that **all** must be true
         to call this listener. You may register the same function multiple times with different
@@ -167,12 +167,15 @@ class Broker(object):
         @param func: The function to run
         @param kwargs: The key/value pairs to listen for
         """
-        # only bound methods are allowed to subscribe so they are easier to clean up later
-        if hasattr(func, 'im_self') and func.im_self is not None:
-            owner = func.im_self
+        # only bound methods (or explicit owners) are allowed to subscribe so they are easier to clean up later
+        if _owner_ is None:
+            if hasattr(func, 'im_self') and func.im_self is not None:
+                owner = func.im_self
+            else:
+                raise ValueError("Function {} passed to subscribe_listener() ".format(func.__name__) +
+                                 "must be a bound method of an object")
         else:
-            raise ValueError("Function {} passed to subscribe_listener() ".format(func.__name__) +
-                             "must be a bound method of an object")
+            owner = _owner_
 
         #sort so we always get the same order
         keys = sorted(kwargs.keys())
@@ -214,7 +217,7 @@ class Broker(object):
         #now that we're done, that means that we are subscribed and we have the leaf in root_list.
         listeners = root_list.get(None, [])
         #filter out any subscriptions by 'owner'
-        root_list[None] = [x for x in listeners if x.owner != owner]
+        root_list[None] = [x for x in listeners if x[1] != owner]
 
 
     def _clean_trie(self, root_list=None):
@@ -400,7 +403,7 @@ class Broker(object):
                         discovery.append(protocol_discovery)
 
                     d.addCallback(callback)
-                    d.addErrback(lambda e: callback([], error=e))
+                    d.addErrback(lambda e: callback({}, error=e))
 
                     d_list.append(d)
 
