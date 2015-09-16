@@ -3,7 +3,7 @@ from parlay.server.broker import Broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command
+from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command, MSG_TYPES
 
 class SerialTerminal(BaseProtocol, LineReceiver):
     """
@@ -24,9 +24,9 @@ class SerialTerminal(BaseProtocol, LineReceiver):
         if isinstance(port, list):
             port = port[0]
 
-        SerialTerminal.delimiter = '\n'  # delimiter
+        SerialTerminal.delimiter = '\r'  # delimiter
         p = SerialTerminal(port)
-        SerialPort(p, port, broker._reactor, baudrate=9600)  # int(baudrate))
+        SerialPort(p, port, broker._reactor, baudrate=115200)  # int(baudrate))
 
         return p
 
@@ -55,7 +55,7 @@ class SerialTerminal(BaseProtocol, LineReceiver):
 
     def lineReceived(self, line):
         # only 1 endpoint
-        self.endpoints[0].send_message(to="UI", contents={"DATA": line})
+        self.endpoints[0].send_message(to="UI", contents={"DATA": line}, msg_type=MSG_TYPES.EVENT)
 
 
 

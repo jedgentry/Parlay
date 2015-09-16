@@ -16,6 +16,7 @@ class BaseEndpoint(object):
 
         # subscribe on_message to be called whenever we get a message *to* us
         self._broker.subscribe(self.on_message, TO=endpoint_id)
+        self._broker.subscribe(self.on_sent_message, FROM=endpoint_id)
         self._interfaces = [] #list of interfaces we support
 
     def on_message(self, msg):
@@ -25,7 +26,11 @@ class BaseEndpoint(object):
         """
         pass
 
-
+    def on_sent_message(self, msg):
+        """
+        any time there is a message SENT by us, this method will be called with it
+        """
+        pass
     def get_discovery(self):
         """
         The protocol can call this to get discovery from me
