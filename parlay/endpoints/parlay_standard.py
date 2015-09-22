@@ -293,6 +293,10 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 # TODO: auto fill in required and defaults based on method signature
                 member.__func__._parlay_sub_fields = [self.create_field(x, INPUT_TYPES.STRING) for x in arg_names]
 
+        #run discovery to init everything for a first time
+        #call it immediately after init
+        self._broker._reactor.callLater(0, ParlayCommandEndpoint.get_discovery, self)
+
 
     def get_discovery(self):
         """
@@ -373,11 +377,12 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
             try:
                 if action == 'SET':
                     assert 'VALUE' in contents  # we need a value to set!
-                    setattr(self, self._properties[property_name], contents['VALUE'])
+                    prop = getattr(self, self._properties[property_name]["ATTR_NAME"])
+                    prop._val = contents['VALUE']
                     self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE"})
                     return True
                 elif action == "GET":
-                    val = getattr(self, self._properties[property_name])
+                    val = getattr(self, self._properties[property_name]["ATTR_NAME"])._val
                     self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE", "VALUE": val})
                     return True
             except Exception as e:
@@ -389,10 +394,10 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         if msg_type == "STREAM":
             try:
                 stream_name = contents["STREAM"]
-                hz = contents["RATE"]
+                hz = float(contents["RATE"])
                 requester = topics["FROM"]
                 def sample():
-                    val = getattr(self, self._datastreams[stream_name])
+                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])._val
                     self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val})
 
                 looper = LoopingCall(sample)
