@@ -3,9 +3,10 @@ from parlay.server.broker import Broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command, MSG_TYPES
+from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command, MSG_TYPES, BadStatusError
+from parlay.protocols.utils import delay, timeout
 
-class SerialTerminal(BaseProtocol, LineReceiver):
+class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
     When a client connects over a websocket, this is the protocol that will handle the communication.
     The messages are encoded as a JSON string
@@ -24,8 +25,8 @@ class SerialTerminal(BaseProtocol, LineReceiver):
         if isinstance(port, list):
             port = port[0]
 
-        SerialTerminal.delimiter = '\r'  # delimiter
-        p = SerialTerminal(port)
+        ASCIILineProtocol.delimiter = '\r'  # delimiter
+        p = ASCIILineProtocol(port)
         SerialPort(p, port, broker._reactor, baudrate=115200)  # int(baudrate))
 
         return p
@@ -51,7 +52,7 @@ class SerialTerminal(BaseProtocol, LineReceiver):
     def __init__(self, port):
         BaseProtocol.__init__(self)
         self._parlay_name = port
-        self.endpoints = [SerialEndpoint(self._parlay_name, self._parlay_name, self)]
+        self.endpoints = [LineEndpoint(self._parlay_name, self._parlay_name, self)]
 
     def lineReceived(self, line):
         # only 1 endpoint
@@ -63,12 +64,25 @@ class SerialTerminal(BaseProtocol, LineReceiver):
         return "Serial Terminal @ " + self._parlay_name
 
 
-class SerialEndpoint(ParlayCommandEndpoint):
+class LineEndpoint(ParlayCommandEndpoint):
 
     def __init__(self, endpoint_id, name, protocol):
         ParlayCommandEndpoint.__init__(self, endpoint_id, name)
         self._protocol = protocol
 
     @parlay_command
-    def send_data(self, data):
+    def send_raw_data(self, data):
         self._protocol.sendLine(str(data))
+
+    @defer.inlineCallbacks
+    def wait_for_ack(self):
+
+        while True:
+            next_resp = yield timeout(self.wait_for_next_sent_msg(), .5)
+            if next_resp["TOPICS"].get("MSG_TYPE", "") == MSG_TYPES.EVENT:
+                resp = next_resp["CONTENTS"]["DATA"]
+                # ack or anything endwith with OK is OK
+                if resp != "ACK" and not resp.endswith("OK"):
+                    raise BadStatusError(next_resp)
+                else:
+                    defer.returnValue(next_resp)

@@ -2,15 +2,15 @@
 Protocols for Elite Engineering devices
 """
 from parlay.protocols.protocol import BaseProtocol
-from parlay.server.broker import Broker
+
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
-from twisted.protocols.basic import LineReceiver
-from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command, BadStatusError, MSG_TYPES
-from serial_terminal import SerialTerminal
+
+from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command
+from serial_terminal import ASCIILineProtocol, LineEndpoint
 from math import radians, degrees, sqrt, atan2, pi, acos, sin, cos, asin
-from parlay.protocols.utils import delay, timeout
-import time
+from parlay.protocols.utils import delay
+
 
 L0 = 8.5  # inches, upper arm length
 L1 = 7.0  # inches, forearm length
@@ -31,7 +31,7 @@ WRIST_ROLL_TO_MOTOR = 90.0/1000.0
 MAX_RADIUS = L0 + L1 - 1  # max radius to keep the arm within.
                           #  If instructed to go outside this radius, will instead touch the radius
 
-class EliteArmProtocol(SerialTerminal):
+class EliteArmProtocol(ASCIILineProtocol):
 
     @classmethod
     def open(cls, broker, port="/dev/tty.usbserial-FTAJOUB2"):
@@ -46,7 +46,7 @@ class EliteArmProtocol(SerialTerminal):
 
     @classmethod
     def get_open_params_defaults(cls):
-        parent_args = SerialTerminal.get_open_params_defaults()
+        parent_args = ASCIILineProtocol.get_open_params_defaults()
         #just copy over the port list, we already know the baudrate and delimiter
         args = {}
         args["port"] = parent_args["port"]
@@ -58,7 +58,7 @@ class EliteArmProtocol(SerialTerminal):
         self.endpoints = [EliteArmEndpoint(self._parlay_name, self._parlay_name, self)]
 
 
-class EliteArmEndpoint(ParlayCommandEndpoint):
+class EliteArmEndpoint(LineEndpoint):
     """
     Endpoint for an Elite Arm
     """
@@ -69,32 +69,20 @@ class EliteArmEndpoint(ParlayCommandEndpoint):
         self._inited = False
         self._in_move = False
 
-    @defer.inlineCallbacks
-    def wait_for_ack(self):
-
-        while True:
-            next_resp = yield timeout(self.wait_for_next_sent_msg(), .5)
-            if next_resp["TOPICS"].get("MSG_TYPE", "") == MSG_TYPES.EVENT:
-                resp = next_resp["CONTENTS"]["DATA"]
-                # ack or anything endwith with OK is OK
-                if resp != "ACK" and not resp.endswith("OK"):
-                    raise BadStatusError(next_resp)
-                else:
-                    defer.returnValue(next_resp)
-
-
-    @parlay_command
-    def send_raw_data(self, data):
-        self._protocol.sendLine(str(data))
-
 
     @parlay_command
     def home(self, motor_num):
         self.send_raw_data("HA"+str(motor_num))
 
+    @defer.inlineCallbacks
     @parlay_command
     def init_motors(self):
         self.send_raw_data("EAL")
+        yield self.wait_for_ack()
+
+        for i in range(5):
+            self.send_raw_data("SRCD"+str(i+1))
+            yield self.wait_for_ack()
 
     @defer.inlineCallbacks
     @parlay_command
@@ -107,8 +95,8 @@ class EliteArmEndpoint(ParlayCommandEndpoint):
     @defer.inlineCallbacks
     @parlay_command
     def home_all(self):
-        for x in range(1, 7):
-            self.home(x)
+        for x in range(6):
+            self.home(x + 1)
             yield self.wait_for_ack()
 
     @parlay_command
@@ -134,7 +122,7 @@ class EliteArmEndpoint(ParlayCommandEndpoint):
         assert -1200 < int(motor2) < 1200
         assert -1700 < int(motor3) < 2700
         #even out motor 4
-        motor4 = max(min(1200, motor4), -2000)
+        motor4 = max(min(200, motor4), -1800)
         assert -2000 <= int(motor4) <= 1200
         assert -4200 < int(motor5) < 4200
         if self._in_move:
@@ -142,7 +130,7 @@ class EliteArmEndpoint(ParlayCommandEndpoint):
         try:
             self._in_move = True
             #self.send_raw_data("SPCA " + " ".join([str(int(x)) for x in [motor1, motor2, motor3, motor4, motor5, motor6]]))
-            m = [motor1, motor2, motor3, motor4, motor5, motor6]
+            m = [motor1, motor2, motor3] #  motor4, motor5]  # , motor6]
             for i in range(len(m)):
                 self.send_raw_data("SPC"+str(i+1)+" "+str(int(m[i])))
                 yield self.wait_for_ack()
@@ -174,8 +162,8 @@ class EliteArmEndpoint(ParlayCommandEndpoint):
         """
         try:
             print "Moving hands"
-            x,y,z = Kinematics.scale_to_max_radius(x,y,z)
-            thetas = Kinematics.xyz_to_joint_angles(float(x), float(y), float(z))
+            x,y,z =float(x), float(y), float(z) # Kinematics.scale_to_max_radius(x,y,z)
+            thetas = Kinematics.xyz_to_joint_angles(x, y, z)
             m1 = Kinematics.base_angle_to_motor(thetas[0])
             m2 = Kinematics.shoulder_angle_to_motor(thetas[1])
             m3 = Kinematics.elbow_angle_to_motor(thetas[2])
@@ -194,6 +182,7 @@ class Kinematics:
 
     @staticmethod
     def scale_to_max_radius(x, y, z):
+        x, y, z = float(x), float(y), float(z)
         r = sqrt(x*x + y*y + z*z)
         if r > MAX_RADIUS:
             x = x*MAX_RADIUS/r

@@ -40,6 +40,9 @@ class LeapProtocol(BaseProtocol):
         #self.listener = LeapListener(endpoint)
         #LeapProtocol.controller.add_listener(self.listener)
 
+    def __str__(self):
+        return "LEAP0" # only 1 leap protocol at a time
+
 class LeapListener(Leap.Listener):
 
     def __init__(self, endpoint):
@@ -100,7 +103,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
     @defer.inlineCallbacks
     @parlay_command
     def link_up(self, arm_name):
-        arm_name = "/dev/ttyUSB1"
+        arm_name = "/dev/ttyUSB0"
         print "connecting to: " + arm_name
         while True:
             #print "Hand position: {:.1f} {:.1f} {:.1f}, {:.3f}".format(self.hand1[0], self.hand1[1], self.hand1[2], self.hand1[-1])
@@ -115,15 +118,15 @@ class LeapEndpoint(ParlayCommandEndpoint):
             grasp_leap = 0  # self.hand1[2]
 
             confidence_leap = self.hand1[-1]
-            if confidence_leap > 0.75:
+            if confidence_leap > 0.6:
 
                 x, y, z, pitch, grasp = self.leap_to_output_coords(x_leap, y_leap, z_leap, pitch_leap, grasp_leap)
                 roll = math.degrees(self.hand1_roll)
                 velocity = math.sqrt(self.hand1_velocity[0]**2 + self.hand1_velocity[1]**2 + self.hand1_velocity[2]**2)
-                if velocity < 50: #15:
+                if velocity < 50000: #15:
                     print "Robot Command (x, y, z, pitch, roll, grasp): {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f}".format(x, y, z, pitch, roll, grasp, velocity)
                     self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll)
-                    yield delay(.4)
+                    yield delay(.25)
                 else:
                     yield delay(0.25)
             else:
@@ -133,16 +136,16 @@ class LeapEndpoint(ParlayCommandEndpoint):
     @staticmethod
     def leap_to_output_coords(x_leap, y_leap, z_leap, pitch_leap, grasp_leap):
         k_inch_mm = 1 / 25.4
-        k_scale_x = 0.6
+        k_scale_x = 0.9
         k_scale_y = 1
         k_scale_z = .8
 
         pitch_scale = 1.25
 
-        offset_x_out = 8.0
+        offset_x_out = 10.0
         offset_y_out = 0.0
         offset_z_out = 0.0
-        offset_pitch_out = 0.0
+        offset_pitch_out = -5.0
 
         grasp = grasp_leap
         pitch = math.degrees(pitch_leap)*pitch_scale + offset_pitch_out
