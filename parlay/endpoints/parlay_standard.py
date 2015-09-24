@@ -5,6 +5,7 @@ from twisted.internet import defer
 from parlay.server.broker import Broker
 from twisted.internet.task import LoopingCall
 
+
 class INPUT_TYPES(object):
     NUMBER ="NUMBER"
     STRING = "STRING"
@@ -153,7 +154,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
         if from_ is None:
             from_ = self.endpoint_id
 
-        msg = {"TOPICS": {"TO": to, "FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE":msg_type, "MSG_ID": msg_id,
+        msg = {"TOPICS": {"TO": to, "FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE": msg_type, "MSG_ID": msg_id,
                           "MSG_STATUS": msg_status, "RESPONSE_REQ": response_req},
                "CONTENTS": contents}
 
@@ -170,7 +171,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
                           contents=contents)
 
     def send_parlay_command(self, to, command_name, **kwargs):
-        contents=kwargs
+        contents = kwargs
         contents['FUNC'] = command_name
         msg_id = self._msg_id_generator.next()
         self.send_message(to, contents=contents, response_req=True, msg_id=msg_id)
@@ -188,7 +189,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
         return d
 
 
-
+from parlay.scripts.parlay_script import ENDPOINT_PROXIES
 
 def parlay_command(fn):
     fn._parlay_command = True
@@ -468,6 +469,122 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         Returns a deferred that will callback on the next message we RECEIVE
         """
         return self._wait_for_next_recv_message
+
+
+
+
+class ParlayStandardScriptProxy(object):
+    """
+    A proxy class for the script to use, that will auto-detect discovery information and allow script writers to
+    intuitively use the endpoint
+    """
+
+    class PropertyProxy(object):
+        """
+        Proxy class for a parlay property
+        """
+
+        def __init__(self, name, endpoint_proxy, blocking_set=True):
+            self._name = name
+            self._endpoint_proxy = endpoint_proxy
+            # do we want to block on a set until we get the ACK?
+            self._blocking_set = blocking_set
+
+        def __get__(self, instance, owner):
+            msg = instance._script.make_msg(instance.name, None, msg_type=MSG_TYPES.PROPERTY,
+                                            direct=True, response_req=True, PROPERTY=self._name, ACTION="GET")
+            resp = instance._script.send_parlay_message(msg)
+            #reutn the VALUE of the response
+            return resp["CONTENTS"]["VALUE"]
+
+        def __set__(self, instance, value):
+            msg = instance._script.make_msg(instance.name, None, msg_type=MSG_TYPES.PROPERTY,
+                                            direct=True, response_req=self._blocking_set,
+                                            PROPERTY=self._name, ACTION="SET", VALUE=value)
+            #Wait until we're sure its set
+            resp = instance._script.send_parlay_message(msg)
+
+
+    class StreamProxy(object):
+        """
+        Proxy class for a parlay stream
+        """
+        def __init__(self, name, endpoint_proxy, rate):
+            self._name = name
+            self._endpoint_proxy = endpoint_proxy
+            self._val = None
+            self._rate = rate
+
+            msg = endpoint_proxy._script.make_msg(endpoint_proxy.name, None, msg_type=MSG_TYPES.STREAM,
+                                            direct=True, response_req=True, STREAM=self._name, RATE=rate)
+            endpoint_proxy._script.send_parlay_message(msg)
+
+        def _update_val_listener(self, msg):
+            """
+            Script listener that will update the val whenever we get a stream update
+            """
+            topics, contents = msg["TOPICS"], msg['CONTENTS']
+            if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and contents.get("STREAM", "") == self._name \
+                    and 'VALUE' in contents:
+                self._val = contents["VALUE"]
+            return False  # never eat me!
+
+        def __get__(self, instance, owner):
+            return self._val
+
+        def __set__(self, instance, value):
+            raise NotImplementedError()  # you can't set a STREAM
+
+
+
+    def __init__(self, discovery, script):
+        """
+        discovery: The discovery dictionary for the endpoint that we're proxying
+        script: The script object we're running in
+        """
+        self.name = discovery["NAME"]
+        self.endpoint_id = discovery["ID"]
+        self._discovery = discovery
+        self._script = script
+
+        # look at the discovery and add all commands, properties, and streams
+
+        # commands
+        func_dict = next([x for x in discovery if x['MSG_KEY'] == 'FUNC'], None)
+        if func_dict is not None:  # if we have commands
+            command_names = [x[0] for x in func_dict["DROPDOWN_OPTIONS"]]
+            command_args = [x for x in func_dict["DROPDOWN_SUB_FIELDS"]]
+            for i in range(len(command_names)):
+                func_name = command_names[i]
+                arg_names = [x['MSG_KEY'] for x in command_args[i]]
+                def func(**kwargs):
+                    # check args
+                    for name in arg_names:
+                        if name not in kwargs:
+                            raise TypeError("Missing argument: "+name)
+
+                    #send the message and block for response
+                    msg = self._script.make_msg(self.name, func_name, msg_type=MSG_TYPES.COMMAND,
+                                            direct=True, response_req=True, FUNC=func_name, **kwargs)
+                    resp = self._script.send_parlay_message(msg)
+                    return resp['CONTENTS']['RESULT']
+
+
+                # set this object's function to be that function
+                setattr(self, func_name, func)
+
+        #properties
+        for prop in discovery.get("PROPERTIES", []):
+            setattr(self, prop['NAME'], ParlayStandardScriptProxy.PropertyProxy(prop['NAME'], self))
+
+        #stream
+        for stream in discovery.get("STREAMS", []):
+            setattr(self, stream['NAME'], ParlayStandardScriptProxy.StreamProxy(stream['NAME'], self, 0))
+
+
+ENDPOINT_PROXIES['ParlayStandardEndpoint'] = ParlayStandardScriptProxy
+
+
 
 
 

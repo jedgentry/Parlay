@@ -126,7 +126,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
                 if velocity < 50000: #15:
                     print "Robot Command (x, y, z, pitch, roll, grasp): {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f}".format(x, y, z, pitch, roll, grasp, velocity)
                     self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll)
-                    yield delay(.25)
+                    yield delay(.4)
                 else:
                     yield delay(0.25)
             else:
