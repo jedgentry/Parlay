@@ -54,7 +54,7 @@ class ParlayScript(WebSocketClientProtocol):
         :return:
         """
         msg = {'TOPICS': {'type': 'broker', 'request': 'open_protocol'}, "CONTENTS": {'protocol': protocol, 'params': params}}
-        self.reactor.callFromThread(self.sendMessage,json.dumps(msg))
+        self.reactor.callFromThread(self.sendMessage, json.dumps(msg))
 
     def onConnect(self, response):
         WebSocketClientProtocol.onConnect(self, response)
@@ -108,6 +108,50 @@ class ParlayScript(WebSocketClientProtocol):
         result = threads.blockingCallFromThread(self.reactor, self._in_reactor_discover)
         self.discovery = result
         return result
+
+
+    def get_endpoint(self, endpoint_id):
+        """
+        Get an Endpoint Proxy object by the
+        """
+
+        # first see if we can find the endpoint by its ID
+        endpoint_disc = self._find_endpoint_info_by_id(self.discovery, endpoint_id)
+        if endpoint_disc is None:
+            raise KeyError("Couldn't find endpoint with ID" + str(endpoint_id))
+
+        # now that we have the discovery, let's try and construct a proxy out of it
+        templates = [x.trim() for x in endpoint_disc.get("TEMPLATE", "").split("/")]
+        template = None
+        # find and stop at the first valid one
+        for t in templates:
+            if template is None:
+                template = ENDPOINT_PROXIES.get(t, None)
+
+        # if it's still None, then that means that we couldn't find it
+        if template is None:
+            raise KeyError("Couldn't find template proxy for:" + endpoint_disc.get("TEMPLATE", "") )
+
+        # we have a good template class! Let's construct it
+        return template(endpoint_disc)
+
+
+    def _find_endpoint_info_by_id(self, discovery, endpoint_id):
+        """
+        Find the endpoint with a given id recursively (or None if it can't be found)
+        @type: discovery list
+        """
+        for endpoint in discovery:
+            if endpoint['ID'] == endpoint_id:
+                return endpoint
+            else:
+                return self._find_endpoint_info_by_id(endpoint.get('CHILDREN', []), endpoint_id)
+
+        # couldn't find it
+        return None
+
+
+
 
     def sleep(self, timeout):
         threads.blockingCallFromThread(self.reactor, self._sleep, timeout)
@@ -349,6 +393,8 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
 
     if not reactor.running:
         reactor.run()
+
+
 
 class ErrorResponse(Exception):
     def __init__(self, error_msg):
