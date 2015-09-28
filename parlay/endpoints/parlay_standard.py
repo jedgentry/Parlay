@@ -384,7 +384,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                     self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE"})
                     return True
                 elif action == "GET":
-                    val = getattr(self, self._properties[property_name]["ATTR_NAME"])._val
+                    val = getattr(self, self._properties[property_name]["ATTR_NAME"])
                     self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE", "VALUE": val})
                     return True
             except Exception as e:
@@ -399,7 +399,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 hz = float(contents["RATE"])
                 requester = topics["FROM"]
                 def sample():
-                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])._val
+                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])
                     self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val})
 
                 looper = LoopingCall(sample)
@@ -504,6 +504,9 @@ class ParlayStandardScriptProxy(object):
                                             PROPERTY=self._name, ACTION="SET", VALUE=value)
             #Wait until we're sure its set
             resp = instance._script.send_parlay_message(msg)
+
+        def __str__(self):
+            return str(self.__get__(self._endpoint_proxy, self._endpoint_proxy))
 
 
     class StreamProxy(object):
