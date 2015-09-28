@@ -191,6 +191,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
 
 from parlay.scripts.parlay_script import ENDPOINT_PROXIES
 
+
 def parlay_command(fn):
     fn._parlay_command = True
     fn._parlay_fn = fn # in case it gets wrapped again
@@ -550,28 +551,34 @@ class ParlayStandardScriptProxy(object):
         # look at the discovery and add all commands, properties, and streams
 
         # commands
-        func_dict = next([x for x in discovery if x['MSG_KEY'] == 'FUNC'], None)
+        func_dict = next(iter([x for x in discovery['CONTENT_FIELDS'] if x['MSG_KEY'] == 'FUNC']), None)
         if func_dict is not None:  # if we have commands
             command_names = [x[0] for x in func_dict["DROPDOWN_OPTIONS"]]
             command_args = [x for x in func_dict["DROPDOWN_SUB_FIELDS"]]
             for i in range(len(command_names)):
                 func_name = command_names[i]
                 arg_names = [x['MSG_KEY'] for x in command_args[i]]
-                def func(**kwargs):
-                    # check args
-                    for name in arg_names:
-                        if name not in kwargs:
-                            raise TypeError("Missing argument: "+name)
+                def _closure_wrapper(func_name=func_name, arg_names=arg_names):
+                    def func(*args, **kwargs):
+                        #ad positional args with name lookup
+                        for j in range(len(args)):
+                            kwargs[arg_names[j]] = args[j]
 
-                    #send the message and block for response
-                    msg = self._script.make_msg(self.name, func_name, msg_type=MSG_TYPES.COMMAND,
-                                            direct=True, response_req=True, FUNC=func_name, **kwargs)
-                    resp = self._script.send_parlay_message(msg)
-                    return resp['CONTENTS']['RESULT']
+                        # check args
+                        for name in arg_names:
+                            if name not in kwargs:
+                                raise TypeError("Missing argument: "+name)
 
+                        #send the message and block for response
+                        msg = self._script.make_msg(self.name, func_name, msg_type=MSG_TYPES.COMMAND,
+                                                direct=True, response_req=True, FUNC=func_name, **kwargs)
+                        resp = self._script.send_parlay_message(msg)
+                        return resp['CONTENTS']['RESULT']
 
-                # set this object's function to be that function
-                setattr(self, func_name, func)
+                    # set this object's function to be that function
+                    setattr(self, func_name, func)
+                #need this trickery so closures work in a loop
+                _closure_wrapper()
 
         #properties
         for prop in discovery.get("PROPERTIES", []):
@@ -583,6 +590,7 @@ class ParlayStandardScriptProxy(object):
 
 
 ENDPOINT_PROXIES['ParlayStandardEndpoint'] = ParlayStandardScriptProxy
+ENDPOINT_PROXIES['ParlayCommandEndpoint'] =  ParlayStandardScriptProxy
 
 
 

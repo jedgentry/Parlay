@@ -16,7 +16,7 @@ from parlay.endpoints.parlay_standard import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
 import traceback
 
-DEFAULT_TIMEOUT = 2
+DEFAULT_TIMEOUT = 10
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
 class ParlayScript(WebSocketClientProtocol):
@@ -58,6 +58,11 @@ class ParlayScript(WebSocketClientProtocol):
     def onConnect(self, response):
         WebSocketClientProtocol.onConnect(self, response)
         # schedule calling the script entry
+        self.reactor.callLater(0, lambda: self.sendMessage(json.dumps({"TOPICS": {'type': 'subscribe'},
+                                     "CONTENTS": {
+                                         'TOPICS': {'TO': self.name}
+                                     }
+        })))
         self.reactor.callLater(0, self._start_script)
 
 
@@ -84,7 +89,7 @@ class ParlayScript(WebSocketClientProtocol):
         msg['TOPICS']['MSG_ID'] = self._message_id_generator.next()
         msg['TOPICS']['TO'] = to
         msg['TOPICS']['FROM'] = self.name
-        msg['CONTENT']['COMMAND'] = command
+        msg['CONTENTS']['COMMAND'] = command
         return msg
 
     def send_parlay_message(self, msg, timeout=DEFAULT_TIMEOUT):
@@ -120,7 +125,7 @@ class ParlayScript(WebSocketClientProtocol):
             raise KeyError("Couldn't find endpoint with ID" + str(endpoint_id))
 
         # now that we have the discovery, let's try and construct a proxy out of it
-        templates = [x.trim() for x in endpoint_disc.get("TEMPLATE", "").split("/")]
+        templates = [x.strip() for x in endpoint_disc.get("TYPE", "").split("/")]
         template = None
         # find and stop at the first valid one
         for t in templates:
@@ -129,10 +134,10 @@ class ParlayScript(WebSocketClientProtocol):
 
         # if it's still None, then that means that we couldn't find it
         if template is None:
-            raise KeyError("Couldn't find template proxy for:" + endpoint_disc.get("TEMPLATE", "") )
+            raise KeyError("Couldn't find template proxy for:" + endpoint_disc.get("TYPE", ""))
 
         # we have a good template class! Let's construct it
-        return template(endpoint_disc)
+        return template(endpoint_disc, self)
 
     def _find_endpoint_info_by_id(self, discovery, endpoint_id):
         """
@@ -140,7 +145,7 @@ class ParlayScript(WebSocketClientProtocol):
         @type: discovery list
         """
         for endpoint in discovery:
-            if endpoint['ID'] == endpoint_id:
+            if endpoint.get('ID', None) == endpoint_id:
                 return endpoint
             else:
                 return self._find_endpoint_info_by_id(endpoint.get('CHILDREN', []), endpoint_id)
@@ -186,12 +191,13 @@ class ParlayScript(WebSocketClientProtocol):
 
         def listener(received_msg):
             # See if this is the response we are waiting for
-            if received_msg['TOPICS']['MSG_TYPE'] == MSG_TYPES.RESPONSE:
-                if received_msg['TOPICS']['TO'] == self.name and received_msg['MSG_ID'] == msg['TOPICS']['MSG_ID']:
+            if received_msg['TOPICS'].get('MSG_TYPE', "") == MSG_TYPES.RESPONSE:
+                if received_msg['TOPICS']['TO'] == self.name and\
+                                received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
                     if timer is not None:
                         #Clear the timer
                         timer.cancel()
-                    if received_msg['MSG_STATUS'] == MSG_STATUS.ERROR:
+                    if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ERROR:
                          #return error to waiting thread
                         response.errback(Failure(ErrorResponse(received_msg)))
                     else:
@@ -213,8 +219,8 @@ class ParlayScript(WebSocketClientProtocol):
         def cb(msg):
             # got a timeout or started with an error
             # remove the listener
-            if listener in self.listener_list:
-                self.listener_list.remove(listener)
+            if listener in self._msg_listeners:
+                self._msg_listeners.remove(listener)
             #send failure to thread waiting.
             response.errback(Failure(SystemError(msg)))
 
@@ -404,8 +410,6 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
     if not reactor.running:
         reactor.run()
 
-
-
 class ErrorResponse(Exception):
     def __init__(self, error_msg):
         self.error_msg = error_msg
@@ -421,8 +425,8 @@ class SystemError(Exception):
     """
     def __init__(self, error_msg):
         self.error_msg = error_msg
-        self.description = error_msg['CONTENTS'].get('DESCRIPTION','')
-        self.code = error_msg['CONTENTS'].get('ERROR_CODE',0)
+        self.description = error_msg.get('CONTENTS', {}).get('DESCRIPTION', '')
+        self.code = error_msg.get('CONTENTS', {}).get('ERROR_CODE', 0)
 
     def __str__(self):
         return "Critical Error: " + self.description
