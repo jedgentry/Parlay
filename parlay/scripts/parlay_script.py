@@ -2,7 +2,11 @@
 Define a base class for creating a client script
 """
 
-from twisted.internet import threads,reactor, defer
+# a list of Endpoint proxy classes for Scripts
+ENDPOINT_PROXIES = {}
+
+
+from twisted.internet import threads, reactor, defer
 from twisted.python.failure import Failure
 from autobahn.twisted.websocket import  WebSocketClientProtocol, WebSocketClientFactory
 import json
@@ -10,20 +14,16 @@ import sys
 import traceback
 from parlay.endpoints.parlay_standard import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
+import traceback
 
 DEFAULT_TIMEOUT = 2
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
-
-# a list of Endpoint proxy classes for Scripts
-ENDPOINT_PROXIES = {}
-
 
 class ParlayScript(WebSocketClientProtocol):
     """Base object for all Parlay scripts"""
 
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
-
 
     def __init__(self):
 
@@ -39,7 +39,6 @@ class ParlayScript(WebSocketClientProtocol):
 
         # Add this listener so it will be first in the list to pickup errors, warnings and events.
         self.add_listener(self._system_listener)
-
 
     def open(self, protocol, **params):
         """
@@ -135,7 +134,6 @@ class ParlayScript(WebSocketClientProtocol):
         # we have a good template class! Let's construct it
         return template(endpoint_disc)
 
-
     def _find_endpoint_info_by_id(self, discovery, endpoint_id):
         """
         Find the endpoint with a given id recursively (or None if it can't be found)
@@ -150,9 +148,6 @@ class ParlayScript(WebSocketClientProtocol):
         # couldn't find it
         return None
 
-
-
-
     def sleep(self, timeout):
         threads.blockingCallFromThread(self.reactor, self._sleep, timeout)
 
@@ -163,16 +158,17 @@ class ParlayScript(WebSocketClientProtocol):
         try:
             self.run_script()
 
-        except:
+        except Exception as e:
             # handle any exception thrown
             exc_type,exc_value,exc_traceback = sys.exc_info()
             print "Exception Error:  ",  exc_value
 
             # print traceback, excluding this file
-            exc_strings = traceback.format_list(traceback.extract_tb(exc_traceback))
-            exc_strings = [s for s in exc_strings if s.find("parlay_script.py")< 0 ]
-            for s in exc_strings:
-                print s
+            traceback.print_tb(exc_traceback)
+            #exc_strings = traceback.format_list(traceback.extract_tb(exc_traceback))
+            #exc_strings = [s for s in exc_strings if s.find("parlay_script.py")< 0 ]
+            #for s in exc_strings:
+            #    print s
 
 
     ####################### THe following  must be run from the reactor thread ####################################
@@ -186,12 +182,12 @@ class ParlayScript(WebSocketClientProtocol):
         """
         response = defer.Deferred()
         timer = None
-        timeout_msg = {'TOPIC': {'MSG_TYPE': 'TIMEOUT'}}
+        timeout_msg = {'TOPICS': {'MSG_TYPE': 'TIMEOUT'}}
 
         def listener(received_msg):
             # See if this is the response we are waiting for
-            if received_msg['TOPIC']['MSG_TYPE'] == MSG_TYPES.RESPONSE:
-                if received_msg['TOPIC']['TO'] == self.name and received_msg['MSG_ID'] == msg['TOPIC']['MSG_ID']:
+            if received_msg['TOPICS']['MSG_TYPE'] == MSG_TYPES.RESPONSE:
+                if received_msg['TOPICS']['TO'] == self.name and received_msg['MSG_ID'] == msg['TOPICS']['MSG_ID']:
                     if timer is not None:
                         #Clear the timer
                         timer.cancel()
@@ -245,14 +241,24 @@ class ParlayScript(WebSocketClientProtocol):
         """
         # call this back with the discovery
         result = defer.Deferred()
+        #subscribe to response
+        self.sendMessage(json.dumps({"TOPICS": {'type': 'subscribe'},
+                                     "CONTENTS": {
+                                         'TOPICS': {'response': 'get_discovery_response'}
+                                     }
+        }))
+        #send request
+        self.sendMessage(json.dumps({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
+                                     "CONTENTS": {}
+        }))
 
-        self.sendMessage({"TOPICS": {'type': 'subscribe'}, "CONTENTS": {'response': 'get_discovery_response'} } )
         def discovery_listener(msg):
-            if msg['TOPICS'].get("response", "") != "get_discovery_response":
+            if msg['TOPICS'].get("type", "") != 'broker' and \
+                            msg['TOPICS'].get("response", "") != "get_discovery_response":
                 return False  # not the msg we're looking for
 
             if msg['CONTENTS'].get("status", "") == "ok":
-                result.callback(msg.get('discovery', {}))
+                result.callback(msg['CONTENTS'].get('discovery', {}))
             else:
                 result.errback(Failure(msg.get("status", "NO STATUS")))
 
@@ -287,7 +293,7 @@ class ParlayScript(WebSocketClientProtocol):
                 self.listener_list.remove(listener)
 
             # if this is the normal timeout, just send the timeout message
-            if msg['TOPIC']['MSG_TYPE'] == 'TIMEOUT':
+            if msg['TOPICS']['MSG_TYPE'] == 'TIMEOUT':
                 # Timed out - no error
                 response.callback(msg)
             else:
@@ -298,7 +304,7 @@ class ParlayScript(WebSocketClientProtocol):
         if len(self._system_errors)>0 :
              self._timer = self.reactor.callLater(0, cb, self._system_errors.pop(0))
         else:
-            timer = self.reactor.callLater(timeout, cb, {'TOPIC': {'MSG_TYPE': 'TIMEOUT'}})
+            timer = self.reactor.callLater(timeout, cb, {'TOPICS': {'MSG_TYPE': 'TIMEOUT'}})
             self.add_listener(listener)
         return response
 
@@ -309,7 +315,7 @@ class ParlayScript(WebSocketClientProtocol):
         @param cleanup: Automatically clean up when we're done running
         """
         #run the script and run cleanup after.
-        defer = threads.deferToThread(self.in_thread_run_script)
+        defer = threads.deferToThread(self._in_thread_run_script)
         defer.addBoth(self.cleanup)
 
     def run_script(self):
@@ -351,18 +357,22 @@ class ParlayScript(WebSocketClientProtocol):
         """
 
         # If it is not a response and it is an error, save it in the list
-        if msg['TOPIC']['MSG_TYPE'] != 'RESPONSE':
-            status = msg.get('MSG_STATUS')
+        if msg['TOPICS'].get('MSG_TYPE', "") != 'RESPONSE':
+            status = msg['TOPICS'].get('MSG_STATUS', "")
             if status == 'ERROR':
                 self._system_errors.append(msg)
             elif status == 'WARNING' or status == 'INFO':
                 self._system_events.append(msg)
         return False
 
-    def onMessage(self, packet):
+    def onMessage(self, packet, isBinary):
         """
         We got a message.  See who wants to process it.
         """
+        if isBinary:
+            print "Scripts don't understand binary messages"
+            return
+
         msg = json.loads(packet)
         # run it through the listeners for processing
         self._runListeners(msg)
