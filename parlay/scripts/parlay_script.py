@@ -47,13 +47,24 @@ class ParlayScript(WebSocketClientProtocol):
         :param params: other parameters
         :return:
         """
-        """
-        :param protocol:
-        :param params:
-        :return:
-        """
-        msg = {'TOPICS': {'type': 'broker', 'request': 'open_protocol'}, "CONTENTS": {'protocol': protocol, 'params': params}}
+        msg = {'TOPICS': {'type': 'broker', 'request': 'open_protocol'}, "CONTENTS": {'protocol_name': protocol, 'params': params}}
         self.reactor.callFromThread(self.sendMessage, json.dumps(msg))
+
+        def wait_for_response():
+            result = defer.Deferred()
+            def listener(msg):
+                if msg['TOPICS'].get('response', "") == 'open_protocol_response':
+                    if msg['CONTENTS']['STATUS'] == 'ok':
+                        result.callback(msg['CONTENTS']['STATUS'])
+                    else:
+                        result.errback(Failure(msg['CONTENTS']['STATUS']))
+                    return True  # we're done here
+                return False  # keep waiting
+            self.add_listener(listener)
+            return result
+
+        threads.blockingCallFromThread(self.reactor, wait_for_response)
+
 
     def onConnect(self, response):
         WebSocketClientProtocol.onConnect(self, response)
@@ -266,7 +277,7 @@ class ParlayScript(WebSocketClientProtocol):
             if msg['CONTENTS'].get("status", "") == "ok":
                 result.callback(msg['CONTENTS'].get('discovery', {}))
             else:
-                result.errback(Failure(msg.get("status", "NO STATUS")))
+                result.errback(Failure(Exception(msg.get("status", "NO STATUS"))))
 
             return True  # we're done here
 

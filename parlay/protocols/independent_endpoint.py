@@ -36,3 +36,6 @@ class IndependentEndpointProtocol(BaseProtocol):
         BaseProtocol.__init__(self)
         self.endpoints = [endpoint]  # only 1
 
+
+    def __str__(self):
+        return "IndependentEndpoint:" + str(self.endpoints[0].__class__)
