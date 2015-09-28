@@ -1,0 +1,23 @@
+<md-tab>
+	<md-tab-label>
+		<ng-md-icon icon="add"></ng-md-icon>
+	</md-tab-label>
+	<md-tab-body>
+		<md-list>
+			<md-subheader class="md-no-sticky">Available tabs</md-subheader>
+			<md-list-item ng-repeat="(target, directives) in getAvailableDirectives()">
+				<md-menu>
+					<md-button class="md-primary" ng-click="$mdOpenMenu($event)">
+						{{target}}
+					</md-button>
+					<md-menu-content>
+						<md-menu-item ng-repeat="directive in directives">
+							<md-button ng-click="activateDirective(target, directive)">{{directive}}</md-button>
+						</md-menu-item>
+					</md-menu-content>
+				</md-menu>
+			</md-list-item>
+		</md-list>
+	</md-tab-body>
+</md-tab>
+

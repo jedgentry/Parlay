@@ -1,4 +1,4 @@
-var parlay_endpoint = angular.module('parlay.endpoints.endpoint', ['ngMaterial', 'ngMessages', 'ngMdIcons', 'templates-main', 'parlay.store.persistence', 'parlay.utility']);
+var parlay_endpoint = angular.module('parlay.endpoints.endpoint', ['ngMaterial', 'ngMessages', 'ngMdIcons', 'templates-main', 'parlay.store.persistence', 'parlay.utility', 'parlay.endpoints.widgettab']);
 
 parlay_endpoint.factory('ParlayEndpoint', function () {
     
@@ -23,9 +23,18 @@ parlay_endpoint.factory('ParlayEndpoint', function () {
         this.interfaces = data.INTERFACES;
         
         this.directives = {
-            toolbar: [],
-            tabs: []
+            toolbar: {
+	            default: [],
+	            available: []
+            },
+            tabs: {
+	            default: [],
+	            available: []
+            },
+            available_cache: {}
         };
+        
+        this.addDefaultDirective({tabs: ["parlayWidgetTab"]});
         
     }
     
@@ -33,8 +42,43 @@ parlay_endpoint.factory('ParlayEndpoint', function () {
         return this.type;
     };
     
-    ParlayEndpoint.prototype.getDirectives = function () {
-        return [this.directives];
+    ParlayEndpoint.prototype.addDefaultDirective = function (directives) {
+	    var endpoint = this;
+	    Object.keys(directives).forEach(function (target) {
+		    directives[target].forEach(function (directive) {
+			    endpoint.directives[target].default.push(directive);
+		    });
+	    });
+    };
+    
+    ParlayEndpoint.prototype.getDefaultDirectives = function () {
+	    var endpoint = this;
+	    return Object.keys(endpoint.directives).reduce(function (accumulator, target) {
+		    if (endpoint.directives[target].hasOwnProperty("default")) {
+			    accumulator[target] = endpoint.directives[target].default;
+		    }
+		    return accumulator;
+	    }, {});
+    };
+    
+    ParlayEndpoint.prototype.addAvailableDirective = function (directives) {
+	    var endpoint = this;
+	    Object.keys(directives).forEach(function (target) {
+		    directives[target].forEach(function (directive) {
+			    endpoint.directives[target].available.push(directive);
+		    });
+	    });
+    };
+    
+    ParlayEndpoint.prototype.getAvailableDirectives = function () {
+        var endpoint = this;
+    	endpoint.directives.available_cache = Object.keys(endpoint.directives).filter(function (target) {
+			return target.indexOf("cache") === -1;
+		}).reduce(function (accumulator, target) {
+	        accumulator[target] = endpoint.directives[target].available;
+	        return accumulator;
+        }, {});
+        return this.directives.available_cache;
     };
     
     ParlayEndpoint.prototype.matchesQuery = function (query) {
@@ -54,10 +98,27 @@ parlay_endpoint.directive('parlayEndpointCard', ['$compile', 'ParlayPersistence'
 	        scope.endpoint = scope.container.ref;
             
             var directive_name = 'parlayEndpointCard.' + scope.endpoint.name.replace(' ', '_') + '_' + scope.container.uid;
+	        
+	        scope.active_directives = {};
+	        
+	        scope.activateDirective = function (target, directive) {
+				if (target === "tabs") compileTabs([directive]);
+				else if (target === "toolbar") compileToolbar([directive]);
+				
+				if (!scope.active_directives.hasOwnProperty(target)) {
+					scope.active_directives[target] = [];
+				}
+				scope.active_directives[target].push(directive);
+			};
+			
+			scope.deactivateDirective = function (target, directive) {
+				scope.active_directives[target].splice(scope.active_directives[target].indexOf(directive), 1);
+			};
             
             // Using ParlayPersistence we will first attempt to restore these values then we will record them to ParlayStore.
             ParlayPersistence.monitor(directive_name, "$index", scope);
             ParlayPersistence.monitor(directive_name, "active_tab_index", scope);
+            ParlayPersistence.monitor(directive_name, "active_directives", scope);
             
             /**
 	         * Compiles the toolbar set on the endpoint.
@@ -67,13 +128,9 @@ parlay_endpoint.directive('parlayEndpointCard', ['$compile', 'ParlayPersistence'
 	            // Locate toolbar where we are going to insert dynamic directives.
 	            var toolbar = element[0].querySelector('div.md-toolbar-tools');
 	            
-	            directives.filter(function (endpoint) {
-	                return endpoint.hasOwnProperty('toolbar');
-	            }).reduce(function (previous, endpoint) {
-	                return previous.concat(endpoint.toolbar.map(function (directive) {
-	                    return '<' + ParlayUtility.snakeCase(directive, '-') + ' endpoint="endpoint" layout-fill layout="row" layout-align="space-between center"></' + ParlayUtility.snakeCase(directive, '-') + '>';    
-	                }));
-	            }, []).forEach(function (directive_string) {
+	            directives.map(function (directive) {
+                    return '<' + ParlayUtility.snakeCase(directive, '-') + ' endpoint="endpoint" layout-fill layout="row" layout-align="space-between center"></' + ParlayUtility.snakeCase(directive, '-') + '>';    
+                }).forEach(function (directive_string) {
 					toolbar.insertBefore($compile(directive_string)(scope)[0], toolbar.firstChild);
 	            });
             }
@@ -86,23 +143,35 @@ parlay_endpoint.directive('parlayEndpointCard', ['$compile', 'ParlayPersistence'
 	            // Locate tabs where we are going to insert dynamic directives.
 	            var tabs = element[0].querySelector('md-tabs');
 	            
-	            // Append tabs directives.
-	            directives.filter(function (endpoint) {
-	                return endpoint.hasOwnProperty('tabs');
-	            }).reduce(function (previous, endpoint) {
-		            return previous.concat(endpoint.tabs.map(function (directive) {
-	                    return '<' + ParlayUtility.snakeCase(directive, '-') + ' endpoint="endpoint"></' + ParlayUtility.snakeCase(directive, '-') + '>';
-	                }));
-	            }, []).forEach(function (directive_string) {
+	            directives.map(function (directive) {
+					return '<' + ParlayUtility.snakeCase(directive, '-') + ' endpoint="endpoint"></' + ParlayUtility.snakeCase(directive, '-') + '>';
+	            }).forEach(function (directive_string) {
 	                tabs.appendChild($compile(directive_string)(scope)[0]);
 	            });
             }
             
-            // Grab the directives from the endpoint and compile them.
-            var directives = scope.endpoint.getDirectives();
-            compileToolbar(directives);
-	        compileTabs(directives);
+            function defaultDirectives() {
+	            var defaults = scope.endpoint.getDefaultDirectives();
+	            Object.keys(defaults).forEach(function (target) {
+		            defaults[target].forEach(function (directive) {
+			            scope.activateDirective(target, directive);
+		            });
+	            });
+            }
             
+            function restoreDirectives() {
+	            Object.keys(scope.active_directives).forEach(function (target) {
+		         	if (target === "tabs") compileTabs(scope.active_directives[target]);
+		         	else if (target === "toolbar") compileToolbar(scope.active_directives[target]);
+	         	});
+            }
+            
+            var one_time = scope.$watch("active_directives", function (newValue, oldValue, scope) {
+	            if (newValue !== undefined && Object.keys(newValue).length > 0) restoreDirectives();
+	            else defaultDirectives();
+	            one_time();
+            });
+	        
         }
     };
 }]);
