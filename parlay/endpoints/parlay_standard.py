@@ -1,7 +1,7 @@
-import defer
+import functools
 from base import BaseEndpoint
 from parlay.protocols.utils import message_id_generator
-from twisted.internet import defer
+from twisted.internet import defer, threads
 from parlay.server.broker import Broker
 from twisted.internet.task import LoopingCall
 
@@ -192,10 +192,25 @@ class ParlayStandardEndpoint(BaseEndpoint):
 from parlay.scripts.parlay_script import ENDPOINT_PROXIES
 
 
-def parlay_command(fn):
-    fn._parlay_command = True
-    fn._parlay_fn = fn # in case it gets wrapped again
-    return fn
+def parlay_command(async=False):
+    """
+    Make the decorated method a parlay_command.
+
+    :param: async: If True, will run as a normal twisted async function call. If False, parlay will spawn a separate
+    thread and run the function synchronously (Default false)
+    """
+
+    def decorator(fn):
+        if async:  # trivial wrapper
+            wrapper = fn
+        else:  # run this command synchronously in a separate thread
+            wrapper = functools.wraps(fn)(lambda self, *args, **kwargs: threads.deferToThread(fn, self, *args, **kwargs))
+
+        wrapper._parlay_command = True
+        wrapper._parlay_fn = fn  # in case it gets wrapped again, this is the actual function so we can pull kwarg names
+        return wrapper
+
+    return decorator
 
 class parlay_property(object):
     """
