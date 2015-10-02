@@ -65,6 +65,7 @@ class Broker(object):
     It also coordinates all communication between protcols
     """
     instance = None
+    _started = defer.Deferred()
 
     # discovery info for the broker
     _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "interfaces": ['broker'],
@@ -101,6 +102,7 @@ class Broker(object):
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
+
 
     @staticmethod
     def get_instance():
@@ -281,6 +283,19 @@ class Broker(object):
             self.protocols.remove(protocol)
         except ValueError:
             pass
+
+    @classmethod
+    def call_on_start(cls, func):
+        """
+        Call the supplied function when the broker starts OR if the broker has already started, call ASAP
+        """
+
+        if cls._started.called:
+            # already started, queue it up in the reactor
+            cls.get_instance()._reactor.callLater(0, func)
+        else:
+            #need a lambda to eat any results from the previous callback in the chain
+            cls._started.addCallback(lambda *args: func())
 
 
     def handle_broker_message(self, msg, message_callback):
@@ -526,6 +541,7 @@ class Broker(object):
             site = server.Site(root)
             self._reactor.listenTCP(self.http_port, site, interface=interface)
 
+        self._reactor.callWhenRunning(self._started.callback, None)
         self._reactor.run()
 
 
