@@ -266,7 +266,7 @@ class parlay_datastream(object):
 
     def stream(self, requester_id, looper, hz):
         current_looper = self.listeners.get(requester_id, None)
-        if current_looper is not None:
+        if current_looper is not None and current_looper.running:
             current_looper.stop()
         if hz > 0:
             self.listeners[requester_id] = looper
@@ -414,7 +414,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 hz = float(contents["RATE"])
                 requester = topics["FROM"]
                 def sample():
-                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])
+                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])._val
                     self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val})
 
                 looper = LoopingCall(sample)
