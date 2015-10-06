@@ -421,7 +421,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 self.__dict__[stream_name].stream(requester, looper, hz)
 
             except Exception as e:
-                self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
+                self.send_response(msg, {"PROPERTY": stream_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
                                    msg_status=MSG_STATUS.ERROR)
         #handle 'command' messages
         command = contents.get("FUNC", "")
