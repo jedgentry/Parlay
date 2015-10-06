@@ -253,19 +253,20 @@ class parlay_datastream(object):
     """
 
     def __init__(self, init_val=None, units=""):
-        self._val = init_val
-        self.listeners = {}  # key->value requester -> repeater
+        self._default_val = init_val
+        self.listeners = {}  # key -> (key -> value) | requester -> (instance -> repeater)
         self.units = units
         self.broker = Broker.get_instance()
+        self._vals = {}  # key -> value | instance -> value
 
-    def __get__(self, obj, objtype=None):
-        return self._val
+    def __get__(self, instance, objtype=None):
+        return self._vals.get(instance, self._default_val)
 
     def __set__(self, instance, value):
-        self._val = value
+        self._vals[instance] = value
 
-    def stream(self, requester_id, looper, hz):
-        current_looper = self.listeners.get(requester_id, None)
+    def stream(self, instance, requester_id, looper, hz):
+        current_looper = self.listeners.get(requester_id, {}).get(instance, None)
         if current_looper is not None:
             current_looper.stop()
         if hz > 0:
