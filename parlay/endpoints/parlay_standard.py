@@ -608,6 +608,27 @@ class ParlayStandardScriptProxy(object):
             setattr(self, stream['NAME'], ParlayStandardScriptProxy.StreamProxy(stream['NAME'], self, 0))
 
 
+    # Some re-implementation so our instance-bound descriptors will work instead of having to be class-bound.
+    # Thanks: http://blog.brianbeck.com/post/74086029/instance-descriptors
+    def __getattribute__(self, name):
+        value = object.__getattribute__(self, name)
+        if isinstance(value, ParlayStandardScriptProxy.PropertyProxy) or \
+                isinstance(value, ParlayStandardScriptProxy.StreamProxy):
+            value = value.__get__(self, self.__class__)
+        return value
+
+    def __setattr__(self, name, value):
+        try:
+            obj = object.__getattribute__(self, name)
+        except AttributeError:
+            pass
+        else:
+            if isinstance(obj, ParlayStandardScriptProxy.PropertyProxy) or \
+                    isinstance(obj, ParlayStandardScriptProxy.StreamProxy):
+                return obj.__set__(self, value)
+        return object.__setattr__(self, name, value)
+
+
 ENDPOINT_PROXIES['ParlayStandardEndpoint'] = ParlayStandardScriptProxy
 ENDPOINT_PROXIES['ParlayCommandEndpoint'] =  ParlayStandardScriptProxy
 
