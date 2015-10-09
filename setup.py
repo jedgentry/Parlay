@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 from distutils.extension import Extension
 import os, fnmatch
 
@@ -29,10 +29,9 @@ setup(
     name="parlay",
     version='0.0.1',
     description="A system for building a private internet-of-things and easily talking with cyber-physical systems",
-    ext_modules = extensions,
-    packages = ["parlay"],
-    package_dir = {"parlay": "parlay"},
-    package_data = {"parlay": ["parlay/ui/**/"]},  # include ui files
+    ext_modules=extensions,
+    packages=find_packages(),
+    package_data={"parlay": ["parlay/ui/**/"]},  # include ui files
     install_requires=["Twisted >14.0.0",
                       "autobahn >0.9.0"]
 )
