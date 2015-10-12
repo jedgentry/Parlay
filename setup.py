@@ -3,7 +3,7 @@ from distutils.extension import Extension
 import os, fnmatch
 
 RELEASE = False
-USE_CYTHON = True
+USE_CYTHON = False
 
 
 def find_files(directory, pattern):
@@ -32,6 +32,6 @@ setup(
     ext_modules=extensions,
     packages=find_packages(),
     package_data={"parlay": ["parlay/ui/**/"]},  # include ui files
-    install_requires=["Twisted >14.0.0",
-                      "autobahn >0.9.0"]
+    install_requires=["Twisted >14.0.0", # 13.1.0
+                      "autobahn >0.9.0"] # 0.8.5
 )
