@@ -70,12 +70,12 @@ class EliteArmEndpoint(LineEndpoint):
         self._in_move = False
 
 
-    @parlay_command
+    @parlay_command(async=True)
     def home(self, motor_num):
         self.send_raw_data("HA"+str(motor_num))
 
     @defer.inlineCallbacks
-    @parlay_command
+    @parlay_command(async=True)
     def init_motors(self):
         self.send_raw_data("EAL")
         yield self.wait_for_ack()
@@ -85,7 +85,7 @@ class EliteArmEndpoint(LineEndpoint):
             yield self.wait_for_ack()
 
     @defer.inlineCallbacks
-    @parlay_command
+    @parlay_command(async=True)
     def set_move_rate(self, rate_ms):
         for i in range(6):
             self.send_raw_data("SMT"+str(i+1)+" " + rate_ms)
@@ -93,18 +93,18 @@ class EliteArmEndpoint(LineEndpoint):
 
 
     @defer.inlineCallbacks
-    @parlay_command
+    @parlay_command(async=True)
     def home_all(self):
         for x in range(6):
             self.home(x + 1)
             yield self.wait_for_ack()
 
-    @parlay_command
+    @parlay_command(async=True)
     def shutdown(self):
         self.send_raw_data("SHUTDOWN")
 
     @defer.inlineCallbacks
-    @parlay_command
+    @parlay_command(async=True)
     def get_positions(self):
         self.send_raw_data("REFB")
 
@@ -115,7 +115,7 @@ class EliteArmEndpoint(LineEndpoint):
         defer.returnValue(vals)
 
     @defer.inlineCallbacks
-    @parlay_command
+    @parlay_command(async=True)
     def move_all_motors(self, motor1, motor2, motor3, motor4, motor5, motor6):
 
         assert -7500 < int(motor1) < 7500
@@ -155,7 +155,7 @@ class EliteArmEndpoint(LineEndpoint):
 
         print "Done Moving"
 
-    @parlay_command
+    @parlay_command(async=True)
     def move_hand(self, x, y, z, wrist_pitch, wrist_roll):
         """
         Kinematic move
