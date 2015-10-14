@@ -77,6 +77,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
         self.hand2_velocity = 0
         self.hand1_pitch = 0
         self.hand1_roll = 0
+        self.hand1_grasp = 0
 
 
     def _update_hand_info(self, frame):
@@ -91,17 +92,18 @@ class LeapEndpoint(ParlayCommandEndpoint):
         self.hand2_velocity = rightmost.palm_velocity
 
 
+        self.hand1_grasp = leftmost.pinch_strength
         self.hand1_pitch = leftmost.direction.pitch
         self.hand1_roll = leftmost.palm_normal.roll
 
 
 
-    @parlay_command
+    @parlay_command(async=True)
     def get_hands(self):
         return self.hand1, self.hand2
 
     @defer.inlineCallbacks
-    @parlay_command
+    @parlay_command(async=True)
     def link_up(self, arm_name):
         arm_name = "/dev/ttyUSB0"
         print "connecting to: " + arm_name
@@ -115,7 +117,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
 
             pitch_leap = self.hand1_pitch  # self.hand1[2]
             roll_leap = self.hand1_roll
-            grasp_leap = 0  # self.hand1[2]
+            grasp_leap = self.hand1_grasp
 
             confidence_leap = self.hand1[-1]
             if confidence_leap > 0.6:
@@ -123,14 +125,14 @@ class LeapEndpoint(ParlayCommandEndpoint):
                 x, y, z, pitch, grasp = self.leap_to_output_coords(x_leap, y_leap, z_leap, pitch_leap, grasp_leap)
                 roll = math.degrees(self.hand1_roll)
                 velocity = math.sqrt(self.hand1_velocity[0]**2 + self.hand1_velocity[1]**2 + self.hand1_velocity[2]**2)
-                if velocity < 50000: #15:
+                if velocity < 20: #15:
                     print "Robot Command (x, y, z, pitch, roll, grasp): {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f}".format(x, y, z, pitch, roll, grasp, velocity)
-                    self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll)
-                    yield delay(.4)
-                else:
-                    yield delay(0.25)
+                    self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
+                    yield delay(.5)  # wait for a while so the move is deliberate
+                else:  # faster iteration so we seem snappy
+                    yield delay(0.01)
             else:
-                yield delay(1)
+                yield delay(.01)
 
 
     @staticmethod
@@ -144,10 +146,10 @@ class LeapEndpoint(ParlayCommandEndpoint):
 
         offset_x_out = 10.0
         offset_y_out = 0.0
-        offset_z_out = 0.0
+        offset_z_out = -2.0
         offset_pitch_out = -5.0
 
-        grasp = grasp_leap
+        grasp = 2*(grasp_leap - 0.5) * 10
         pitch = math.degrees(pitch_leap)*pitch_scale + offset_pitch_out
 
         x = k_scale_x * k_inch_mm * -z_leap + offset_x_out

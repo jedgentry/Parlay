@@ -16,16 +16,16 @@ L0 = 8.5  # inches, upper arm length
 L1 = 7.0  # inches, forearm length
 
 THETA1_INIT = 0.0   # degrees
-THETA2_INIT = 90.0  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
-THETA3_INIT = 25.0  # degrees down from straight, corresponding to zero elbow motor coordinate
-THETA4_INIT = -25.0   # degrees up from straight, corresponding to zero wrist motor coordinate
+THETA2_INIT = 80.0  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
+THETA3_INIT = 35.0  # degrees down from straight, corresponding to zero elbow motor coordinate
+THETA4_INIT = 25.0   # degrees up from straight, corresponding to zero wrist motor coordinate
 THETA5_INIT = -90.0   # degrees from horizontal, corresponding to zero wrist rotation coordinate
 
-BASE_ROT_ANGLE_TO_MOTOR = -90.0/3750.0 # degrees per motor step count
+BASE_ROT_ANGLE_TO_MOTOR = -90.0/3700.0 #-90.0/3750.0 # degrees per motor step count
 SHOULDER_ANGLE_TO_MOTOR = -90.0/1200.0  # degrees per motor step count
 ELBOW_ANGLE_TO_MOTOR = -45.0/1000.0
 
-WRIST_PITCH_TO_MOTOR = 90.0/2200.0
+WRIST_PITCH_TO_MOTOR = -90.0/2200.0
 WRIST_ROLL_TO_MOTOR = 90.0/1000.0
 
 MAX_RADIUS = L0 + L1 - 1  # max radius to keep the arm within.
@@ -120,17 +120,18 @@ class EliteArmEndpoint(LineEndpoint):
 
         assert -7500 < int(motor1) < 7500
         assert -1200 < int(motor2) < 1200
-        assert -1700 < int(motor3) < 2700
+        motor3 = max(min(2500, motor3), -2000)
+        assert -2500 < int(motor3) < 2700
         #even out motor 4
-        motor4 = max(min(200, motor4), -1800)
-        assert -2000 <= int(motor4) <= 1200
+        #motor4 = max(min(1500, motor4), -1800)
+        assert -3000 <= int(motor4) <= 1500
         assert -4200 < int(motor5) < 4200
         if self._in_move:
             return  # we're already moving!! #TODO: Throw an exception
         try:
             self._in_move = True
             #self.send_raw_data("SPCA " + " ".join([str(int(x)) for x in [motor1, motor2, motor3, motor4, motor5, motor6]]))
-            m = [motor1, motor2, motor3] #  motor4, motor5]  # , motor6]
+            m = [motor1, motor2, motor3, motor4, motor5, motor6]
             for i in range(len(m)):
                 self.send_raw_data("SPC"+str(i+1)+" "+str(int(m[i])))
                 yield self.wait_for_ack()
@@ -155,8 +156,9 @@ class EliteArmEndpoint(LineEndpoint):
 
         print "Done Moving"
 
+
     @parlay_command(async=True)
-    def move_hand(self, x, y, z, wrist_pitch, wrist_roll):
+    def move_hand(self, x, y, z, wrist_pitch, wrist_roll, grip): # grip is between -10 and 10
         """
         Kinematic move
         """
@@ -170,8 +172,10 @@ class EliteArmEndpoint(LineEndpoint):
             m4 = Kinematics.wrist_pitch_to_motor(Kinematics.pitch_to_wrist_angle(thetas[1], thetas[2], float(wrist_pitch)))
             m5 = Kinematics.wrist_roll_to_motor(Kinematics.roll_to_wrist_roll_angle(float(wrist_roll)))
 
-            print (m1, m2, m3)
-            self.move_all_motors(m1, m2, m3, m4, m5, 0)
+            m_g = grip*3000
+            print "t=", thetas
+            print (m1, m2, m3, m4, m5, m_g)
+            self.move_all_motors(m1, m2, m3, m4, m5, m_g)
         except Exception as e:
             print str(e)
 
