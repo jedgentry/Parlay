@@ -6,16 +6,14 @@
  * The '<promenade-smoothie-chart>' creates a SmoothieChart HTML5 Canvas element for graphing values.
  * 
  * @usage
- * <promenade-smoothie-chart lines="data" config="chart_config"></promenade-smoothie-chart>
+ * <promenade-smoothie-chart delay="1000" streams="data" config="chart_config" smoothie-fn="getSmoothieConfig"></promenade-smoothie-chart>
  *
- * @param {Object} streams - Contains references to the line data.
+ * @param {Object} streams - Contains references to the stream data.
  * {
  *	 line1: {
  *	 	value: 10,
- *		config: {
- *	 		lineWidth: 2,
- *			strokeStyle: "#000000"
- * 		}
+ *		enabled: true,
+ *		rate: 5
  * 	 }
  * }
  *
@@ -23,17 +21,100 @@
  * @param {Number} [delay=1000] delay - Add delay so uncoming values are known before we need to plot the value.
  */
  
- function PromenadeSmoothieChart ($window, $interval) {
+ function PromenadeSmoothieChartController(scope, $interval) {
+	 
+ 	// Easy colors to see on most transparent backgrounds.
+	this.colors = ["#000000", "#0433ff", "#aa7942", "#00fdff", "#00f900", "#ff40ff", "#ff9300", "#942192", "#ff2600", "#fffb00"];
+	 
+	// Container for TimeSeries Objects.
+	this.lines = {};
+	 
+	/**
+	 * Return streams that are currently enabled in scope.streams.
+	 * @returns {Array} - Array of stream Objects.
+	 */
+    this.getEnabledStreams = function() {
+		return Object.keys(scope.streams).map(function (key) {
+		    return scope.streams[key];
+	    }).filter(function (stream) {
+		    return stream.enabled;
+	    });
+    }.bind(this);
+    
+    /**
+	 * If a Smoothie TimeSeries doesn't exist for an enabled stream we should create it.
+	 * @param {Array} streams - Array of enabled streams.
+	 */
+    this.createTimeSeries = function(streams) {
+	    streams.filter(function (stream) {
+		    return !this.lines[stream.NAME];
+		}, this).forEach(function(stream) {
+			this.lines[stream.NAME] = new TimeSeries();
+		    
+		    scope.smoothie.addTimeSeries(this.lines[stream.NAME], {
+				strokeStyle: this.colors.pop(),
+			    lineWidth: 2
+		    });
+		}, this);
+    }.bind(this);
+    
+    /**
+	 * If a Smoothie TimeSeries exists for a stream that is not enabled we should remove it.
+	 * @param {Array} streams - Array of enabled streams.
+	 */
+    this.pruneTimeSeries = function(streams) {
+	    Object.keys(this.lines).filter(function(key) {
+		    return !streams.some(function(stream) { return stream.NAME === key; });
+	    }, this).forEach(function (key) {
+		    scope.smoothie.removeTimeSeries(this.lines[key]);
+		    delete this.lines[key];
+	    }, this);
+    }.bind(this);
+    
+    /**
+	 * Append the current time and value for each enabled stream.
+	 * @param {Object} stream - Enabled stream object.
+	 */
+    this.updateStreamLine = function(stream) {
+	    // Skip appending an undefined stream value.
+	    if (stream.value) this.lines[stream.NAME].append(new Date().getTime(), stream.value);
+    }.bind(this);
+    
+    this.updateLines = function() {
+	    // Get an array of currently enabled streams.
+	    var enabled_streams = this.getEnabledStreams();
+	    
+	    // If the TimeSeries doesn't exist create it.
+	    this.createTimeSeries(enabled_streams);
+		
+		// Update the TimeSeries with the latest stream value.
+		enabled_streams.forEach(this.updateStreamLine);
+		
+		// If a line is removed we should remove the TimeSeries from the SmoothieChart.
+	    this.pruneTimeSeries(enabled_streams);
+	    
+    }.bind(this);
+    
+    // At at an interval specified by scope.delay ensure that the values available in scope.values are consistent with the SmoothieChart.
+    var interval_registration = $interval(this.updateLines, scope.delay);
+    
+    // When the scope the PromenadeSmoothieChart exists on is destroyed we need to cancel our update interval.
+    scope.$on("$destroy", function () {
+	    $interval.cancel(interval_registration);
+    });
+ }
+ 
+ function PromenadeSmoothieChart($window) {
 	 
 	/**
 	 * Returns Function with canvas element in closure.
 	 * @param {canvas} canvas - HTML Canvas element.
 	 */
-	function setSize(canvas) {
+	function buildSetSize(canvas) {
 		/**
 		 * Fills parent element with SmoothieChart HTML5 Canvas object.
 		 */
-		return function () {
+		return function setSize() {
 			canvas.style.width = "100%";
 			canvas.style.height = "100%";
 			canvas.width = canvas.offsetWidth;
@@ -49,11 +130,13 @@
 			config: '=',
 			getSmoothie: '=smoothieFn'
 		},
-		link: function (scope, element, attributes) {
-			var colors, canvas, smoothie, lines, resize, minimum, maximum;
+		controller: "PromenadeSmoothieChartController",
+		controllerAs: "ctrl",
+		link: function (scope, element) {
+			var canvas, resize;
 			
-			// Easy colors to see on most transparent backgrounds.
-			colors = ["#000000", "#0433ff", "#aa7942", "#00fdff", "#00f900", "#ff40ff", "#ff9300", "#942192", "#ff2600", "#fffb00"];
+			// If scope.delay wasn't provided we should default to 1000.
+			if (scope.delay === undefined) scope.delay = 1000;
 			
 			// Create HTML5 canvas DOM element.
 			canvas = document.createElement("canvas");
@@ -62,7 +145,7 @@
 			element[0].appendChild(canvas);
 			
 			// Use the configuration from scope if available. Otherwise use the default configuration.
-			smoothie = new SmoothieChart(scope.config ? scope.config : {
+			scope.smoothie = new SmoothieChart(scope.config ? scope.config : {
 		        grid: {
 			        fillStyle: 'transparent',
 			        strokeStyle: 'transparent',
@@ -75,66 +158,28 @@
 			});
 			
 			// Attaches SmoothieChart to HTML5 Canvas element. Sets streaming delay to given value if available, otherwise defaults to 1000ms.
-			smoothie.streamTo(canvas, scope.delay);
-	        
-	        // Container for TimeSeries Objects.
-	        lines = {};
+			scope.smoothie.streamTo(canvas, scope.delay);
 		    
 		    // If the window resizes we are going to need to resize our graphs as well.
 		    // They will not automatically resize otherwise.
-		    resize = setSize(canvas);
+		    resize = buildSetSize(canvas);
+		    
 		    // Do initial resizing.
 		    resize();
+		    
 		    // Setup listener on $window resize event.
 		    angular.element($window).on("resize", resize);
-		    
-		    /**
-			 * Returns reference to SmoothieChart Object
-			 * @returns {SmootheChart} - reference to SmoothieChart Object.
+			
+			/**
+			 * Returns SmoothieChart object.
+			 * @returns {SmoothieChart} - Reference to SmoothieChart object.
 			 */
-		    scope.getSmoothie = function () {
-			    return smoothie;
-		    };
-		    
-		    // 
-		    $interval(function () {			    
-			    // Get an array of currently enabled streams.
-			    var enabled_streams = Object.keys(scope.streams).map(function (key) {
-				    return scope.streams[key];
-			    }).filter(function (stream) {
-				    return stream.enabled;
-			    });
-			    
-			    // If the TimeSeries doesn't exist create it.
-			    enabled_streams.filter(function (stream) {
-				    return !lines[stream.NAME];
-				}).forEach(function(stream) {
-					lines[stream.NAME] = new TimeSeries();
-				    
-				    smoothie.addTimeSeries(lines[stream.NAME], {
-						strokeStyle: colors.pop(),
-					    lineWidth: 2
-				    });
-				});
-				
-				// Append the current time and value for each enabled stream.
-				enabled_streams.forEach(function(stream) {
-					lines[stream.NAME].append(new Date().getTime(), stream.value);
-				});
-			    
-			    // If a line is removed we should remove the TimeSeries from the SmoothieChart.
-			    Object.keys(lines).filter(function(key) {
-				    return !scope.streams[key] || !scope.streams[key].enabled;
-			    }).forEach(function (key) {
-				    smoothie.removeTimeSeries(lines[key]);
-				    delete lines[key];
-			    });
-			    
-			    return true;
-		    }, scope.delay, 0, false);
-		    			    
+			scope.getSmoothie = function() {
+				return scope.smoothie;	
+			};
+			
+			// When the scope the PromenadeSmoothieChart exists on is destroyed we need to cleanup listeners and remove the canvas element.
 		    scope.$on("$destroy", function () {
-			    // Remove listener on $window resize when $destroy event is broadcast on scope.
 			    angular.element($window).off("resize", resize);
 			    canvas.parentElement.removeChild(canvas);
 			    canvas = null;
@@ -145,4 +190,5 @@
 }
  
 angular.module("promenade.smoothiechart", [])
-	.directive('promenadeSmoothieChart', ['$window', "$interval", PromenadeSmoothieChart]);
+	.controller("PromenadeSmoothieChartController", ["$scope", "$interval", PromenadeSmoothieChartController])
+	.directive('promenadeSmoothieChart', ['$window', PromenadeSmoothieChart]);

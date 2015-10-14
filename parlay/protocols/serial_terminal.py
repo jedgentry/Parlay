@@ -70,7 +70,7 @@ class LineEndpoint(ParlayCommandEndpoint):
         ParlayCommandEndpoint.__init__(self, endpoint_id, name)
         self._protocol = protocol
 
-    @parlay_command
+    @parlay_command(async=True)
     def send_raw_data(self, data):
         self._protocol.sendLine(str(data))
 

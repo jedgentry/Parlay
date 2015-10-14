@@ -1,13 +1,9 @@
-var endpoint_manager = angular.module('parlay.endpoints.manager', ['parlay.protocols.manager', 'promenade.broker', 'parlay.store', 'parlay.endpoints.workspaces']);
-
-endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayProtocolManager', 'ParlayNotification', 'ParlayStore', '$window', function (PromenadeBroker, ParlayProtocolManager, ParlayNotification, ParlayStore, $window) {
+function ParlayEndpointManager(PromenadeBroker, ParlayProtocolManager, ParlayNotification, ParlayStore, $window) {
     
     var store = ParlayStore("endpoints");
     
-    var Private = {
-	    has_discovered: false,
-	    active_endpoints: []
-    };
+    var has_discovered = false;
+	var active_endpoints = [];
     
     var Public = {};
     
@@ -16,7 +12,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 * @returns {Object} key: order, value: active endpoint containers
 	 */
     Public.getActiveEndpoints = function () {
-        return Private.active_endpoints;
+        return active_endpoints;
     };
     
     /**
@@ -39,7 +35,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 * Clears reference to active endpoint object.
 	 */
     Public.clearActiveEndpoints = function () {
-	    Private.active_endpoints = [];
+	    active_endpoints = [];
     };
     
     /**
@@ -57,7 +53,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 * @returns {Boolean} - True if we have successfully completed a discovery, false otherwise.
 	 */
     Public.hasDiscovered = function () {
-	    return Private.has_discovered;
+	    return has_discovered;
     };
     
     /**
@@ -66,7 +62,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 */
     Public.requestDiscovery = function () {
         return PromenadeBroker.requestDiscovery(true).then(function(response) {
-	        Private.has_discovered = true;
+	        has_discovered = true;
 	        return response;
         });
     };
@@ -77,9 +73,9 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 * @param {Number} distance - how far to move target endpoint.
 	 */
     Public.reorder = function (index, distance) {
-	    var temp = Private.active_endpoints[index + distance];
-	    Private.active_endpoints[index + distance] = Private.active_endpoints[index];
-	    Private.active_endpoints[index] = temp;
+	    var temp = active_endpoints[index + distance];
+	    active_endpoints[index + distance] = active_endpoints[index];
+	    active_endpoints[index] = temp;
     };
     
     /**
@@ -88,7 +84,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 * @param {Number} uid[optional] - If given a uid we will use the provided one. Otherwise we will randomly generate one.
 	 */
     Public.activateEndpoint = function (endpoint, uid) {
-	    Private.active_endpoints.push({
+	    active_endpoints.push({
 		    ref: endpoint,
 		    uid: uid !== undefined ? uid : Math.floor(Math.random() * 1500)
 	    });
@@ -99,7 +95,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 * @param {Number} index - position of the endpoint we want to duplicate.
 	 */
     Public.duplicateEndpoint = function (index) {
-	    var container = Private.active_endpoints[index];
+	    var container = active_endpoints[index];
 	    var new_uid = container.uid + Math.floor(Math.random() * 1500);
 	    
 	    var old_directive = 'parlayEndpointCard.' + container.ref.name.replace(' ', '_') + '_' + container.uid;
@@ -122,7 +118,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	 * @param {Number} index - position of endpoint to be deactivated.
 	 */
     Public.deactivateEndpoint = function (index) {
-	    Private.active_endpoints.splice(index, 1);
+	    active_endpoints.splice(index, 1);
     };
     
     /**
@@ -170,4 +166,7 @@ endpoint_manager.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayPro
 	$window.onbeforeunload = Public.autoSave;
 	
 	return Public;
-}]);
+}
+
+angular.module('parlay.endpoints.manager', ['parlay.protocols.manager', 'promenade.broker', 'parlay.store', 'parlay.endpoints.workspaces'])
+	.factory('ParlayEndpointManager', ['PromenadeBroker', 'ParlayProtocolManager', 'ParlayNotification', 'ParlayStore', '$window', ParlayEndpointManager]);

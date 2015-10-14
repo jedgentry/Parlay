@@ -529,6 +529,10 @@ class Broker(object):
 
         except ImportError:
             print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
+        except Exception as e:
+            print "WARNING: PyOpenSSL has had an error: " + str(e)
+            if ssl_only:
+                raise
 
         if not ssl_only:
             #listen for websocket connections on port 8085

@@ -133,7 +133,7 @@ class ParlayScript(WebSocketClientProtocol):
         # first see if we can find the endpoint by its ID
         endpoint_disc = self._find_endpoint_info_by_id(self.discovery, endpoint_id)
         if endpoint_disc is None:
-            raise KeyError("Couldn't find endpoint with ID" + str(endpoint_id))
+            raise KeyError("Couldn't find endpoint with ID " + str(endpoint_id))
 
         # now that we have the discovery, let's try and construct a proxy out of it
         templates = [x.strip() for x in endpoint_disc.get("TYPE", "").split("/")]
@@ -155,14 +155,13 @@ class ParlayScript(WebSocketClientProtocol):
         Find the endpoint with a given id recursively (or None if it can't be found)
         @type: discovery list
         """
+        found = None
         for endpoint in discovery:
             if endpoint.get('ID', None) == endpoint_id:
-                return endpoint
-            else:
-                return self._find_endpoint_info_by_id(endpoint.get('CHILDREN', []), endpoint_id)
-
-        # couldn't find it
-        return None
+                found = endpoint
+                break
+            found = self._find_endpoint_info_by_id(endpoint.get('CHILDREN', []), endpoint_id)
+        return found
 
     def sleep(self, timeout):
         threads.blockingCallFromThread(self.reactor, self._sleep, timeout)
@@ -266,7 +265,7 @@ class ParlayScript(WebSocketClientProtocol):
         }))
         #send request
         self.sendMessage(json.dumps({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
-                                     "CONTENTS": {}
+                                     "CONTENTS": {'force': True}
         }))
 
         def discovery_listener(msg):

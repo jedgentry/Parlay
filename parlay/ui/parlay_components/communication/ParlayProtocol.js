@@ -1,6 +1,4 @@
-var parlay_protocol = angular.module('parlay.protocols.protocol', ['parlay.socket', 'parlay.endpoints.endpoint', 'promenade.protocols.directmessage']);
-
-parlay_protocol.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', '$q', function (ParlaySocket, ParlayEndpoint, $q) {
+function ParlayProtocolFactory(ParlaySocket, ParlayEndpoint, $q) {
     
     function ParlayProtocol(configuration) {
         "use strict";
@@ -58,17 +56,24 @@ parlay_protocol.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', '$q
 	        TO: this.id
         });
 	    
-	    this.listeners[topics] = ParlaySocket.onMessage(topics, callback, verbose);
+	    var topics_string = JSON.stringify(topics);
+	    
+	    this.listeners[topics_string] = ParlaySocket.onMessage(topics, callback, verbose);
 	    
 	    return function() {
-		  	this.listeners[topics]();
-		  	delete this.listeners[topics];  
+		  	this.listeners[topics_string]();
+		  	delete this.listeners[topics_string];  
 	    }.bind(this);
     };
     
     ParlayProtocol.prototype.sendMessage = function (topics, contents, response_topics) {
-        return $q(function(resolve) {
-            ParlaySocket.sendMessage(topics, contents, response_topics, resolve);
+        return $q(function(resolve, reject) {
+	        try {
+		    	ParlaySocket.sendMessage(topics, contents, response_topics, resolve);    
+	        }            
+            catch (error) {
+	            reject(error);
+            }
         }.bind(this));
     };
     
@@ -80,9 +85,12 @@ parlay_protocol.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', '$q
     };
     
     ParlayProtocol.prototype.onClose = function () {
-        this.listeners.forEach(function (deregistration) {
-	        deregistration();
-        });
+	    for (var listener in this.listeners) {
+		    this.listeners[listener]();
+	    }
+	    
+	    this.listeners = {};
+	    
         this.available_endpoints = [];
         this.active_endpoints = [];
     };
@@ -127,4 +135,7 @@ parlay_protocol.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', '$q
     };
     
     return ParlayProtocol;
-}]);
+}
+
+angular.module('parlay.protocols.protocol', ['parlay.socket', 'parlay.endpoints.endpoint', 'promenade.protocols.directmessage'])
+	.factory('ParlayProtocol', ['ParlaySocket', 'ParlayEndpoint', '$q', ParlayProtocolFactory]);

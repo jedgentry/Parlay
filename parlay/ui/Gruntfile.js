@@ -59,7 +59,7 @@ module.exports = function (grunt) {
         'bower_components/moment/moment.js',
         'bower_components/angular-moment/angular-moment.js',
         'bower_components/angular-scroll-glue/src/scrollglue.js',
-        'bower_components/smoothie/smoothie.js'
+        'bower_components/angular-order-object-by/src/ng-order-object-by.js'
       ],
       'staticComponents': ['static_components/ng-websocket/ng-websocket.js', 'static_components/smoothie/smoothie.js'],
       'mocks': getVendorItems (['mocks'], ['parlay_components/*/mocks/*.js']),

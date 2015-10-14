@@ -142,7 +142,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
         return discovery
 
     def send_message(self, to, from_=None, contents=None, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.DATA, msg_id=None,
-                     msg_status=MSG_STATUS.OK, response_req=False):
+                     msg_status=MSG_STATUS.OK, response_req=False, extra_topics=None):
         """
         Sends a Parlay standard message.
         contents is a dictionary of contents to send
@@ -157,6 +157,9 @@ class ParlayStandardEndpoint(BaseEndpoint):
         msg = {"TOPICS": {"TO": to, "FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE": msg_type, "MSG_ID": msg_id,
                           "MSG_STATUS": msg_status, "RESPONSE_REQ": response_req},
                "CONTENTS": contents}
+
+        if extra_topics is not None:
+            msg["TOPICS"].update(extra_topics)
 
         self._broker.publish(msg, self.on_message)
 
@@ -416,13 +419,14 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 requester = topics["FROM"]
                 def sample():
                     val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])._val
-                    self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val})
+                    self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val},
+                                      extra_topics={"STREAM": stream_name})
 
                 looper = LoopingCall(sample)
                 self.__dict__[stream_name].stream(requester, looper, hz)
 
             except Exception as e:
-                self.send_response(msg, {"PROPERTY": stream_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
+                self.send_response(msg, {"STREAM": stream_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
                                    msg_status=MSG_STATUS.ERROR)
         #handle 'command' messages
         command = contents.get("FUNC", "")
