@@ -155,13 +155,14 @@ class ParlayScript(WebSocketClientProtocol):
         Find the endpoint with a given id recursively (or None if it can't be found)
         @type: discovery list
         """
-        found = None
         for endpoint in discovery:
             if endpoint.get('ID', None) == endpoint_id:
-                found = endpoint
-                break
+                return endpoint
             found = self._find_endpoint_info_by_id(endpoint.get('CHILDREN', []), endpoint_id)
-        return found
+            # did a child find it?
+            if found is not None:
+                return found
+        return None
 
     def sleep(self, timeout):
         threads.blockingCallFromThread(self.reactor, self._sleep, timeout)

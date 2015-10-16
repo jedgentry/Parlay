@@ -415,7 +415,10 @@ class Broker(object):
                         protocol_discovery = x
                         if error is not None:
                             protocol_discovery['error'] = x
-                        discovery.append(protocol_discovery)
+                        if type(x) is dict:
+                            discovery.append(protocol_discovery)
+                        else:
+                            print "ERROR: Discovery must return a dict, instead got: ", str(x), " from ", str(p)
 
                     d.addCallback(callback)
                     d.addErrback(lambda e: callback({}, error=e))

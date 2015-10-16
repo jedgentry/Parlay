@@ -22,6 +22,7 @@ def local_endpoint(auto_connect=False):
 
 
 class LocalEndpointProtocol(BaseProtocol):
+    ID = 0  #id counter for uniqueness
 
     @classmethod
     def open(cls, broker, Endpoint):
@@ -41,10 +42,12 @@ class LocalEndpointProtocol(BaseProtocol):
     def __init__(self, endpoint):
         BaseProtocol.__init__(self)
         self.endpoints = [endpoint]  # only 1
+        self._unique_id = LocalEndpointProtocol.ID
+        LocalEndpointProtocol.ID += 1
 
 
     def __str__(self):
-        return "Local:" + str(self.endpoints[0].__class__)
+        return "Local:" + str(self.endpoints[0].__class__) + " # " + str(self._unique_id)
 
 
 def auto_start():

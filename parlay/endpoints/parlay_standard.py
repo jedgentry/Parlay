@@ -228,7 +228,8 @@ class parlay_property(object):
     """
 
     def __init__(self, init_val=None, val_type=None, read_only=False, write_only=True):
-        self._val = init_val
+        self._val_lookup = {}  # lookup based on instance
+        self._init_val = init_val
         self._read_only = read_only
         self._write_only = write_only
         self._val_type = val_type
@@ -236,11 +237,13 @@ class parlay_property(object):
         assert(not(self._read_only and write_only))
 
 
-    def __get__(self, obj, objtype=None):
-        return self._val
+    def __get__(self, instance, objtype=None):
+        return self._val_lookup.get(instance, self._init_val)
 
     def __set__(self, instance, value):
-        self._val = value if self._val_type is None else self._val_type(value)
+        # coerce the val
+        val = value if self._val_type is None else self._val_type(value)
+        self._val_lookup[instance] = val
 
 class parlay_datastream(object):
     """
@@ -273,7 +276,10 @@ class parlay_datastream(object):
         if current_looper is not None and current_looper.running:
             current_looper.stop()
         if hz > 0:
-            self.listeners[requester_id] = looper
+            #setup dict if its first time
+            if requester_id not in self.listeners:
+                self.listeners[requester_id] = {}
+            self.listeners[requester_id][instance] = looper
             looper.start(1/hz)
 
 
@@ -363,8 +369,8 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         """
         #clear properties
         self._properties = {}
-        for member_name in [x for x in dir(self) if not x.startswith("__")]:
-            member = getattr(self, member_name, {})
+        for member_name in [x for x in dir(self.__class__) if not x.startswith("__")]:
+            member = self.__class__.__dict__.get(member_name, None)
             if isinstance(member, parlay_property):
                 self.add_property(member_name, member_name, INPUT_TYPES.STRING,
                                   read_only=member._read_only, write_only=member._write_only)
@@ -375,8 +381,8 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         """
         #clear properties
         self._datastreams = {}
-        for member_name in [x for x in dir(self) if not x.startswith("__")]:
-            member = getattr(self, member_name, {})
+        for member_name in [x for x in dir(self.__class__) if not x.startswith("__")]:
+            member = self.__class__.__dict__.get(member_name, None)
             if isinstance(member, parlay_datastream):
                 self.add_datastream(member_name, member_name, member.units)
 
@@ -398,8 +404,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
             try:
                 if action == 'SET':
                     assert 'VALUE' in contents  # we need a value to set!
-                    prop = getattr(self, self._properties[property_name]["ATTR_NAME"])
-                    prop._val = contents['VALUE']
+                    setattr(self, self._properties[property_name]["ATTR_NAME"], contents['VALUE'])
                     self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE"})
                     return True
                 elif action == "GET":
@@ -533,6 +538,7 @@ class ParlayStandardScriptProxy(object):
         """
         Proxy class for a parlay stream
         """
+
         def __init__(self, name, endpoint_proxy, rate):
             self._name = name
             self._endpoint_proxy = endpoint_proxy
