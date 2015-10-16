@@ -120,12 +120,12 @@ class LeapEndpoint(ParlayCommandEndpoint):
             grasp_leap = self.hand1_grasp
 
             confidence_leap = self.hand1[-1]
-            if confidence_leap > 0.6:
+            if confidence_leap > 0.3:
 
                 x, y, z, pitch, grasp = self.leap_to_output_coords(x_leap, y_leap, z_leap, pitch_leap, grasp_leap)
                 roll = math.degrees(self.hand1_roll)
                 velocity = math.sqrt(self.hand1_velocity[0]**2 + self.hand1_velocity[1]**2 + self.hand1_velocity[2]**2)
-                if velocity < 20: #15:
+                if velocity < 30: #15:
                     print "Robot Command (x, y, z, pitch, roll, grasp): {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f}".format(x, y, z, pitch, roll, grasp, velocity)
                     self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
                     yield delay(.5)  # wait for a while so the move is deliberate
@@ -140,16 +140,16 @@ class LeapEndpoint(ParlayCommandEndpoint):
         k_inch_mm = 1 / 25.4
         k_scale_x = 0.9
         k_scale_y = 1
-        k_scale_z = .8
+        k_scale_z = 1
 
-        pitch_scale = 1.25
+        pitch_scale = 1.00
 
         offset_x_out = 10.0
         offset_y_out = 0.0
-        offset_z_out = -2.0
+        offset_z_out = -0.8
         offset_pitch_out = -5.0
 
-        grasp = 2*(grasp_leap - 0.5) * 10
+        grasp = 2*(grasp_leap - 0.5) * 8 + 2
         pitch = math.degrees(pitch_leap)*pitch_scale + offset_pitch_out
 
         x = k_scale_x * k_inch_mm * -z_leap + offset_x_out

@@ -123,7 +123,7 @@ class EliteArmEndpoint(LineEndpoint):
         motor3 = max(min(2500, motor3), -2000)
         assert -2500 < int(motor3) < 2700
         #even out motor 4
-        #motor4 = max(min(1500, motor4), -1800)
+        motor4 = max(min(1499, motor4), -2900)
         assert -3000 <= int(motor4) <= 1500
         assert -4200 < int(motor5) < 4200
         if self._in_move:
