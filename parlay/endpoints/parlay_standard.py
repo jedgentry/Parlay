@@ -400,7 +400,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         #handle property messages
         if msg_type == "PROPERTY":
             action = contents.get('ACTION', "")
-            property_name = contents.get('PROPERTY', "")
+            property_name = str(contents.get('PROPERTY', ""))
             try:
                 if action == 'SET':
                     assert 'VALUE' in contents  # we need a value to set!
@@ -419,16 +419,16 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         #handle data stream messages
         if msg_type == "STREAM":
             try:
-                stream_name = contents["STREAM"]
+                stream_name = str(contents["STREAM"])
                 hz = float(contents["RATE"])
                 requester = topics["FROM"]
                 def sample():
-                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])._val
+                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])
                     self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val},
                                       extra_topics={"STREAM": stream_name})
 
                 looper = LoopingCall(sample)
-                self.__dict__[stream_name].stream(requester, looper, hz)
+                self.__class__.__dict__[stream_name].stream(self, requester, looper, hz)
 
             except Exception as e:
                 self.send_response(msg, {"STREAM": stream_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
