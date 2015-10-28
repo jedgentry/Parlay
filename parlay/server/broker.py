@@ -411,7 +411,7 @@ class Broker(object):
                 for p in self.protocols:
                     d = defer.maybeDeferred(p.get_discovery)
                     #add this protocols discovery
-                    def callback(x, error=None):
+                    def callback(x, error=None, p=p):
                         protocol_discovery = x
                         if error is not None:
                             protocol_discovery['error'] = x
