@@ -39,6 +39,7 @@ class LeapProtocol(BaseProtocol):
         self.endpoints = [endpoint]
         #self.listener = LeapListener(endpoint)
         #LeapProtocol.controller.add_listener(self.listener)
+        Broker.get_instance()._reactor.callLater(5, endpoint.link_up)
 
     def __str__(self):
         return "LEAP0" # only 1 leap protocol at a time
@@ -101,8 +102,8 @@ class LeapEndpoint(ParlayCommandEndpoint):
         return self.hand1, self.hand2
 
     @defer.inlineCallbacks
-    @parlay_command
-    def link_up(self, arm_name):
+    #@parlay_command
+    def link_up(self):
         arm_name = "/dev/ttyUSB0"
         print "connecting to: " + arm_name
         while True:

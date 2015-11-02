@@ -16,14 +16,14 @@ L0 = 8.5  # inches, upper arm length
 L1 = 7.0  # inches, forearm length
 
 THETA1_INIT = 0.0   # degrees
-THETA2_INIT = 110.0  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
-THETA3_INIT = 90.0  # degrees down from straight, corresponding to zero elbow motor coordinate
-THETA4_INIT = 17.0   # degrees up from straight, corresponding to zero wrist motor coordinate
+THETA2_INIT = 90.0  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
+THETA3_INIT = 25.0  # degrees down from straight, corresponding to zero elbow motor coordinate
+THETA4_INIT = -25.0   # degrees up from straight, corresponding to zero wrist motor coordinate
 THETA5_INIT = -90.0
 
-BASE_ROT_ANGLE_TO_MOTOR = 90.0/7500.0 # degrees per motor step count
-SHOULDER_ANGLE_TO_MOTOR = 90.0/1200.0  # degrees per motor step count
-ELBOW_ANGLE_TO_MOTOR = 45.0/1000.0
+BASE_ROT_ANGLE_TO_MOTOR = -90.0/3750.0 # degrees per motor step count
+SHOULDER_ANGLE_TO_MOTOR = -90.0/1200.0  # degrees per motor step count
+ELBOW_ANGLE_TO_MOTOR = -45.0/1000.0
 
 WRIST_PITCH_TO_MOTOR = 90.0/2200.0
 WRIST_ROLL_TO_MOTOR = 90.0/1000.0
@@ -130,7 +130,7 @@ class EliteArmEndpoint(LineEndpoint):
         try:
             self._in_move = True
             #self.send_raw_data("SPCA " + " ".join([str(int(x)) for x in [motor1, motor2, motor3, motor4, motor5, motor6]]))
-            m = [motor1, motor2, motor3] #  motor4, motor5]  # , motor6]
+            m = [motor1, motor2, motor3,  motor4, motor5]  # , motor6]
             for i in range(len(m)):
                 self.send_raw_data("SPC"+str(i+1)+" "+str(int(m[i])))
                 yield self.wait_for_ack()

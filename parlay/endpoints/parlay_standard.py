@@ -175,7 +175,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
 
     def send_parlay_command(self, to, command_name, **kwargs):
         contents = kwargs
-        contents['FUNC'] = command_name
+        contents['COMMAND'] = command_name
         msg_id = self._msg_id_generator.next()
         self.send_message(to, contents=contents, response_req=True, msg_id=msg_id)
 
@@ -349,7 +349,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
             # If only one, then drop the dropdown option and have a hidden text option
             func_name=self._commands.keys()[0]
             func = self._commands[func_name]
-            self.add_field("FUNC", INPUT_TYPES.STRING, default=func_name, hidden=True)
+            self.add_field("COMMAND", INPUT_TYPES.STRING, default=func_name, hidden=True)
             #add the arguments as strait input fields
             self._content_fields.extend(func._parlay_sub_fields)
 
@@ -358,7 +358,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
             command_names.sort()  # pretty-sort
 
             # add the command selection dropdown
-            self.add_field("FUNC", INPUT_TYPES.DROPDOWN, label='command', default=command_names[0],
+            self.add_field("COMMAND", INPUT_TYPES.DROPDOWN, label='command', default=command_names[0],
                            dropdown_options=[(x, x) for x in command_names],
                            dropdown_sub_fields=[self._commands[x]._parlay_sub_fields for x in command_names]
                            )
@@ -434,7 +434,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 self.send_response(msg, {"STREAM": stream_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
                                    msg_status=MSG_STATUS.ERROR)
         #handle 'command' messages
-        command = contents.get("FUNC", "")
+        command = contents.get("COMMAND", "")
         if command in self._commands:
             arg_names = ()
             try:
@@ -580,7 +580,7 @@ class ParlayStandardScriptProxy(object):
         # look at the discovery and add all commands, properties, and streams
 
         # commands
-        func_dict = next(iter([x for x in discovery['CONTENT_FIELDS'] if x['MSG_KEY'] == 'FUNC']), None)
+        func_dict = next(iter([x for x in discovery['CONTENT_FIELDS'] if x['MSG_KEY'] == 'COMMAND']), None)
         if func_dict is not None:  # if we have commands
             command_names = [x[0] for x in func_dict["DROPDOWN_OPTIONS"]]
             command_args = [x for x in func_dict["DROPDOWN_SUB_FIELDS"]]
@@ -600,7 +600,7 @@ class ParlayStandardScriptProxy(object):
 
                         #send the message and block for response
                         msg = self._script.make_msg(self.name, func_name, msg_type=MSG_TYPES.COMMAND,
-                                                direct=True, response_req=True, FUNC=func_name, **kwargs)
+                                                direct=True, response_req=True, COMMAND=func_name, **kwargs)
                         resp = self._script.send_parlay_message(msg)
                         return resp['CONTENTS']['RESULT']
 
