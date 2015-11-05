@@ -28,6 +28,10 @@
 	cursor: pointer;
 }
 
+.parlay-bottom-bar:focus {
+	outline: none;
+}
+
 .parlay-bottom-bar > .md-toolbar-tools {
 	max-height: 30px;
 	min-height: 30px;
@@ -53,4 +57,8 @@
 .parlay-console-list-item > md-icon:first-child {
 	margin-bottom: 0 !important;
 	margin-top: -4px !important;
+}
+
+.parlay-nav-icon {
+	margin: 10px !important;
 }
