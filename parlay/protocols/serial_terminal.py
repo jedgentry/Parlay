@@ -78,7 +78,8 @@ class LineEndpoint(ParlayCommandEndpoint):
     def wait_for_ack(self):
 
         while True:
-            next_resp = yield timeout(self.wait_for_next_sent_msg(), .5)
+            next_resp = yield timeout(self.wait_for_next_sent_msg(), 1)
+
             if next_resp["TOPICS"].get("MSG_TYPE", "") == MSG_TYPES.EVENT:
                 resp = next_resp["CONTENTS"]["DATA"]
                 # ack or anything endwith with OK is OK
