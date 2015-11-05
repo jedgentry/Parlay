@@ -68,6 +68,10 @@ class LeapListener(Leap.Listener):
 
 class LeapEndpoint(ParlayCommandEndpoint):
 
+    stream1_x = parlay_datastream()
+    stream1_y = parlay_datastream()
+    stream1_z = parlay_datastream()
+
     def __init__(self):
         ParlayCommandEndpoint.__init__(self, "LEAP0", "LEAP0")
         # x,y,z, (direction unit x,y,z, pinch_strength, confidence)openness position of hand1 (leftmost) and hand2 (rightmost)
@@ -89,6 +93,8 @@ class LeapEndpoint(ParlayCommandEndpoint):
         rightmost = frame.hands.rightmost
         self.hand1 = leftmost.palm_position.to_tuple() + (leftmost.direction.to_tuple(), leftmost.pinch_strength, leftmost.confidence)
         self.hand2 = rightmost.palm_position.to_tuple() + (rightmost.direction.to_tuple(), rightmost.pinch_strength, rightmost.confidence)
+        self.stream1_x, self.stream1_y, self.stream1_z = self.hand1[0:3]
+
         self.hand1_velocity = leftmost.palm_velocity
         self.hand2_velocity = rightmost.palm_velocity
 

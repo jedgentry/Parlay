@@ -117,23 +117,40 @@ class ParlayScript(WebSocketClientProtocol):
             #send this to the reactor without waiting for a response
             self.reactor.callFromThread(self.sendMessage, json.dumps(msg))
 
-    def discover(self):
+    def discover(self, force=True):
+        """
+        Run a discovery so that the script knows what endpoints are attached and can get handles to them.
+        :param force If True, will force a rediscovery, if False will take the last cached discovery
+        """
         print "Running discovery..."
         #block the thread until we get a discovery or error
-        result = threads.blockingCallFromThread(self.reactor, self._in_reactor_discover)
+        result = threads.blockingCallFromThread(self.reactor, self._in_reactor_discover, force)
         self.discovery = result
         return result
 
-
-    def get_endpoint(self, endpoint_id):
-        """
-        Get an Endpoint Proxy object by the
-        """
-
-        # first see if we can find the endpoint by its ID
-        endpoint_disc = self._find_endpoint_info_by_id(self.discovery, endpoint_id)
+    def get_endpoint_by_id(self, endpoint_id):
+        endpoint_disc = self._find_endpoint_info(self.discovery, endpoint_id, "ID")
         if endpoint_disc is None:
-            raise KeyError("Couldn't find endpoint with ID " + str(endpoint_id))
+            raise KeyError("Couldn't find endpoint with id " + str(endpoint_id))
+        else:
+            return self._proxy_endpoint(endpoint_disc)
+
+    def get_endpoint_by_name(self, endpoint_name):
+        endpoint_disc = self._find_endpoint_info(self.discovery, endpoint_name, "NAME")
+        if endpoint_disc is None:
+            raise KeyError("Couldn't find endpoint with id " + str(endpoint_name))
+        else:
+            return self._proxy_endpoint(endpoint_disc)
+
+    def _proxy_endpoint(self, endpoint_disc):
+        """
+        Get an Endpoint Proxy object by the discovery
+        :param endpoint_disc The endpoint discovery object
+        :type endpoint_disc dict
+        """
+        # Do we have a valid endpoint discovery object?
+        if endpoint_disc is None:
+            raise KeyError("Couldn't make Proxy Endpoint with None type")
 
         # now that we have the discovery, let's try and construct a proxy out of it
         templates = [x.strip() for x in endpoint_disc.get("TYPE", "").split("/")]
@@ -150,19 +167,20 @@ class ParlayScript(WebSocketClientProtocol):
         # we have a good template class! Let's construct it
         return template(endpoint_disc, self)
 
-    def _find_endpoint_info_by_id(self, discovery, endpoint_id):
+    def _find_endpoint_info(self, discovery, endpoint_id, key):
         """
         Find the endpoint with a given id recursively (or None if it can't be found)
         @type: discovery list
         """
         for endpoint in discovery:
-            if endpoint.get('ID', None) == endpoint_id:
+            if endpoint.get(key, None) == endpoint_id:
                 return endpoint
-            found = self._find_endpoint_info_by_id(endpoint.get('CHILDREN', []), endpoint_id)
+            found = self._find_endpoint_info(endpoint.get('CHILDREN', []), endpoint_id, key)
             # did a child find it?
             if found is not None:
                 return found
         return None
+
 
     def sleep(self, timeout):
         threads.blockingCallFromThread(self.reactor, self._sleep, timeout)
@@ -252,7 +270,7 @@ class ParlayScript(WebSocketClientProtocol):
 
         return response
 
-    def _in_reactor_discover(self):
+    def _in_reactor_discover(self, force):
         """
         Discovery called from within the reactor context
         """
@@ -266,7 +284,7 @@ class ParlayScript(WebSocketClientProtocol):
         }))
         #send request
         self.sendMessage(json.dumps({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
-                                     "CONTENTS": {'force': True}
+                                     "CONTENTS": {'force': force}
         }))
 
         def discovery_listener(msg):
