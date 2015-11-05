@@ -128,7 +128,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
                 if velocity < 30: #15:
                     print "Robot Command (x, y, z, pitch, roll, grasp): {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f}".format(x, y, z, pitch, roll, grasp, velocity)
                     self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
-                    yield delay(.5)  # wait for a while so the move is deliberate
+                    yield delay(1)  # wait for a while so the move is deliberate
                 else:  # faster iteration so we seem snappy
                     yield delay(0.01)
             else:
@@ -146,8 +146,8 @@ class LeapEndpoint(ParlayCommandEndpoint):
 
         offset_x_out = 10.0
         offset_y_out = 0.0
-        offset_z_out = -0.8
-        offset_pitch_out = -5.0
+        offset_z_out = -7
+        offset_pitch_out = 8.0
 
         grasp = 2*(grasp_leap - 0.5) * 8 + 2
         pitch = math.degrees(pitch_leap)*pitch_scale + offset_pitch_out
