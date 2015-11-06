@@ -545,8 +545,10 @@ class ParlayStandardScriptProxy(object):
             self._val = None
             self._rate = rate
 
+            endpoint_proxy._script.add_listener(self._update_val_listener)
+
             msg = endpoint_proxy._script.make_msg(endpoint_proxy.name, None, msg_type=MSG_TYPES.STREAM,
-                                            direct=True, response_req=True, STREAM=self._name, RATE=rate)
+                                            direct=True, response_req=False, STREAM=self._name, RATE=rate)
             endpoint_proxy._script.send_parlay_message(msg)
 
         def _update_val_listener(self, msg):
@@ -554,7 +556,7 @@ class ParlayStandardScriptProxy(object):
             Script listener that will update the val whenever we get a stream update
             """
             topics, contents = msg["TOPICS"], msg['CONTENTS']
-            if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and contents.get("STREAM", "") == self._name \
+            if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._name \
                     and 'VALUE' in contents:
                 self._val = contents["VALUE"]
             return False  # never eat me!
@@ -576,6 +578,8 @@ class ParlayStandardScriptProxy(object):
         self.endpoint_id = discovery["ID"]
         self._discovery = discovery
         self._script = script
+        self.datastream_update_rate_hz = 2
+        self.command_timeout=30
 
         # look at the discovery and add all commands, properties, and streams
 
@@ -583,26 +587,28 @@ class ParlayStandardScriptProxy(object):
         func_dict = next(iter([x for x in discovery['CONTENT_FIELDS'] if x['MSG_KEY'] == 'COMMAND']), None)
         if func_dict is not None:  # if we have commands
             command_names = [x[0] for x in func_dict["DROPDOWN_OPTIONS"]]
+            command_ids = [x[1] for x in func_dict["DROPDOWN_OPTIONS"]]
             command_args = [x for x in func_dict["DROPDOWN_SUB_FIELDS"]]
             for i in range(len(command_names)):
                 func_name = command_names[i]
-                arg_names = [x['MSG_KEY'] for x in command_args[i]]
-                def _closure_wrapper(func_name=func_name, arg_names=arg_names):
+                func_id = command_ids[i]
+                arg_names = [(x['MSG_KEY'], x.get('DEFAULT', None)) for x in command_args[i]]
+                def _closure_wrapper(func_name=func_name, func_id=func_id, arg_names=arg_names, self=self):
                     def func(*args, **kwargs):
                         #ad positional args with name lookup
                         for j in range(len(args)):
                             kwargs[arg_names[j]] = args[j]
 
                         # check args
-                        for name in arg_names:
-                            if name not in kwargs:
+                        for name, default in arg_names:
+                            if name not in kwargs and default is None:
                                 raise TypeError("Missing argument: "+name)
 
                         #send the message and block for response
-                        msg = self._script.make_msg(self.name, func_name, msg_type=MSG_TYPES.COMMAND,
+                        msg = self._script.make_msg(self.endpoint_id, func_id, msg_type=MSG_TYPES.COMMAND,
                                                 direct=True, response_req=True, COMMAND=func_name, **kwargs)
-                        resp = self._script.send_parlay_message(msg)
-                        return resp['CONTENTS']['RESULT']
+                        resp = self._script.send_parlay_message(msg, timeout=self.command_timeout)
+                        return resp['CONTENTS'].get('RESULT', None)
 
                     # set this object's function to be that function
                     setattr(self, func_name, func)
@@ -614,8 +620,8 @@ class ParlayStandardScriptProxy(object):
             setattr(self, prop['NAME'], ParlayStandardScriptProxy.PropertyProxy(prop['NAME'], self))
 
         #stream
-        for stream in discovery.get("STREAMS", []):
-            setattr(self, stream['NAME'], ParlayStandardScriptProxy.StreamProxy(stream['NAME'], self, 0))
+        for stream in discovery.get("DATASTREAMS", []):
+            setattr(self, stream['NAME'], ParlayStandardScriptProxy.StreamProxy(stream['NAME'], self, self.datastream_update_rate_hz))
 
 
     # Some re-implementation so our instance-bound descriptors will work instead of having to be class-bound.

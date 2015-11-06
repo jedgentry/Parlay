@@ -138,7 +138,7 @@ class ParlayScript(WebSocketClientProtocol):
     def get_endpoint_by_name(self, endpoint_name):
         endpoint_disc = self._find_endpoint_info(self.discovery, endpoint_name, "NAME")
         if endpoint_disc is None:
-            raise KeyError("Couldn't find endpoint with id " + str(endpoint_name))
+            raise KeyError("Couldn't find endpoint with name " + str(endpoint_name))
         else:
             return self._proxy_endpoint(endpoint_disc)
 
@@ -223,6 +223,8 @@ class ParlayScript(WebSocketClientProtocol):
             if received_msg['TOPICS'].get('MSG_TYPE', "") == MSG_TYPES.RESPONSE:
                 if received_msg['TOPICS']['TO'] == self.name and\
                                 received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
+                    if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ACK:
+                        return False  # keep waiting, an ACK means its not finished yet, it jsut got our msg
                     if timer is not None:
                         #Clear the timer
                         timer.cancel()
@@ -325,7 +327,7 @@ class ParlayScript(WebSocketClientProtocol):
         def cb(msg):
             #remove our listener function if it is in the list.
             if listener in self._msg_listeners:
-                self.listener_list.remove(listener)
+                self._msg_listeners.remove(listener)
 
             # if this is the normal timeout, just send the timeout message
             if msg['TOPICS']['MSG_TYPE'] == 'TIMEOUT':

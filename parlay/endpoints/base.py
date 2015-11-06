@@ -46,7 +46,7 @@ class BaseEndpoint(object):
         This returns the type string for the endpoint eg: sscom/STD_ENDPOINT "
         """
         templates = []
-        for cls in self.__class__.__bases__:
+        for cls in (self.__class__, ) + self.__class__.__bases__:
             name = cls.TEMPLATE_NAME if hasattr(cls, "TEMPLATE_NAME") else cls.__name__
             templates.append(name)
 

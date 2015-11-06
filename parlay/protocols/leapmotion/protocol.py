@@ -14,7 +14,7 @@ from twisted.protocols.basic import LineReceiver
 from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_datastream, parlay_command
 from parlay.protocols.utils import delay
 import math
-
+import time
 
 class LeapProtocol(BaseProtocol):
     """
@@ -39,10 +39,10 @@ class LeapProtocol(BaseProtocol):
         self.endpoints = [endpoint]
         #self.listener = LeapListener(endpoint)
         #LeapProtocol.controller.add_listener(self.listener)
-        Broker.get_instance()._reactor.callLater(5, endpoint.link_up)
+
 
     def __str__(self):
-        return "LEAP0" # only 1 leap protocol at a time
+        return "LEAP0_Protocol" # only 1 leap protocol at a time
 
 class LeapListener(Leap.Listener):
 
@@ -84,6 +84,8 @@ class LeapEndpoint(ParlayCommandEndpoint):
         self.hand1_roll = 0
         self.hand1_grasp = 0
 
+        self._sampling = False
+
 
     def _update_hand_info(self, frame):
         """
@@ -115,8 +117,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
         arm_name = "/dev/ttyUSB0"
         print "connecting to: " + arm_name
         while True:
-            #print "Hand position: {:.1f} {:.1f} {:.1f}, {:.3f}".format(self.hand1[0], self.hand1[1], self.hand1[2], self.hand1[-1])
-            #update hand position
+            # update hand position
             self._update_hand_info(LeapProtocol.controller.frame())
             x_leap = self.hand1[0]
             y_leap = self.hand1[1]
@@ -141,6 +142,24 @@ class LeapEndpoint(ParlayCommandEndpoint):
             else:
                 yield delay(.01)
 
+
+    @parlay_command(async=True)
+    def start_sampling(self):
+        #can only sample once
+        if not self._sampling:
+            self._sampling = True
+            #we need to return, so have this guy work in the background until done
+            @defer.inlineCallbacks
+            def sample():
+                while self._sampling:
+                    self._update_hand_info(LeapProtocol.controller.frame())
+                    yield delay(.1)  # sample every 10 ms
+
+            sample()
+
+    @parlay_command(async=True)
+    def stop_sampling(self):
+        self._sampling = False
 
     @staticmethod
     def leap_to_output_coords(x_leap, y_leap, z_leap, pitch_leap, grasp_leap):

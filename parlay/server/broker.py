@@ -429,6 +429,8 @@ class Broker(object):
                 all_d = defer.gatherResults(d_list, consumeErrors=False)
                 def discovery_done(*args):
 
+                    with open(cached_file_name, 'w') as outfile:
+                        json.dump(discovery, outfile)
                     #append the discovery for the broker
                     discovery.append(Broker._discovery)
                     reply['CONTENTS']['status'] = 'ok'
@@ -446,8 +448,7 @@ class Broker(object):
 
                 all_d.addCallback(discovery_done)
                 all_d.addErrback(discovery_error)
-                with open(cached_file_name, 'w') as outfile:
-                    json.dump(discovery, outfile)
+
             else:
                 with open(cached_file_name) as json_data:
                     d = json.load(json_data)
