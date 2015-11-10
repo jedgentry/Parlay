@@ -103,19 +103,26 @@ class ParlayScript(WebSocketClientProtocol):
         msg['CONTENTS']['COMMAND'] = command
         return msg
 
-    def send_parlay_message(self, msg, timeout=DEFAULT_TIMEOUT):
+    def send_parlay_message(self, msg, timeout=DEFAULT_TIMEOUT, wait=None):
         """
         Send a command.  This will be sent from the reactor thread.  If a response is required, we will wait
         for it.
+        :param msg The Message to send
+        :param timeout If we require a response and don't get one back int timeout seconds, raise a timeout exception
+        :param wait If set to True, will block until a response, if false will continue without blocking,
+        If set to None, till auto discover based on message RESPONSE_REQ.
         """
-        wait = msg['TOPICS']['RESPONSE_REQ']
+        if wait is None:
+            wait = msg['TOPICS'].get('RESPONSE_REQ', False)
+
         if wait:
             #block the thread until we get a response or timeout
-            resp = threads.blockingCallFromThread(self.reactor, self._sendParlayMessage, msg=msg, timeout=timeout)
-            return resp
+            return threads.blockingCallFromThread(self.reactor, self._sendParlayMessage, msg=msg, timeout=timeout)
         else:
             #send this to the reactor without waiting for a response
             self.reactor.callFromThread(self.sendMessage, json.dumps(msg))
+            return None  # nothing to wait on, no response
+
 
     def discover(self, force=True):
         """
@@ -212,7 +219,8 @@ class ParlayScript(WebSocketClientProtocol):
         Send the command and wait for the callback.This must be called
         only from the reactor thread.
         NOTE: caller is blocked.
-        @param msg: message to send
+        :param msg: message to send
+        :param timeout timeout ins econds
         """
         response = defer.Deferred()
         timer = None
@@ -270,7 +278,9 @@ class ParlayScript(WebSocketClientProtocol):
             # send the message
             self.sendMessage(json.dumps(msg))
 
+
         return response
+
 
     def _in_reactor_discover(self, force):
         """
@@ -444,7 +454,7 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
 class ErrorResponse(Exception):
     def __init__(self, error_msg):
         self.error_msg = error_msg
-        self.description = error_msg['CONTENTS'].get('DESCRIPTION','')
+        self.description = error_msg['CONTENTS'].get('DESCRIPTION', '')
         self.str = "Response Error: " + self.description
 
     def __str__(self):

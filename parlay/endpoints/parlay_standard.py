@@ -2,6 +2,7 @@ import functools
 from base import BaseEndpoint
 from parlay.protocols.utils import message_id_generator
 from twisted.internet import defer, threads
+from twisted.python import failure
 from parlay.server.broker import Broker
 from twisted.internet.task import LoopingCall
 
@@ -579,7 +580,8 @@ class ParlayStandardScriptProxy(object):
         self._discovery = discovery
         self._script = script
         self.datastream_update_rate_hz = 2
-        self.command_timeout=30
+        self.command_timeout = 30
+        self._command_id_lookup = {}
 
         # look at the discovery and add all commands, properties, and streams
 
@@ -592,12 +594,13 @@ class ParlayStandardScriptProxy(object):
             for i in range(len(command_names)):
                 func_name = command_names[i]
                 func_id = command_ids[i]
+                self._command_id_lookup[func_name] = func_id  # add to lookup for fast access later
                 arg_names = [(x['MSG_KEY'], x.get('DEFAULT', None)) for x in command_args[i]]
                 def _closure_wrapper(func_name=func_name, func_id=func_id, arg_names=arg_names, self=self):
                     def func(*args, **kwargs):
                         #ad positional args with name lookup
                         for j in range(len(args)):
-                            kwargs[arg_names[j]] = args[j]
+                            kwargs[arg_names[j][0]] = args[j]
 
                         # check args
                         for name, default in arg_names:
@@ -623,6 +626,18 @@ class ParlayStandardScriptProxy(object):
         for stream in discovery.get("DATASTREAMS", []):
             setattr(self, stream['NAME'], ParlayStandardScriptProxy.StreamProxy(stream['NAME'], self, self.datastream_update_rate_hz))
 
+    def send_parlay_command(self, command, **kwargs):
+        """
+        Manually send a parlay command. Returns a handle that can be paused on
+        """
+        #send the message and block for response
+        msg = self._script.make_msg(self.endpoint_id, self._command_id_lookup[command], msg_type=MSG_TYPES.COMMAND,
+                                direct=True, response_req=True, COMMAND=command, **kwargs)
+        self._script.send_parlay_message(msg, timeout=self.command_timeout, wait=False)
+        return CommandHandle(msg, self._script)
+
+
+
 
     # Some re-implementation so our instance-bound descriptors will work instead of having to be class-bound.
     # Thanks: http://blog.brianbeck.com/post/74086029/instance-descriptors
@@ -644,9 +659,87 @@ class ParlayStandardScriptProxy(object):
                 return obj.__set__(self, value)
         return object.__setattr__(self, name, value)
 
-
+# register the proxy so it can be used in scripts
 ENDPOINT_PROXIES['ParlayStandardEndpoint'] = ParlayStandardScriptProxy
 ENDPOINT_PROXIES['ParlayCommandEndpoint'] =  ParlayStandardScriptProxy
+
+class CommandHandle(object):
+    """
+    This is a command handle that wraps a command message and allows blocking until certain messages are recieved
+    """
+
+    def __init__(self, msg, script):
+        """
+        :param msg the message that we're handling
+        :param script the script context that we're in
+        """
+        topics, contents = msg["TOPICS"], msg["CONTENTS"]
+        assert 'MSG_ID' in topics and 'TO' in topics and 'FROM' in topics
+        self._msg = msg
+        self._msg_topics = topics
+        self._msg_content = contents
+        #:type ParlayScript
+        self._script = script
+        self.msg_list = []  # list of al messages with the same message id but swapped TO and FROM
+        self._done = False  # True when we're done listening (So we can clean up)
+
+        self._complete_deferred = defer.Deferred()
+        self._ack_deferred = defer.Deferred()
+
+        # add our listener
+        self._script.add_listener(self._generic_on_message)
+
+
+    def _generic_on_message(self, msg):
+        """
+        Listener function thatpowers the handle.
+        This should only be called by a script in the reactor thread in its listener loop
+        """
+
+        topics, contents = msg["TOPICS"], msg["CONTENTS"]
+        if topics.get("MSG_ID", None) == self._msg_topics["MSG_ID"] \
+                and topics.get("TO", None) == self._msg_topics["FROM"] \
+                and topics.get("FROM", None) == self._msg_topics['TO']:
+            # add it to the list if the msg ids match but to and from are swapped
+            self.msg_list.append(msg)
+
+            #so if this status is OK or an error. if it is, then we're done listening
+            status = topics.get("MSG_STATUS", None)
+            type = topics.get("MSG_TYPE", None)
+            if type == MSG_TYPES.RESPONSE and status != MSG_STATUS.ACK:
+                #  if it's a response but not an ack, then we're done
+                self._done = True
+                if status == MSG_STATUS.ERROR:  # errback on error
+                    self._complete_deferred.errback(failure.Failure(BadStatusError(msg)))
+                else:
+                    self._complete_deferred.callback(msg)
+            elif type == MSG_TYPES.RESPONSE and status == MSG_STATUS.ACK:
+                # new deferred because we could get more than one ACK
+                old_ack, self._ack_deferred = self._ack_deferred, defer.Deferred()
+                old_ack.callback(msg)
+
+
+        # if we're done then  eat us (true true)
+        return self._done
+
+
+    def wait_for_complete(self):
+        """
+        Called from a scripts thread. Blocks until the message is complete.
+        """
+        return threads.blockingCallFromThread(self._script.reactor, lambda: self._complete_deferred)
+
+    def wait_for_ack(self):
+        """
+        Called from a scripts thread. Blocks until the message is ackd
+        """
+        return threads.blockingCallFromThread(self._script.reactor, lambda: self._ack_deferred)
+
+
+
+
+
+
 
 
 
