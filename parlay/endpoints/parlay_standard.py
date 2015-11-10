@@ -5,37 +5,11 @@ from twisted.internet import defer, threads
 from twisted.python import failure
 from parlay.server.broker import Broker
 from twisted.internet.task import LoopingCall
+from parlay.endpoints.threaded_endpoint import ENDPOINT_PROXIES, ThreadedEndpoint
+from parlay.endpoints.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES
+import json
 
-
-class INPUT_TYPES(object):
-    NUMBER ="NUMBER"
-    STRING = "STRING"
-    NUMBERS = "NUMBERS"
-    STRINGS = "STRINGS"
-    OBJECT = "OBJECT"
-    ARRAY = "ARRAY"
-    DROPDOWN = "DROPDOWN"
-
-class TX_TYPES(object):
-    DIRECT = 'DIRECT'
-    BROADCAST = "BROADCAST"
-
-class MSG_TYPES(object):
-    COMMAND = 'COMMAND'
-    DATA = "DATA"
-    EVENT = 'EVENT'
-    RESPONSE = 'RESPONSE'
-    PROPERTY = 'PROPERTY'
-    STREAM = 'STREAM'
-
-class MSG_STATUS(object):
-    ERROR = "ERROR"
-    WARNING = "WARNING"
-    INFO = "INFO"
-    OK = "OK"
-    ACK = 'ACK'
-
-class ParlayStandardEndpoint(BaseEndpoint):
+class ParlayStandardEndpoint(ThreadedEndpoint):
     """
     This is a parlay standard endpoint. It supports building inputs for the UI in an intuitive manner during
     discovery. Inherit from it and use the parlay decorators to get UI functionality
@@ -43,7 +17,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
 
     def __init__(self, endpoint_id, name):
         # call parent
-        BaseEndpoint.__init__(self, endpoint_id, name)
+        ThreadedEndpoint.__init__(self, endpoint_id, name)
         self._content_fields = []
         self._topic_fields = []
         self._properties = {}  # Dictionary from name to (attr_name, read_only, write_only)
@@ -164,36 +138,7 @@ class ParlayStandardEndpoint(BaseEndpoint):
 
         self._broker.publish(msg, self.on_message)
 
-    def send_response(self, msg, contents=None, msg_status=MSG_STATUS.OK):
-        if contents is None:
-            contents = {}
 
-        #swap to and from
-        to, from_ = msg["TOPICS"]["FROM"], msg["TOPICS"]['TO']
-        self.send_message(to, from_, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.RESPONSE,
-                          msg_id=msg["TOPICS"]["MSG_ID"], msg_status=msg_status, response_req=False,
-                          contents=contents)
-
-    def send_parlay_command(self, to, command_name, **kwargs):
-        contents = kwargs
-        contents['COMMAND'] = command_name
-        msg_id = self._msg_id_generator.next()
-        self.send_message(to, contents=contents, response_req=True, msg_id=msg_id)
-
-        d = defer.Deferred()
-        def listener(msg):
-            d.callback(msg["CONTENTS"])
-            #unscubscribe
-            self._broker._reactor.callLater(0,
-                                            lambda: self._broker.unsubscribe(self,
-                                                                             {"TO": self.endpoint_id, "MSG_ID": msg_id}))
-
-
-        self._broker.subscribe(listener, self, TO=self.endpoint_id, MSG_ID=msg_id)
-        return d
-
-
-from parlay.scripts.parlay_script import ENDPOINT_PROXIES
 
 
 def parlay_command(async=False):
@@ -207,7 +152,7 @@ def parlay_command(async=False):
     def decorator(fn):
         if async:  # trivial wrapper
             wrapper = fn
-        else:  # run this command synchronously in a separate thread
+        else:  # run this command synchronously in a separate thread as part of a parlay script
             wrapper = functools.wraps(fn)(lambda self, *args, **kwargs: threads.deferToThread(fn, self, *args, **kwargs))
 
         wrapper._parlay_command = True
@@ -291,7 +236,7 @@ class BadStatusError(Exception):
     def __init__(self, error, description=""):
         self.error = error
         self.description = description
-
+                                                    #inherit from script for easy command access
 class ParlayCommandEndpoint(ParlayStandardEndpoint):
     """
     This is a parlay endpoint that takes commands, with values.
@@ -388,7 +333,8 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 self.add_datastream(member_name, member_name, member.units)
 
 
-
+    def _send_parlay_message(self, msg):
+        self._broker.publish(msg, self.on_message)
 
 
     def on_message(self, msg):
@@ -396,6 +342,9 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         Will handle command messages automatically.
         Returns True if the message was handled, False otherwise
         """
+        # run it through the listeners for processing
+        self._runListeners(msg)
+
         topics, contents = msg["TOPICS"], msg["CONTENTS"]
         msg_type = topics.get("MSG_TYPE", "")
         #handle property messages
@@ -432,7 +381,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 self.__class__.__dict__[stream_name].stream(self, requester, looper, hz)
 
             except Exception as e:
-                self.send_response(msg, {"STREAM": stream_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
+                self.send_response(msg, {"STREAM": contents.get("STREAM", "__UNKNOWN_STREAM__"), "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
                                    msg_status=MSG_STATUS.ERROR)
         #handle 'command' messages
         command = contents.get("COMMAND", "")
@@ -496,6 +445,16 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         Returns a deferred that will callback on the next message we RECEIVE
         """
         return self._wait_for_next_recv_message
+
+    def send_response(self, msg, contents=None, msg_status=MSG_STATUS.OK):
+        if contents is None:
+            contents = {}
+
+        #swap to and from
+        to, from_ = msg["TOPICS"]["FROM"], msg["TOPICS"]['TO']
+        self.send_message(to, from_, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.RESPONSE,
+                          msg_id=msg["TOPICS"]["MSG_ID"], msg_status=msg_status, response_req=False,
+                          contents=contents)
 
 
 

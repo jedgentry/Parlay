@@ -1,5 +1,32 @@
 from parlay.server.broker import Broker
 
+class INPUT_TYPES(object):
+    NUMBER ="NUMBER"
+    STRING = "STRING"
+    NUMBERS = "NUMBERS"
+    STRINGS = "STRINGS"
+    OBJECT = "OBJECT"
+    ARRAY = "ARRAY"
+    DROPDOWN = "DROPDOWN"
+
+class TX_TYPES(object):
+    DIRECT = 'DIRECT'
+    BROADCAST = "BROADCAST"
+
+class MSG_TYPES(object):
+    COMMAND = 'COMMAND'
+    DATA = "DATA"
+    EVENT = 'EVENT'
+    RESPONSE = 'RESPONSE'
+    PROPERTY = 'PROPERTY'
+    STREAM = 'STREAM'
+
+class MSG_STATUS(object):
+    ERROR = "ERROR"
+    WARNING = "WARNING"
+    INFO = "INFO"
+    OK = "OK"
+    ACK = 'ACK'
 
 class BaseEndpoint(object):
     """
