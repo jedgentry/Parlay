@@ -33,5 +33,6 @@ setup(
     packages=find_packages(),
     package_data={"parlay": ["parlay/ui/**/*"]},  # include ui files
     install_requires=["Twisted >14.0.0", # 13.1.0
-                      "autobahn >0.9.0"] # 0.8.5
+                      "autobahn >0.9.0", # 0.8.5
+                      "pyopenssl"] 
 )
