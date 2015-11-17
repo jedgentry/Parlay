@@ -31,7 +31,7 @@ setup(
     description="A system for building a private internet-of-things and easily talking with cyber-physical systems",
     ext_modules=extensions,
     packages=find_packages(),
-    package_data={"parlay": ["parlay/ui/**/"]},  # include ui files
+    package_data={"parlay": ["parlay/ui/**/*"]},  # include ui files
     install_requires=["Twisted >14.0.0", # 13.1.0
                       "autobahn >0.9.0"] # 0.8.5
 )
