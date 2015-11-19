@@ -1,2 +1,2 @@
 job1:
-    script: "cd parlay/ui;grunt test;"
+    script: "cd parlay/ui;npm install;grunt test;"
