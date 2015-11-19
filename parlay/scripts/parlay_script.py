@@ -118,12 +118,24 @@ class ParlayScript(ThreadedEndpoint, WebSocketClientProtocol):
 
 
 def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE_WEBSOCKET_PORT,
-                 stop_reactor_on_close=None):
+                 stop_reactor_on_close=None, skip_checks=False):
     """
     Construct a new script from the script class and start it
+    :param script_class : The ParlayScript class to run (Must be subclass of ParlayScript)
+    :param engine_ip : The ip of the broker that the script will be running on
+    :param engine_port : the port of the broker that the script will be running on
+    :param stop_reactor_on_close: Boolean regarding whether ot not to stop the reactor when the script closes\
+     (Defaults to False if the reactor is running, True if the reactor is not currently running)
+    :param skip_checks : if True will not do sanity checks on script (CAREFUL: BETTER KNOW WHAT YOU ARE DOING!)
     """
+    if not skip_checks:
+        if not issubclass(script_class, ParlayScript):
+            raise TypeError("start_script called with: "+str(script_class)+" \n" +
+                            "Can only call start_script on an instance of a subclass of ParlayScript")
+
     #set whether to stop the reactor or not (default to the opposite of reactor running)
     script_class.stop_reactor_on_close = stop_reactor_on_close if stop_reactor_on_close is not None else not reactor.running
+
     #connect it up
     factory = WebSocketClientFactory("ws://" + engine_ip + ":" + str(engine_port))
     factory.protocol = script_class
