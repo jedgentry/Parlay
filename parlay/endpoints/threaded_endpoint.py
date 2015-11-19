@@ -364,4 +364,4 @@ class SystemError(Exception):
         self.code = error_msg.get('CONTENTS', {}).get('ERROR_CODE', 0)
 
     def __str__(self):
-        return "Critical Error: " + self.description
+        return "Critical Error: " + self.description + "CODE: " + self.code + " MSG:" + self.error_msg

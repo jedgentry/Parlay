@@ -245,6 +245,10 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
 
     def __init__(self, endpoint_id, name):
         # call parent
+        """
+
+        :rtype : object
+        """
         ParlayStandardEndpoint.__init__(self, endpoint_id, name)
         self._commands = {}  # dict with command name -> callback function
 
@@ -539,7 +543,7 @@ class ParlayStandardScriptProxy(object):
         self._discovery = discovery
         self._script = script
         self.datastream_update_rate_hz = 2
-        self.command_timeout = 30
+        self.timeout = 30
         self._command_id_lookup = {}
 
         # look at the discovery and add all commands, properties, and streams
@@ -569,7 +573,7 @@ class ParlayStandardScriptProxy(object):
                         #send the message and block for response
                         msg = self._script.make_msg(self.endpoint_id, func_id, msg_type=MSG_TYPES.COMMAND,
                                                 direct=True, response_req=True, COMMAND=func_name, **kwargs)
-                        resp = self._script.send_parlay_message(msg, timeout=self.command_timeout)
+                        resp = self._script.send_parlay_message(msg, timeout=self.timeout)
                         return resp['CONTENTS'].get('RESULT', None)
 
                     # set this object's function to be that function
@@ -592,7 +596,7 @@ class ParlayStandardScriptProxy(object):
         #send the message and block for response
         msg = self._script.make_msg(self.endpoint_id, self._command_id_lookup[command], msg_type=MSG_TYPES.COMMAND,
                                 direct=True, response_req=True, COMMAND=command, **kwargs)
-        self._script.send_parlay_message(msg, timeout=self.command_timeout, wait=False)
+        self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
         return CommandHandle(msg, self._script)
 
 
