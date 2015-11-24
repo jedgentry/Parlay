@@ -7,6 +7,7 @@ from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
 from base import BaseEndpoint
 import sys
+import json
 
 DEFAULT_TIMEOUT = 120
 
@@ -131,6 +132,24 @@ class ThreadedEndpoint(BaseEndpoint):
         result = threads.blockingCallFromThread(self.reactor, self._in_reactor_discover, force)
         self.discovery = result
         return result
+
+    def save_discovery(self, path):
+        """
+        Save the current discovery information to a file so it can be loaded later
+        :param path : The Path to the file to save to (Warning: will be overwritten)
+        """
+        with open(path, "w") as f:
+                                         # pretty print in case a human wants to read it
+            json.dump(self.discovery, f, indent=4, sort_keys=True)
+
+    def load_discovery(self, path):
+        """
+        Load discovery from a file.
+        :param path : The path to the file that has the JSON discovery
+        """
+        with open(path, 'r') as f:
+            self.discovery = json.load(f)
+
 
     def get_endpoint_by_id(self, endpoint_id):
         endpoint_disc = self._find_endpoint_info(self.discovery, endpoint_id, "ID")
