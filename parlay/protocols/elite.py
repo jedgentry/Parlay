@@ -119,14 +119,13 @@ class EliteArmEndpoint(LineEndpoint):
     @parlay_command(async=True)
     def move_all_motors(self, motor1, motor2, motor3, motor4, motor5, motor6):
 
-        assert -7500 < int(motor1) < 7500
-        assert -1200 < int(motor2) < 1200
-        motor3 = max(min(2500, motor3), -2000)
-        assert -2500 < int(motor3) < 2700
-        #even out motor 4
-        motor4 = max(min(1499, motor4), -2900)
-        assert -3000 <= int(motor4) <= 1500
-        assert -4200 < int(motor5) < 4200
+        # apply limits on motors, rather than assert or return error
+        motor1 = max(min(7500, int(motor1)), -7500)
+        motor2 = max(min(1200, int(motor2)), -1200)
+        motor3 = max(min(2700, int(motor3)), -2500)
+        motor4 = max(min(1499, int(motor4)), -2900)
+        motor5 = max(min(4200, int(motor5)), -4200)
+
         if self._in_move:
             return  # we're already moving!! #TODO: Throw an exception
         try:
