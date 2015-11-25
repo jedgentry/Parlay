@@ -70,6 +70,8 @@ class EliteArmEndpoint(LineEndpoint):
         self._inited = False
         self._in_move = False
         self._move_rate_ms = 5000
+        self._ms_per_1000_steps = 1000
+        self._old_positions = [0, 0, 0, 0, 0, 0]
 
 
     @parlay_command(async=True)
@@ -94,6 +96,7 @@ class EliteArmEndpoint(LineEndpoint):
             yield self.wait_for_ack()
 
         self._move_rate_ms = int(rate_ms)
+        self._ms_per_1000_steps = float(rate_ms)
 
 
     @defer.inlineCallbacks
@@ -134,18 +137,35 @@ class EliteArmEndpoint(LineEndpoint):
         motor3 = max(min(2700, int(motor3)), -2500)
         motor4 = max(min(800, int(motor4)), -2500)
         motor5 = max(min(4200, int(motor5)), -4200)
+        motor6 = int(motor6)
 
         if self._in_move:
-            return  # we're already moving!! #TODO: Throw an exception
+            defer.returnValue(None)  # we're already moving!! #TODO: Throw an exception
+
+        wait_for = 0
+        m = [motor1, motor2, motor3, motor4, motor5, motor6]
         try:
             self._in_move = True
-            m = [motor1, motor2, motor3, motor4, motor5, motor6]
+
+            dist = [abs(self._old_positions[i] - float(m[i])) for i in range(len(m))]
+            #figure out how long to wait (max time for max axis)
+            for i in range(len(m) - 1):  # don't worry about motor 6
+                #if dist[i] > 100:  # speed up small moves by ignoring them
+                    time = max(100, int(self._ms_per_1000_steps/1000.0 * dist[i]))
+                    wait_for = max(wait_for, time)
+                    self.send_raw_data("SMT"+str(i+1)+" " + str(time))
+                    yield self.wait_for_ack()
+
+            #send the move command
             for i in range(len(m)):
-                self.send_raw_data("SPC"+str(i+1)+" "+str(int(m[i])))
-                yield self.wait_for_ack()
+                #if dist[i] > 100:
+                    self.send_raw_data("SPC"+str(i+1)+" "+str(int(m[i])))
+                    yield self.wait_for_ack()
         finally:
+
+            self._old_positions = m
+            yield delay(wait_for/1000 + .02)  # don't ACK until we're finished! (+2 ms for good measure)
             self._in_move = False
-            yield delay(self._move_rate_ms/1000 + .01)  # don't ACK until we're finished! (+1 ms for good measure)
 
 
     @defer.inlineCallbacks
