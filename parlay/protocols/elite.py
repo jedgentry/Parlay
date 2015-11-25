@@ -194,7 +194,7 @@ class Kinematics:
             y = y*MAX_RADIUS/r
             z = z*MAX_RADIUS/r
 
-        return x,y,z
+        return x, y, z
 
     @staticmethod
     def _xyz_to_cylindrical(x, y, z):
@@ -238,12 +238,14 @@ class Kinematics:
         """
         r, h, phi = Kinematics._xyz_to_cylindrical(x, y, z)
 
-        theta3_rad = pi - acos((L0**2 + L1**2 - r**2 - h**2) / (2 * L0 * L1))
+        d = sqrt(r**2 + h**2)
 
-        rho = atan2(L1 * sin(theta3_rad), L0 + L1 * cos(theta3_rad))
-        k = sqrt(L0**2 + L1**2 + 2 * L0 * L1 * cos(-theta3_rad))
+        theta3_rad = pi - acos((L0**2 + L1**2 - d**2) / (2 * L0 * L1))
 
-        theta2_rad = rho + acos(r / k)
+        gamma_rad = acos((d**2 + L0**2 - L1**2) / (2 * L0 * d))
+        beta_rad = asin(h / d)
+        theta2_rad = gamma_rad + beta_rad
+
         theta1_rad = atan2(y, x)
 
         theta1 = degrees(theta1_rad) - THETA1_INIT
