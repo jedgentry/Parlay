@@ -111,11 +111,12 @@ class LeapEndpoint(ParlayCommandEndpoint):
     def get_hands(self):
         return self.hand1, self.hand2
 
-    @defer.inlineCallbacks
-    @parlay_command(async=True)
-    def link_up(self, arm_name):
-        arm_name = "/dev/ttyUSB0"
-        print "connecting to: " + arm_name
+    @parlay_command()
+    def link_up(self, arm_id):
+        arm_id = "/dev/ttyUSB0"
+        self.discover(force=False)
+        arm = self.get_endpoint_by_id(arm_id)
+        print "connecting to: " + arm_id
         while True:
             # update hand position
             self._update_hand_info(LeapProtocol.controller.frame())
@@ -135,12 +136,13 @@ class LeapEndpoint(ParlayCommandEndpoint):
                 velocity = math.sqrt(self.hand1_velocity[0]**2 + self.hand1_velocity[1]**2 + self.hand1_velocity[2]**2)
                 if velocity < 30: #15:
                     print "Robot Command (x, y, z, pitch, roll, grasp): {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f}".format(x, y, z, pitch, roll, grasp, velocity)
-                    self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
-                    yield delay(1)  # wait for a while so the move is deliberate
+                    #self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
+                    arm.move_hand(x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
+                    time.sleep(1)  # wait for a while so the move is deliberate
                 else:  # faster iteration so we seem snappy
-                    yield delay(0.01)
+                    time.sleep(0.01)
             else:
-                yield delay(.01)
+                time.sleep(.01)
 
 
     @parlay_command(async=True)

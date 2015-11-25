@@ -73,11 +73,25 @@ class BaseEndpoint(object):
         This returns the type string for the endpoint eg: sscom/STD_ENDPOINT "
         """
         templates = []
-        for cls in (self.__class__, ) + self.__class__.__bases__:
+        for cls in [self.__class__, ] + get_recursive_base_list(self.__class__):
             name = cls.TEMPLATE_NAME if hasattr(cls, "TEMPLATE_NAME") else cls.__name__
             templates.append(name)
 
         return "/".join(templates)
+
+
+def get_recursive_base_list(cls, list=None):
+    """
+    Get the full class heirarchy list for a class, to see *all* classes and super classes a python class inherits from
+    """
+    if list is None:
+        list = []
+
+    for base in cls.__bases__:
+        list.append(base)
+        get_recursive_base_list(base, list)
+
+    return list
 
 from twisted.internet import reactor
 from autobahn.twisted.websocket import  WebSocketClientProtocol, WebSocketClientFactory
