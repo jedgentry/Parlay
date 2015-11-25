@@ -138,7 +138,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
                     print "Robot Command (x, y, z, pitch, roll, grasp): {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f} {:.1f}".format(x, y, z, pitch, roll, grasp, velocity)
                     #self.send_parlay_command(arm_name, "move_hand", x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
                     arm.move_hand(x=x, y=y, z=z, wrist_pitch=pitch, wrist_roll=roll, grip=grasp)
-                    time.sleep(1)  # wait for a while so the move is deliberate
+                    #time.sleep(1)  # wait for a while so the move is deliberate
                 else:  # faster iteration so we seem snappy
                     time.sleep(0.01)
             else:

@@ -69,6 +69,7 @@ class EliteArmEndpoint(LineEndpoint):
         self._protocol = protocol
         self._inited = False
         self._in_move = False
+        self._move_rate_ms = 5000
 
 
     @parlay_command(async=True)
@@ -92,13 +93,15 @@ class EliteArmEndpoint(LineEndpoint):
             self.send_raw_data("SMT"+str(i+1)+" " + rate_ms)
             yield self.wait_for_ack()
 
+        self._move_rate_ms = int(rate_ms)
+
 
     @defer.inlineCallbacks
     @parlay_command(async=True)
     def home_all(self):
         for x in range(6):
             self.home(x + 1)
-            yield self.wait_for_ack()
+            yield self.wait_for_ack(timeout_secs=15)
 
     @parlay_command(async=True)
     def shutdown(self):
@@ -117,26 +120,32 @@ class EliteArmEndpoint(LineEndpoint):
 
     @defer.inlineCallbacks
     @parlay_command(async=True)
+    def move_motor(self, motor, pos):
+        self.send_raw_data("SPC"+str(int(motor)+1)+" "+str(int(pos)))
+        yield self.wait_for_ack()
+
+    @defer.inlineCallbacks
+    @parlay_command(async=True)
     def move_all_motors(self, motor1, motor2, motor3, motor4, motor5, motor6):
 
         # apply limits on motors, rather than assert or return error
         motor1 = max(min(7500, int(motor1)), -7500)
         motor2 = max(min(1200, int(motor2)), -1200)
         motor3 = max(min(2700, int(motor3)), -2500)
-        motor4 = max(min(1499, int(motor4)), -2900)
+        motor4 = max(min(800, int(motor4)), -2500)
         motor5 = max(min(4200, int(motor5)), -4200)
 
         if self._in_move:
             return  # we're already moving!! #TODO: Throw an exception
         try:
             self._in_move = True
-            #self.send_raw_data("SPCA " + " ".join([str(int(x)) for x in [motor1, motor2, motor3, motor4, motor5, motor6]]))
             m = [motor1, motor2, motor3, motor4, motor5, motor6]
             for i in range(len(m)):
                 self.send_raw_data("SPC"+str(i+1)+" "+str(int(m[i])))
                 yield self.wait_for_ack()
         finally:
             self._in_move = False
+            yield delay(self._move_rate_ms/1000 + .01)  # don't ACK until we're finished! (+1 ms for good measure)
 
 
     @defer.inlineCallbacks
@@ -157,6 +166,7 @@ class EliteArmEndpoint(LineEndpoint):
         print "Done Moving"
 
 
+    @defer.inlineCallbacks
     @parlay_command(async=True)
     def move_hand(self, x, y, z, wrist_pitch, wrist_roll, grip): # grip is between -10 and 10
         """
@@ -172,10 +182,10 @@ class EliteArmEndpoint(LineEndpoint):
             m4 = Kinematics.wrist_pitch_to_motor(Kinematics.pitch_to_wrist_angle(thetas[1], thetas[2], float(wrist_pitch)))
             m5 = Kinematics.wrist_roll_to_motor(Kinematics.roll_to_wrist_roll_angle(float(wrist_roll)))
 
-            m_g = grip*3000
+            m_g = float(grip)*3000
             print "t=", thetas
             print (m1, m2, m3, m4, m5, m_g)
-            self.move_all_motors(m1, m2, m3, m4, m5, m_g)
+            yield self.move_all_motors(m1, m2, m3, m4, m5, m_g)
         except Exception as e:
             print str(e)
 

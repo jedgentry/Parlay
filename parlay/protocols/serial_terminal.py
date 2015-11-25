@@ -75,10 +75,10 @@ class LineEndpoint(ParlayCommandEndpoint):
         self._protocol.sendLine(str(data))
 
     @defer.inlineCallbacks
-    def wait_for_ack(self):
+    def wait_for_ack(self, timeout_secs=1):
 
         while True:
-            next_resp = yield timeout(self.wait_for_next_sent_msg(), 1)
+            next_resp = yield timeout(self.wait_for_next_sent_msg(), timeout_secs)
 
             if next_resp["TOPICS"].get("MSG_TYPE", "") == MSG_TYPES.EVENT:
                 resp = next_resp["CONTENTS"]["DATA"]
