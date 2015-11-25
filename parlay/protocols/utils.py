@@ -87,12 +87,15 @@ def timeout(d, seconds):
     """
     Call d's errback if it hasn't been called back within 'seconds' number of seconds
     """
+    timeout_deferred = defer.Deferred()
+    d.addBoth(lambda x: timeout_deferred.callback(x))
+
     def cancel():
         if not d.called:
-            d.errback(failure.Failure(TimeoutError()))
+            timeout_deferred.errback(failure.Failure(TimeoutError()))
 
     timer = reactor.callLater(seconds, cancel)
-    return d
+    return timeout_deferred
 
 
 class TimeoutError(Exception):
@@ -102,3 +105,24 @@ def delay(timeout):
     d = defer.Deferred()
     Broker.get_instance()._reactor.callLater(timeout, lambda: d.callback(None))
     return d
+
+
+class PrivateDeferred(defer.Deferred):
+    """
+    A Private Deferred is like a normal deferred, except that it can be passed around and callbacks can be attached
+    by anone, but callback() and errback() have been overridden to throw an exception.  the private _callback() and _errback() must be used
+
+    This ensures that only a user that 'knows what their doing' can issue the callback
+    """
+
+    def callback(self, result):
+        raise AttributeError("Trying to call callback of Private Deferred. Only the deferred issuer may call callback")
+
+    def errback(self, fail=None):
+        raise AttributeError("Trying to call errback of Private Deferred. Only the deferred issuer may call errback")
+
+    def _callback(self, result):
+        return defer.Deferred.callback(self, result)
+
+    def _errback(self, fail=None):
+        return defer.Deferred.errback(self, fail)
