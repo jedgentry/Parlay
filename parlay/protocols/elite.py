@@ -56,7 +56,7 @@ class EliteArmProtocol(ASCIILineProtocol):
     def __init__(self, port):
         BaseProtocol.__init__(self)
         self._parlay_name = port
-        self.endpoints = [EliteArmEndpoint(self._parlay_name, self._parlay_name, self)]
+        self.endpoints = [EliteArmEndpoint(self._parlay_name, "Elite Arm", self)]
 
 
 class EliteArmEndpoint(LineEndpoint):
