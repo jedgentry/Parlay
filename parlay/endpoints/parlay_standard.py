@@ -242,13 +242,22 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
     This is a parlay endpoint that takes commands, with values.
     If there is more than one command A dropdown will appear
     """
+    #id generator for auto numbering class instances
 
-    def __init__(self, endpoint_id, name):
+    __ID_GEN = message_id_generator(2^32, 1)
+
+    def __init__(self, endpoint_id=None, name=None):
         # call parent
         """
 
         :rtype : object
         """
+        if endpoint_id is None:
+            endpoint_id = self.__class__.__name__ + " " + str(ParlayCommandEndpoint.__ID_GEN.next())
+
+        if name is None:
+            name = self.__class__.__name__
+
         ParlayStandardEndpoint.__init__(self, endpoint_id, name)
         self._commands = {}  # dict with command name -> callback function
 
