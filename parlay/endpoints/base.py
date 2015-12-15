@@ -9,6 +9,10 @@ class INPUT_TYPES(object):
     ARRAY = "ARRAY"
     DROPDOWN = "DROPDOWN"
 
+INPUT_TYPE_CONVERSION_LOOKUP = {int: INPUT_TYPES.NUMBER, float:INPUT_TYPES.NUMBER,
+                                str: INPUT_TYPES.STRING, chr: INPUT_TYPES.STRING, unichr: INPUT_TYPES.STRING,
+                                object: INPUT_TYPES.OBJECT, list: INPUT_TYPES.ARRAY}
+
 class TX_TYPES(object):
     DIRECT = 'DIRECT'
     BROADCAST = "BROADCAST"
