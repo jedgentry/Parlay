@@ -309,10 +309,16 @@ class Broker(object):
         if msg['TOPICS']['type'] != "broker":
             raise KeyError("handle_broker_message can only handle messages with 'TOPICS''type' == 'broker'")
 
-        reply = {'TOPICS': {'type': 'broker', 'response': msg['TOPICS']['request']+"_response"},
+        try:
+            request = msg['TOPICS']['request']
+        except KeyError as e:
+            print "BAD BROKER MESSAGE. NO REQUEST! == ", msg
+            return
+
+        reply = {'TOPICS': {'type': 'broker', 'response': request+"_response"},
                  'CONTENTS': {'status': "STATUS NOT FILLED IN" } }
 
-        request = msg['TOPICS']['request']
+
 
         if request == 'get_protocols':
             reg = BaseProtocol.protocol_registry

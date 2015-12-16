@@ -58,8 +58,9 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
         if self._discovery_response_defer is not None:
             return self._discovery_response_defer
 
-        self.send_message_as_JSON({'TOPICS': {'type': 'get_protocol_discovery'}, 'CONTENTS': {}})
+
         self._discovery_response_defer = defer.Deferred()
+        self.send_message_as_JSON({'TOPICS': {'type': 'get_protocol_discovery'}, 'CONTENTS': {}})
 
         def timeout():
             if self._discovery_response_defer is not None:
@@ -67,7 +68,7 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
                 self._discovery_response_defer.callback([])
                 self._discovery_response_defer = None
 
-        self.broker._reactor.callLater(3, timeout)
+        self.broker._reactor.callLater(10, timeout)
 
         return self._discovery_response_defer
 
