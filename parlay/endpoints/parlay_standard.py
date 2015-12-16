@@ -6,7 +6,7 @@ from twisted.python import failure
 from parlay.server.broker import Broker
 from twisted.internet.task import LoopingCall
 from parlay.endpoints.threaded_endpoint import ENDPOINT_PROXIES, ThreadedEndpoint
-from parlay.endpoints.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_CONVERSION_LOOKUP
+from parlay.endpoints.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, INPUT_TYPE_CONVERTER_LOOKUP
 import json
 import re
 
@@ -142,6 +142,9 @@ class ParlayStandardEndpoint(ThreadedEndpoint):
 
 
 
+
+
+
 def parlay_command(async=False, auto_type_cast=True):
     """
     Make the decorated method a parlay_command.
@@ -160,18 +163,16 @@ def parlay_command(async=False, auto_type_cast=True):
         wrapper._parlay_fn = fn  # in case it gets wrapped again, this is the actual function so we can pull kwarg names
         wrapper._parlay_arg_conversions = {}  # if type casting is desired, this dictionary from param_types to converting funcs
         wrapper._parlay_arg_discovery = {}
-        #lookup table
-        type_conversion_lookup = {'int': int, 'str': str, 'string': str, 'char': chr, 'float': float, 'double': float,
-                 'int': int, 'short' : int, 'long': int}
+
 
         if auto_type_cast and fn.__doc__ is not None:
             for line in fn.__doc__.split("\n"):
-                m = re.search(r"[@:]type\s+(\w+)\s*:\s*(\w+)", line)
+                m = re.search(r"[@:]type\s+(\w+)\s*:\s*(\w+\[?\w*\]?)", line)
                 if m is not None:
                     arg_name, arg_type = m.groups()
-                    if arg_type in type_conversion_lookup:  # if we know how to convert it
-                        wrapper._parlay_arg_conversions[arg_name] = type_conversion_lookup[arg_type] # add to convert list
-                        wrapper._parlay_arg_discovery[arg_name] = INPUT_TYPE_CONVERSION_LOOKUP.get(type_conversion_lookup[arg_type], INPUT_TYPES.STRING)
+                    if arg_type in INPUT_TYPE_CONVERTER_LOOKUP:  # if we know how to convert it
+                        wrapper._parlay_arg_conversions[arg_name] = INPUT_TYPE_CONVERTER_LOOKUP[arg_type] # add to convert list
+                        wrapper._parlay_arg_discovery[arg_name] = INPUT_TYPE_DISCOVERY_LOOKUP.get(arg_type, INPUT_TYPES.STRING)
 
         return wrapper
 
@@ -293,6 +294,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
                 #build the sub-field based on their signature
                 arg_names = member._parlay_fn.func_code.co_varnames[1:member._parlay_fn.func_code.co_argcount]   # remove self
                 # TODO: defaults based on method signature
+                #add the sub_fields, trying to best guess their discovery types. If not possible then default to STRING
                 member.__func__._parlay_sub_fields = [self.create_field(x, member._parlay_arg_discovery.get(x, INPUT_TYPES.STRING)) for x in arg_names]
 
 

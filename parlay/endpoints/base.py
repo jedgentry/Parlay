@@ -9,9 +9,29 @@ class INPUT_TYPES(object):
     ARRAY = "ARRAY"
     DROPDOWN = "DROPDOWN"
 
-INPUT_TYPE_CONVERSION_LOOKUP = {int: INPUT_TYPES.NUMBER, float:INPUT_TYPES.NUMBER,
-                                str: INPUT_TYPES.STRING, chr: INPUT_TYPES.STRING, unichr: INPUT_TYPES.STRING,
-                                object: INPUT_TYPES.OBJECT, list: INPUT_TYPES.ARRAY}
+#lookup table for arg discovery
+INPUT_TYPE_DISCOVERY_LOOKUP = {'str': INPUT_TYPES.STRING, 'string': INPUT_TYPES.STRING, 'char': INPUT_TYPES.STRING,
+                               'int': INPUT_TYPES.NUMBER, 'float': INPUT_TYPES.NUMBER, 'double': INPUT_TYPES.NUMBER,
+                               'short': INPUT_TYPES.NUMBER, 'long': INPUT_TYPES.NUMBER, 'list[]': INPUT_TYPES.ARRAY}
+
+#dynamically add list types
+for k in INPUT_TYPE_DISCOVERY_LOOKUP.keys():
+    v = INPUT_TYPE_DISCOVERY_LOOKUP[k]
+    list_type = INPUT_TYPES.ARRAY
+    if v == INPUT_TYPES.NUMBER:
+        list_type = INPUT_TYPES.NUMBERS
+    elif v == INPUT_TYPES.STRING:
+        list_type = INPUT_TYPES.STRINGS
+    INPUT_TYPE_DISCOVERY_LOOKUP['list['+k+']'] = list_type
+
+#lookup table for arg conversion
+INPUT_TYPE_CONVERTER_LOOKUP = {'int': int, 'str': str, 'string': str, 'char': chr, 'float': float, 'double': float,
+                      'short' : int, 'long': int, 'list[]': lambda list_arg: list_arg}
+# dynamically add list types
+for k in INPUT_TYPE_CONVERTER_LOOKUP.keys():
+    v = INPUT_TYPE_CONVERTER_LOOKUP[k]
+    INPUT_TYPE_CONVERTER_LOOKUP['list['+k+']'] = lambda list_arg, k=k, v=v: [v(x) for x in list_arg]
+
 
 class TX_TYPES(object):
     DIRECT = 'DIRECT'
