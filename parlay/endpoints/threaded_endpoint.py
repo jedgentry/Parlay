@@ -24,12 +24,23 @@ class ThreadedEndpoint(BaseEndpoint):
         self._system_errors = []
         self._system_events = []
         self._timer = None
+        #set to auto update discovery
+        self._auto_update_discovery = True
         self.discovery = {}
 
         self._message_id_generator = message_id_generator(sys.maxint, 100)
 
         # Add this listener so it will be first in the list to pickup errors, warnings and events.
         self.add_listener(self._system_listener)
+        self._broker.subscribe(self._discovery_broadcast_listener, type='DISCOVERY_BROADCAST')
+
+
+    def _discovery_broadcast_listener(self, msg):
+        """
+        Listen for discovery broadcast listeners and update our discovery accordingly
+        """
+        if self._auto_update_discovery and msg['CONTENTS'].get("status", "") == "ok":
+            self.discovery = msg['CONTENTS'].get('discovery', self.discovery)
 
 
 
