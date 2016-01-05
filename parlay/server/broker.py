@@ -114,6 +114,14 @@ class Broker(object):
 
         return Broker.instance
 
+    @staticmethod
+    def run():
+        """
+        Run the default Broker implementation.
+        This call will not return
+        """
+        return Broker.get_instance().run()
+
 
     def publish(self, msg, write_method):
         """
