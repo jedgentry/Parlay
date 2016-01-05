@@ -114,6 +114,14 @@ class Broker(object):
 
         return Broker.instance
 
+    @staticmethod
+    def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True):
+        """
+        Run the default Broker implementation.
+        This call will not return
+        """
+        return Broker.get_instance().run(mode=mode, ssl_only=ssl_only, open_browser=open_browser)
+
 
     def publish(self, msg, write_method):
         """
@@ -442,6 +450,9 @@ class Broker(object):
                     reply['CONTENTS']['status'] = 'ok'
                     reply['CONTENTS']['discovery'] = discovery
                     message_callback(reply)
+                    # announce it to the world
+                    reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
+                    self.publish(reply, lambda _: _)
 
                 def discovery_error(*args):
                     #append the discovery for the broker
@@ -461,6 +472,9 @@ class Broker(object):
                     reply['CONTENTS']['status'] = 'ok'
                     reply['CONTENTS']['discovery'] = d
                     message_callback(reply)
+                    # announce it to the world
+                    reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
+                    self.publish(reply, lambda _: _)
 
         elif request == "eval_statement":
             #This feature is very powerful and *very* dangerous in a production environment.
@@ -480,6 +494,7 @@ class Broker(object):
 
             result.addCallback(eval_done)
             result.addErrback(eval_done)
+
 
 
 
@@ -507,11 +522,13 @@ class Broker(object):
         #send the reply
         message_callback(resp_msg)
 
-    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True):
         """
         Start up and run the broker. This method call with not return
         """
         from parlay.protocols.websocket import ParlayWebSocketProtocol
+        import webbrowser
+
         if mode == Broker.Modes.DEVELOPMENT:
             print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
             print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
@@ -554,6 +571,8 @@ class Broker(object):
             root = static.File(PARLAY_PATH + "/ui/dist")
             site = server.Site(root)
             self._reactor.listenTCP(self.http_port, site, interface=interface)
+            if open_browser:
+                webbrowser.open_new_tab("http://localhost:"+str(self.http_port))
 
         self._reactor.callWhenRunning(self._started.callback, None)
         self._reactor.run()

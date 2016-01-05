@@ -167,7 +167,7 @@ def parlay_command(async=False, auto_type_cast=True):
 
         if auto_type_cast and fn.__doc__ is not None:
             for line in fn.__doc__.split("\n"):
-                m = re.search(r"[@:]type\s+(\w+)\s*:\s*(\w+\[?\w*\]?)", line)
+                m = re.search(r"[@:]type\s+(\w+)\s*[ :]\s*(\w+\[?\w*\]?)", line)
                 if m is not None:
                     arg_name, arg_type = m.groups()
                     if arg_type in INPUT_TYPE_CONVERTER_LOOKUP:  # if we know how to convert it

@@ -1,3 +1,2 @@
-from parlay.server.broker import main 
-main()
-
+from __init__ import start
+start()
