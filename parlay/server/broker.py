@@ -303,7 +303,7 @@ class Broker(object):
             cls.get_instance()._reactor.callLater(0, func)
         else:
             #need a lambda to eat any results from the previous callback in the chain
-            cls._started.addCallback(lambda *args: func())
+            cls._started.addBoth(lambda *args: func())
 
 
     def open_protocol(self, protocol_name, open_params):
@@ -319,6 +319,10 @@ class Broker(object):
             # we have the protocol! open it
             protocol_class = BaseProtocol.protocol_registry[protocol_name]
             d = defer.maybeDeferred(protocol_class.open, self, **open_params)
+            def ok(p):  # append to list on success
+                self.protocols.append(p)
+                return p
+            d.addCallback(ok)
             return d
 
 
@@ -365,7 +369,6 @@ class Broker(object):
                 #attach callbacks to open deferred
                 def finished_open(p):
                     """We've finished opening the protocol"""
-                    self.protocols.append(p)
                     reply['CONTENTS'] = {'name': str(p), 'STATUS': 'ok'}
                     message_callback(reply)
 
@@ -588,7 +591,7 @@ class Broker(object):
             root = static.File(PARLAY_PATH + "/ui/dist")
             site = server.Site(root)
             self._reactor.listenTCP(self.http_port, site, interface=interface)
-            if open_browser:  #give the reactor some time to init before opening the browser
+            if open_browser:  # give the reactor some time to init before opening the browser
                 self._reactor.callLater(.5, lambda: webbrowser.open_new_tab("http://localhost:"+str(self.http_port)))
 
 
