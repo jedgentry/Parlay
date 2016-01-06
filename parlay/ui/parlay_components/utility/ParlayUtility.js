@@ -131,6 +131,23 @@ Object.defineProperty(String.prototype, "copyToClipboard", {
 });
 
 /**
+ * Downloads this Object in JSON encoded format.
+ * @returns {Boolean} - Status of download operation.
+ */
+Object.defineProperty(Object.prototype, "download", {
+    writable: false,
+    enumerable: false,
+    value: function(filename) {
+        "use strict";
+        var pom = document.createElement('a');
+        pom.setAttribute('href', 'data:text/python;base64,' + window.btoa(JSON.stringify(this)));
+        pom.setAttribute('download', filename);
+        pom.setAttribute('target', '_newtab');
+        return pom.dispatchEvent(new MouseEvent("click"));
+    }
+});
+
+/**
  * Convenience class with useful methods that can be injected throughout Parlay.
  * @constructor
  */
@@ -157,5 +174,19 @@ function ParlayUtilityFactory() {
 	return new ParlayUtility();
 }
 
+/**
+ * Attribute directive that binds the given function to the change event.
+ * @returns {AngularJS Directive}
+ */
+function customOnChange () {
+    return {
+        restrict: 'A',
+        link: function (scope, element, attributes) {
+            element.bind('change', scope.$eval(attributes.customOnChange));
+        }
+    };
+}
+
 angular.module('parlay.utility', [])
+    .directive("customOnChange", customOnChange)
 	.factory('ParlayUtility', ParlayUtilityFactory);
