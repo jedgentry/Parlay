@@ -56,6 +56,12 @@ from server.broker import Broker
 # Broker public API
 Modes = Broker.Modes
 start = Broker.start
+def open_protocol(protocol_name, **kwargs):
+    """
+    Open a protocol right when the Broker initializes
+    """
+    broker = Broker.get_instance()
+    broker.call_on_start(lambda: broker.open_protocol(protocol_name, **kwargs))
 
 # Endpoint Public API
 from endpoints.parlay_standard import ParlayCommandEndpoint, parlay_property, parlay_command, parlay_datastream

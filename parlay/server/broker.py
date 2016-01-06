@@ -306,6 +306,23 @@ class Broker(object):
             cls._started.addCallback(lambda *args: func())
 
 
+    def open_protocol(self, protocol_name, open_params):
+        """
+        Open a protocol with the given name and parameters (only run this once the Broker has started running
+        """
+
+        # make sure we know about the protocol
+        if protocol_name not in BaseProtocol.protocol_registry:
+           raise KeyError(str(protocol_name)+" not in protocol registry. Is there a typo?")
+
+        else:
+            # we have the protocol! open it
+            protocol_class = BaseProtocol.protocol_registry[protocol_name]
+            d = defer.maybeDeferred(protocol_class.open, self, **open_params)
+            return d
+
+
+
     def handle_broker_message(self, msg, message_callback):
         """
         Any message with topic type 'broker' should be passed into here.  'broker' messages are special messages
@@ -342,16 +359,10 @@ class Broker(object):
         elif request == 'open_protocol':
             protocol_name = msg['CONTENTS']['protocol_name']
             open_params = msg['CONTENTS'].get('params', {})
-            # make sure we know about the protocol
-            if protocol_name not in BaseProtocol.protocol_registry:
-                reply['TOPICS']['response'] = 'error'
-                reply['CONTENTS'] = {'error': "No such protocol"}
-                message_callback(reply) # send right away
-            else:
-                # we have the protocol! open it
-                protocol_class = BaseProtocol.protocol_registry[protocol_name]
-                d = defer.maybeDeferred(protocol_class.open, self, **open_params)
+            try:
+                d = self.open_protocol(protocol_name, open_params)
 
+                #attach callbacks to open deferred
                 def finished_open(p):
                     """We've finished opening the protocol"""
                     self.protocols.append(p)
@@ -372,6 +383,12 @@ class Broker(object):
                     message_callback(reply)
 
                 d.addErrback(error_opening)
+
+            # could not find protocol name
+            except KeyError as k:
+                reply['TOPICS']['response'] = 'error'
+                reply['CONTENTS'] = {'error': "No such protocol " + str(protocol_name)}
+                message_callback(reply)  # send right away
 
         elif request == 'get_open_protocols':
             # respond with the string repr of each protocol
@@ -571,8 +588,9 @@ class Broker(object):
             root = static.File(PARLAY_PATH + "/ui/dist")
             site = server.Site(root)
             self._reactor.listenTCP(self.http_port, site, interface=interface)
-            if open_browser:
-                webbrowser.open_new_tab("http://localhost:"+str(self.http_port))
+            if open_browser:  #give the reactor some time to init before opening the browser
+                self._reactor.callLater(.5, lambda: webbrowser.open_new_tab("http://localhost:"+str(self.http_port)))
+
 
         self._reactor.callWhenRunning(self._started.callback, None)
         self._reactor.run()

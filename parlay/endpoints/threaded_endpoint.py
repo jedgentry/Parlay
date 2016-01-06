@@ -24,9 +24,9 @@ class ThreadedEndpoint(BaseEndpoint):
         self._system_errors = []
         self._system_events = []
         self._timer = None
-        #set to auto update discovery
-        self._auto_update_discovery = True
-        self.discovery = {}
+
+        self._auto_update_discovery = True  #: If True auto update discovery with broadcast discovery messages
+        self.discovery = {}  #: The current discovery information to pull from
 
         self._message_id_generator = message_id_generator(sys.maxint, 100)
 
@@ -41,7 +41,6 @@ class ThreadedEndpoint(BaseEndpoint):
         """
         if self._auto_update_discovery and msg['CONTENTS'].get("status", "") == "ok":
             self.discovery = msg['CONTENTS'].get('discovery', self.discovery)
-
 
 
     def _system_listener(self, msg):
