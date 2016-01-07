@@ -14,6 +14,10 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
 
     _discovery_response_defer = None
 
+    def __init__(self):
+        WebSocketServerProtocol.__init__(self)
+        BaseProtocol.__init__(self)
+
     def onClose(self, wasClean, code, reason):
         print "Closing:" + str(self)
         #clean up after ourselves
