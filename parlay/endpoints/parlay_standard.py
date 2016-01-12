@@ -190,9 +190,9 @@ class parlay_property(object):
     write_only: Set to true to make write only
     """
 
-    def __init__(self, init_val=None, val_type=None, read_only=False, write_only=True):
+    def __init__(self, default=None, val_type=None, read_only=False, write_only=True):
         self._val_lookup = {}  # lookup based on instance
-        self._init_val = init_val
+        self._init_val = default
         self._read_only = read_only
         self._write_only = write_only
         self._val_type = val_type
@@ -221,8 +221,8 @@ class parlay_datastream(object):
     write_only: Set to true to make write only
     """
 
-    def __init__(self, init_val=None, units=""):
-        self._default_val = init_val
+    def __init__(self, default=None, units=""):
+        self._default_val = default
         self.listeners = {}  # key -> (key -> value) | requester -> (instance -> repeater)
         self.units = units
         self.broker = Broker.get_instance()
