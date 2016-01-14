@@ -6,10 +6,20 @@ from parlay.endpoints.base import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
 from base import BaseEndpoint
+from parlay.server.broker import Broker
 import sys
 import json
 
 DEFAULT_TIMEOUT = 120
+# list of deffereds to cancel when cleaning up
+CLEANUP_DEFERRED = set()
+
+def cleanup():
+    for d in CLEANUP_DEFERRED:
+        if not d.called:
+            d.cancel()
+#cleanup our deferreds
+Broker.call_on_stop(cleanup)
 
 class ThreadedEndpoint(BaseEndpoint):
     """Base object for all Parlay scripts"""
@@ -17,9 +27,9 @@ class ThreadedEndpoint(BaseEndpoint):
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
 
-    def __init__(self, endpoint_id, name):
+    def __init__(self, endpoint_id, name, reactor=None):
         BaseEndpoint.__init__(self, endpoint_id, name)
-        self.reactor = self._broker._reactor
+        self.reactor = self._broker._reactor if reactor is None else reactor
         self._msg_listeners = []
         self._system_errors = []
         self._system_events = []
@@ -330,6 +340,7 @@ class ThreadedEndpoint(BaseEndpoint):
         :return:deferred
         """
         response = defer.Deferred()
+        CLEANUP_DEFERRED.add(response)
         timer = None
         def listener(received_msg):
             # look for system errors while we are waiting
@@ -343,6 +354,8 @@ class ThreadedEndpoint(BaseEndpoint):
             return False  # don't remove
 
         def cb(msg):
+            #remove outselves from cleanup list
+            CLEANUP_DEFERRED.remove(response)
             #remove our listener function if it is in the list.
             if listener in self._msg_listeners:
                 self._msg_listeners.remove(listener)
@@ -354,6 +367,7 @@ class ThreadedEndpoint(BaseEndpoint):
             else:
                 # Error
                 response.errback(Failure(SystemError(msg)))
+
 
         # check we don't already have an error
         if len(self._system_errors)>0 :

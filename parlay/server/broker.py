@@ -54,6 +54,7 @@ from twisted.web import static, server
 import os
 import json
 import sys
+import signal
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -66,6 +67,7 @@ class Broker(object):
     """
     instance = None
     _started = defer.Deferred()
+    _stopped = defer.Deferred()
 
     # discovery info for the broker
     _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "interfaces": ['broker'],
@@ -305,6 +307,19 @@ class Broker(object):
             #need a lambda to eat any results from the previous callback in the chain
             cls._started.addBoth(lambda *args: func())
 
+    @classmethod
+    def call_on_stop(cls, func):
+        """
+        Call the supplied function when the broker stops OR if the broker has already stopped, call ASAP
+        """
+
+        if cls._stopped.called:
+            # already started, queue it up in the reactor
+            func()
+        else:
+            #need a lambda to eat any results from the previous callback in the chain
+            cls._stopped.addBoth(lambda *args: func())
+
 
     def open_protocol(self, protocol_name, open_params):
         """
@@ -542,12 +557,24 @@ class Broker(object):
         #send the reply
         message_callback(resp_msg)
 
+    def cleanup(self):
+        """
+        called on exit to clean up the parlay environment
+        """
+        print "Cleaning Up"
+        self._stopped.callback(None)
+        self._reactor.stop()
+        print "Exiting..."
+
+
     def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True):
         """
         Start up and run the broker. This method call with not return
         """
         from parlay.protocols.websocket import ParlayWebSocketProtocol
         import webbrowser
+        #cleanup on sigint
+        signal.signal(signal.SIGINT, lambda signal, frame: self.cleanup())
 
         if mode == Broker.Modes.DEVELOPMENT:
             print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
