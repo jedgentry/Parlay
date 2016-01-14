@@ -45,7 +45,8 @@ Modules that want to send message 'publish' the message to the broker and the br
  in a subscribe message must be simply the key 'TOPICS' and a key-value pair of TOPICS/values to subscribe to.
  e.g. :  (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 """
-from twisted.internet import reactor, defer, ssl, threads
+from twisted.internet import defer, ssl, threads
+from parlay.server.reactor import reactor
 from parlay.protocols.protocol import BaseProtocol
 
 from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol, listenWS

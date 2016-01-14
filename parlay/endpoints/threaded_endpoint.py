@@ -1,7 +1,7 @@
 # a list of Endpoint proxy classes for Scripts
 ENDPOINT_PROXIES = {}
 
-from twisted.internet import threads, reactor, defer
+from twisted.internet import defer
 from parlay.endpoints.base import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
@@ -78,7 +78,7 @@ class ThreadedEndpoint(BaseEndpoint):
         :return:
         """
         msg = {'TOPICS': {'type': 'broker', 'request': 'open_protocol'}, "CONTENTS": {'protocol_name': protocol, 'params': params}}
-        self.reactor.callFromThread(self._send_parlay_message, msg)
+        self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
 
         def wait_for_response():
             result = defer.Deferred()
@@ -93,7 +93,7 @@ class ThreadedEndpoint(BaseEndpoint):
             self.add_listener(listener)
             return result
 
-        threads.blockingCallFromThread(self.reactor, wait_for_response)
+        return self.reactor.maybeblockingCallFromThread(wait_for_response)
 
     def add_listener(self, listener_function):
         """
@@ -135,10 +135,10 @@ class ThreadedEndpoint(BaseEndpoint):
 
         if wait:
             #block the thread until we get a response or timeout
-            return threads.blockingCallFromThread(self.reactor, self._send_parlay_message_from_thread, msg=msg, timeout=timeout)
+            return self.reactor.maybeblockingCallFromThread(self._send_parlay_message_from_thread, msg=msg, timeout=timeout)
         else:
             #send this to the reactor without waiting for a response
-            self.reactor.callFromThread(self._send_parlay_message, msg)
+            self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
             return None  # nothing to wait on, no response
 
 
@@ -149,9 +149,8 @@ class ThreadedEndpoint(BaseEndpoint):
         """
         print "Running discovery..."
         #block the thread until we get a discovery or error
-        result = threads.blockingCallFromThread(self.reactor, self._in_reactor_discover, force)
-        self.discovery = result
-        return result
+        return self.reactor.maybeblockingCallFromThread(self._in_reactor_discover, force)
+
 
     def save_discovery(self, path):
         """
@@ -226,7 +225,7 @@ class ThreadedEndpoint(BaseEndpoint):
 
 
     def sleep(self, timeout):
-        threads.blockingCallFromThread(self.reactor, self._sleep, timeout)
+        return self.reactor.maybeblockingCallFromThread(self._sleep, timeout)
 
 
 
@@ -319,7 +318,8 @@ class ThreadedEndpoint(BaseEndpoint):
                 return False  # not the msg we're looking for
 
             if msg['CONTENTS'].get("status", "") == "ok":
-                result.callback(msg['CONTENTS'].get('discovery', {}))
+                self.discovery = msg['CONTENTS'].get('discovery', {})
+                result.callback(self.discovery)
             else:
                 result.errback(Failure(Exception(msg.get("status", "NO STATUS"))))
 
