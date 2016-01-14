@@ -8,7 +8,7 @@ from parlay.protocols.utils import delay, timeout
 
 class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
-    When a client connects over a websocket, this is the protocol that will handle the communication.
+    When a client connects over a serial, this is the protocol that will handle the communication.
     The messages are encoded as a JSON string
     """
 

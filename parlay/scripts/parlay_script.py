@@ -17,14 +17,17 @@ DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
 class ParlayScript(ThreadedEndpoint, WebSocketClientProtocol):
 
-    def __init__(self, endpoint_id=None, name=None):
+    def __init__(self, endpoint_id=None, name=None, _reactor=None):
         if endpoint_id is None:
             endpoint_id = self.__class__.__name__ + ".py"
         if name is None:
             name = self.__class__.__name__ + ".py"
 
+        #default to default reactor
+        _reactor = reactor if _reactor is None else _reactor
         #default script name and id to the name of this class
-        ThreadedEndpoint.__init__(self, endpoint_id, name)
+        ThreadedEndpoint.__init__(self, endpoint_id, name, _reactor)
+        WebSocketClientProtocol.__init__(self)
 
 
     def _send_parlay_message(self, msg):

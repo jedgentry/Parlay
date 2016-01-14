@@ -1,15 +1,25 @@
 # a list of Endpoint proxy classes for Scripts
 ENDPOINT_PROXIES = {}
 
-from twisted.internet import threads, reactor, defer
+from twisted.internet import defer
 from parlay.endpoints.base import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
 from base import BaseEndpoint
+from parlay.server.broker import Broker
 import sys
 import json
 
 DEFAULT_TIMEOUT = 120
+# list of deffereds to cancel when cleaning up
+CLEANUP_DEFERRED = set()
+
+def cleanup():
+    for d in CLEANUP_DEFERRED:
+        if not d.called:
+            d.cancel()
+#cleanup our deferreds
+Broker.call_on_stop(cleanup)
 
 class ThreadedEndpoint(BaseEndpoint):
     """Base object for all Parlay scripts"""
@@ -17,9 +27,9 @@ class ThreadedEndpoint(BaseEndpoint):
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
 
-    def __init__(self, endpoint_id, name):
+    def __init__(self, endpoint_id, name, reactor=None):
         BaseEndpoint.__init__(self, endpoint_id, name)
-        self.reactor = self._broker._reactor
+        self.reactor = self._broker._reactor if reactor is None else reactor
         self._msg_listeners = []
         self._system_errors = []
         self._system_events = []
@@ -68,7 +78,7 @@ class ThreadedEndpoint(BaseEndpoint):
         :return:
         """
         msg = {'TOPICS': {'type': 'broker', 'request': 'open_protocol'}, "CONTENTS": {'protocol_name': protocol, 'params': params}}
-        self.reactor.callFromThread(self._send_parlay_message, msg)
+        self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
 
         def wait_for_response():
             result = defer.Deferred()
@@ -83,7 +93,7 @@ class ThreadedEndpoint(BaseEndpoint):
             self.add_listener(listener)
             return result
 
-        threads.blockingCallFromThread(self.reactor, wait_for_response)
+        return self.reactor.maybeblockingCallFromThread(wait_for_response)
 
     def add_listener(self, listener_function):
         """
@@ -125,10 +135,10 @@ class ThreadedEndpoint(BaseEndpoint):
 
         if wait:
             #block the thread until we get a response or timeout
-            return threads.blockingCallFromThread(self.reactor, self._send_parlay_message_from_thread, msg=msg, timeout=timeout)
+            return self.reactor.maybeblockingCallFromThread(self._send_parlay_message_from_thread, msg=msg, timeout=timeout)
         else:
             #send this to the reactor without waiting for a response
-            self.reactor.callFromThread(self._send_parlay_message, msg)
+            self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
             return None  # nothing to wait on, no response
 
 
@@ -139,9 +149,8 @@ class ThreadedEndpoint(BaseEndpoint):
         """
         print "Running discovery..."
         #block the thread until we get a discovery or error
-        result = threads.blockingCallFromThread(self.reactor, self._in_reactor_discover, force)
-        self.discovery = result
-        return result
+        return self.reactor.maybeblockingCallFromThread(self._in_reactor_discover, force)
+
 
     def save_discovery(self, path):
         """
@@ -216,7 +225,7 @@ class ThreadedEndpoint(BaseEndpoint):
 
 
     def sleep(self, timeout):
-        threads.blockingCallFromThread(self.reactor, self._sleep, timeout)
+        return self.reactor.maybeblockingCallFromThread(self._sleep, timeout)
 
 
 
@@ -309,7 +318,8 @@ class ThreadedEndpoint(BaseEndpoint):
                 return False  # not the msg we're looking for
 
             if msg['CONTENTS'].get("status", "") == "ok":
-                result.callback(msg['CONTENTS'].get('discovery', {}))
+                self.discovery = msg['CONTENTS'].get('discovery', {})
+                result.callback(self.discovery)
             else:
                 result.errback(Failure(Exception(msg.get("status", "NO STATUS"))))
 
@@ -330,6 +340,7 @@ class ThreadedEndpoint(BaseEndpoint):
         :return:deferred
         """
         response = defer.Deferred()
+        CLEANUP_DEFERRED.add(response)
         timer = None
         def listener(received_msg):
             # look for system errors while we are waiting
@@ -343,6 +354,8 @@ class ThreadedEndpoint(BaseEndpoint):
             return False  # don't remove
 
         def cb(msg):
+            #remove outselves from cleanup list
+            CLEANUP_DEFERRED.remove(response)
             #remove our listener function if it is in the list.
             if listener in self._msg_listeners:
                 self._msg_listeners.remove(listener)
@@ -354,6 +367,7 @@ class ThreadedEndpoint(BaseEndpoint):
             else:
                 # Error
                 response.errback(Failure(SystemError(msg)))
+
 
         # check we don't already have an error
         if len(self._system_errors)>0 :
