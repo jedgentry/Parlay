@@ -40,7 +40,7 @@ class BaseProtocol(object):
     __metaclass__ = ProtocolMeta
 
     def __init__(self):
-        self.endpoints = []
+        self.endpoints = getattr(self, "endpoints", [])
 
     @classmethod
     def open(cls, broker):
