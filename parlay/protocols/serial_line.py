@@ -28,7 +28,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         if isinstance(port, list):
             port = port[0]
 
-        p = ASCIILineProtocol(port)
+        p = cls(port)
         cls.delimiter = str(delimiter).decode("string_escape")
         SerialPort(p, port, broker._reactor, baudrate=baudrate)
 
