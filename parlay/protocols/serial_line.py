@@ -25,7 +25,6 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         if isinstance(port, list):
             port = port[0]
 
-        ASCIILineProtocol.delimiter = '\r'  # delimiter
         p = ASCIILineProtocol(port)
         SerialPort(p, port, broker._reactor, baudrate=115200)  # int(baudrate))
 
@@ -75,15 +74,10 @@ class LineEndpoint(ParlayCommandEndpoint):
         self._protocol.sendLine(str(data))
 
     @defer.inlineCallbacks
-    def wait_for_ack(self, timeout_secs=1):
-
+    def wait_for_data(self, timeout_secs=3):
         while True:
             next_resp = yield timeout(self.wait_for_next_sent_msg(), timeout_secs)
-
             if next_resp["TOPICS"].get("MSG_TYPE", "") == MSG_TYPES.EVENT:
-                resp = next_resp["CONTENTS"]["DATA"]
-                # ack or anything endwith with OK is OK
-                if resp != "ACK" and not resp.endswith("OK"):
-                    raise BadStatusError(next_resp)
-                else:
-                    defer.returnValue(next_resp)
+                    resp = next_resp["CONTENTS"]["DATA"]
+                    defer.returnValue(resp)
+

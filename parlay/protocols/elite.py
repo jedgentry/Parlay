@@ -7,7 +7,7 @@ from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 
 from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command
-from serial_terminal import ASCIILineProtocol, LineEndpoint
+from serial_line import ASCIILineProtocol, LineEndpoint, BadStatusError
 from math import radians, degrees, sqrt, atan2, pi, acos, sin, cos, asin
 from parlay.protocols.utils import delay
 
@@ -36,13 +36,9 @@ class EliteArmProtocol(ASCIILineProtocol):
 
     @classmethod
     def open(cls, broker, port="/dev/tty.usbserial-FTAJOUB2"):
-        if isinstance(port, list):
-            port = port[0]
-
         EliteArmProtocol.delimiter = '\r'  # delimiter
         p = EliteArmProtocol(port)
         SerialPort(p, port, broker._reactor, baudrate=115200)
-
         return p
 
     @classmethod
@@ -73,6 +69,14 @@ class EliteArmEndpoint(LineEndpoint):
         self._ms_per_1000_steps = 1000
         self._old_positions = [0, 0, 0, 0, 0, 0]
 
+    #instead of waitng for any old data, wait for an ack or OK
+    @defer.inlineCallbacks
+    def wait_for_ack(self, timeout_secs=1):
+        resp = yield self.wait_for_data(timeout_secs=timeout_secs)
+        if resp != "ACK" and not resp.endswith("OK"):
+            raise BadStatusError(resp)
+        else:
+            defer.returnValue(resp)
 
     @parlay_command(async=True)
     def home(self, motor_num):
