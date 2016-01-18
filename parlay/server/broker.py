@@ -95,6 +95,7 @@ class Broker(object):
         #The listeners that will be called whenever a message is received
         self._listeners = {}  # See Listener lookup document for more info
 
+        #:type parlay.server.reactor.ReactorWrapper
         self._reactor = reactor
 
         #THERE CAN BE ONLY ONE
@@ -647,6 +648,24 @@ class BrokerSSlContextFactory(ssl.ContextFactory):
         return ssl_context
 
 
+
+def run_in_broker(fn):
+    """
+    Decorator: Wrap any method in this when you want to be sure it's called from the broker thread.
+    If in a background thread, it will block until completion. If already in a reactor thread, then no change
+    """
+    from parlay.server.reactor import run_in_reactor
+    reactor = Broker.get_instance()._reactor
+    return run_in_reactor(reactor)(fn)
+
+def run_in_thread(fn):
+    """
+    Decorator: Wrap any method in this when you want to be sure it's called from a background thread .
+    If in a background thread, no change. If in the broker thread, will move to background thread and return deferred with result
+    """
+    from parlay.server.reactor import run_in_thread
+    reactor = Broker.get_instance()._reactor
+    return run_in_thread(reactor)(fn)
 
 def main():
     d = Broker(reactor)

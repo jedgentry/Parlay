@@ -6,6 +6,7 @@ from parlay.server.reactor import reactor
 from twisted.internet import reactor as twisted_reactor, defer
 import thread as python_thread
 from twisted.internet import threads as twisted_threads
+import functools
 
 class ReactorWrapper(object):
     def __init__(self, wrapped_reactor):
@@ -61,5 +62,33 @@ class ReactorWrapper(object):
 
 
 
+def run_in_reactor(reactor):
+        """
+        Decorator for automatically handling deferred <-> thread handoff. Any function wrapped in this will work in both
+        a threaded context and a 'reactor' async context. Use this decorator if you want the function to always be run
+        in the reactor context
+
+        :param reactor  the Reactor to use (MUST BE A REACTORWRAPPER)
+
+        """
+        def decorator(fn):
+            # run this in reactor context
+            return functools.wraps(fn)(lambda *args, **kwargs: reactor.maybeblockingCallFromThread(fn, *args, **kwargs))
+
+        return decorator
+
+def run_in_thread(reactor):
+        """
+        Decorator for automatically handling deferred <-> thread handoff. Any function wrapped in this will work in both
+        a threaded context and a 'reactor' async context. Use this decorator if you want the function to always be run
+        in the threaded context
+        :param reactor  the Reactor to use (MUST BE A REACTORWRAPPER)
+
+        """
+        def decorator(fn):
+            # run this command synchronously in a separate thread
+            return functools.wraps(fn)(lambda *args, **kwargs: reactor.maybeDeferToThread(fn, *args, **kwargs))
+
+        return decorator
 
 reactor = ReactorWrapper(twisted_reactor)
