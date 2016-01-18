@@ -78,6 +78,8 @@ class LineEndpoint(ParlayCommandEndpoint):
     def send_raw_data(self, data):
         self._protocol.sendLine(str(data))
 
+
+    @parlay_command(async=True)
     @defer.inlineCallbacks
     def wait_for_data(self, timeout_secs=3):
         while True:
