@@ -19,14 +19,20 @@ class ReactorWrapper(object):
     def __getattr__(self, item):
         return getattr(self._reactor, item)
 
+    def in_reactor_thread(self):
+        """
+        Returns true if we're in the reactor thread context. False otherwise
+        """
+        current_thread = python_thread.get_ident()
+        return current_thread == self._thread
+
     def maybeblockingCallFromThread(self, callable, *args, **kwargs):
         """
         Call callable from the reactor thread.  If we are in the reactor thread, then call it and return a Deferred.
         If we are *not* in the reactor thread, then block on that deferred instal of returning it
         """
-        current_thread = python_thread.get_ident()
         # if we're in the reactor thread
-        if current_thread == self._thread:
+        if self.in_reactor_thread():
             return defer.maybeDeferred(callable, *args, **kwargs)
         else:
             return twisted_threads.blockingCallFromThread(self._reactor, callable, *args, **kwargs)
@@ -36,11 +42,23 @@ class ReactorWrapper(object):
         If we're in a separate thread from the reactor, then call from the reactor thread.
         If we're in the reactor thread, then schedule for call later in 0 seconds
         """
-        current_thread = python_thread.get_ident()
-        if current_thread == self._thread:
+
+        if self.in_reactor_thread():
             self._reactor.callLater(0, callable, *args, **kwargs)
         else:
             self._reactor.callFromThread(callable, *args, **kwargs)
+
+    def maybeDeferToThread(self, callable, *args, **kwargs):
+        """
+        Call callable from DIFFERENT THREAD.
+        If we're already in a different thread, then JUST CALL IT and return result
+        If we're in the reactor thead, then call it in a different thread and return a deferred with the result
+        """
+        if self.in_reactor_thread():
+            return twisted_threads.deferToThread(callable, *args, **kwargs)
+        else:
+            return callable(*args, **kwargs)
+
 
 
 

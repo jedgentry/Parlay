@@ -1,5 +1,6 @@
 from parlay.server.broker import Broker
 
+
 class INPUT_TYPES(object):
     NUMBER ="NUMBER"
     STRING = "STRING"
@@ -120,18 +121,3 @@ def get_recursive_base_list(cls, list=None):
 from twisted.internet import reactor
 from autobahn.twisted.websocket import  WebSocketClientProtocol, WebSocketClientFactory
 
-"""def connect_endpoint(endpoint_class, host='localhost', reactor=reactor):
-    \"""
-    Connect an endpoint up to the the broker at 'host' . Use the reactor reactor
-    :param endpoint_class : the class of the endpoint to instantiate and use
-    :param host The broker to connect to
-    :param reactor The reactor to use for this endpoint's event loop
-    \"""
-    #connect it up
-    factory = WebSocketClientFactory("ws://" + engine_ip + ":" + str(engine_port))
-    factory.protocol = script_class
-    reactor.connectTCP(engine_ip, engine_port, factory)
-
-    if not reactor.running:
-        reactor.run()
-"""

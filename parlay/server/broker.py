@@ -521,7 +521,7 @@ class Broker(object):
                 message_callback(reply)
                 return
 
-            result = threads.deferToThread(eval, msg['CONTENTS']['statement'])
+            result = self._reactor.maybeDeferToThread(eval, msg['CONTENTS']['statement'])
 
             def eval_done(r):
                 reply['CONTENTS']['status'] = 'ok'
