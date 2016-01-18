@@ -3,7 +3,7 @@ from base import BaseEndpoint
 from parlay.protocols.utils import message_id_generator
 from twisted.internet import defer, threads
 from twisted.python import failure
-from parlay.server.broker import Broker
+from parlay.server.broker import Broker, run_in_broker, run_in_thread
 from twisted.internet.task import LoopingCall
 from parlay.endpoints.threaded_endpoint import ENDPOINT_PROXIES, ThreadedEndpoint
 from parlay.endpoints.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, INPUT_TYPE_CONVERTER_LOOKUP
@@ -143,8 +143,6 @@ class ParlayStandardEndpoint(ThreadedEndpoint):
 
 
 
-
-
 def parlay_command(async=False, auto_type_cast=True):
     """
     Make the decorated method a parlay_command.
@@ -154,16 +152,15 @@ def parlay_command(async=False, auto_type_cast=True):
     """
 
     def decorator(fn):
-        if async:  # trivial wrapper
-            wrapper = functools.wraps(fn)(lambda self, *args, **kwargs: Broker.get_instance()._reactor.maybeblockingCallFromThread(fn, self, *args, **kwargs))
-        else:  # run this command synchronously in a separate thread as part of a parlay script threads.deferToThread(fn, self, *args, **kwargs)
-            wrapper = functools.wraps(fn)(lambda self, *args, **kwargs: Broker.get_instance()._reactor.maybeDeferToThread(fn, self, *args, **kwargs))
+        if async:
+            wrapper = run_in_broker(fn)
+        else:
+            wrapper = run_in_thread(fn)
 
         wrapper._parlay_command = True
         wrapper._parlay_fn = fn  # in case it gets wrapped again, this is the actual function so we can pull kwarg names
-        wrapper._parlay_arg_conversions = {}  # if type casting is desired, this dictionary from param_types to converting funcs
+        wrapper._parlay_arg_conversions = {}  # if type casting desired, this dict from param_types to converting funcs
         wrapper._parlay_arg_discovery = {}
-
 
         if auto_type_cast and fn.__doc__ is not None:
             for line in fn.__doc__.split("\n"):

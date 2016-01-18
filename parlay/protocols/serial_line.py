@@ -1,5 +1,5 @@
 from parlay.protocols.protocol import BaseProtocol
-from parlay.server.broker import Broker
+from parlay.server.broker import Broker, run_in_broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
@@ -79,7 +79,7 @@ class LineEndpoint(ParlayCommandEndpoint):
         self._protocol.sendLine(str(data))
 
 
-    @parlay_command(async=True)
+    @run_in_broker
     @defer.inlineCallbacks
     def wait_for_data(self, timeout_secs=3):
         while True:
