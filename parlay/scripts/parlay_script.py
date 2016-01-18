@@ -90,7 +90,7 @@ class ParlayScript(ThreadedEndpoint, WebSocketClientProtocol):
         @param cleanup: Automatically clean up when we're done running
         """
         #run the script and run cleanup after.
-        defer = threads.deferToThread(self._in_thread_run_script)
+        defer = self.reactor.maybeDeferToThread(self._in_thread_run_script)
         defer.addBoth(self.cleanup)
 
 

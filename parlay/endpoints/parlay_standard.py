@@ -156,8 +156,8 @@ def parlay_command(async=False, auto_type_cast=True):
     def decorator(fn):
         if async:  # trivial wrapper
             wrapper = fn
-        else:  # run this command synchronously in a separate thread as part of a parlay script
-            wrapper = functools.wraps(fn)(lambda self, *args, **kwargs: threads.deferToThread(fn, self, *args, **kwargs))
+        else:  # run this command synchronously in a separate thread as part of a parlay script threads.deferToThread(fn, self, *args, **kwargs)
+            wrapper = functools.wraps(fn)(lambda self, *args, **kwargs: Broker.get_instance()._reactor.maybeDeferToThread(fn, self, *args, **kwargs))
 
         wrapper._parlay_command = True
         wrapper._parlay_fn = fn  # in case it gets wrapped again, this is the actual function so we can pull kwarg names
