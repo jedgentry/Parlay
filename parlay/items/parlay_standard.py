@@ -1,29 +1,29 @@
 import functools
-from base import BaseEndpoint
+from base import BaseItem
 from parlay.protocols.utils import message_id_generator
 from twisted.internet import defer, threads
 from twisted.python import failure
 from parlay.server.broker import Broker, run_in_broker, run_in_thread
 from twisted.internet.task import LoopingCall
-from parlay.endpoints.threaded_endpoint import ENDPOINT_PROXIES, ThreadedEndpoint
-from parlay.endpoints.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, INPUT_TYPE_CONVERTER_LOOKUP
+from parlay.items.threaded_item import ITEM_PROXIES, ThreadedItem
+from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, INPUT_TYPE_CONVERTER_LOOKUP
 import json
 import re
 
-class ParlayStandardEndpoint(ThreadedEndpoint):
+class ParlayStandardItem(ThreadedItem):
     """
-    This is a parlay standard endpoint. It supports building inputs for the UI in an intuitive manner during
+    This is a parlay standard item. It supports building inputs for the UI in an intuitive manner during
     discovery. Inherit from it and use the parlay decorators to get UI functionality
     """
 
-    def __init__(self, endpoint_id, name):
+    def __init__(self, item_id, name):
         # call parent
-        ThreadedEndpoint.__init__(self, endpoint_id, name)
+        ThreadedItem.__init__(self, item_id, name)
         self._content_fields = []
         self._topic_fields = []
         self._properties = {}  # Dictionary from name to (attr_name, read_only, write_only)
         self._datastreams = {}
-        self.endpoint_type = None
+        self.item_type = None
         self._msg_id_generator = message_id_generator(65535, 100) # default msg ids are 32 bit ints between 100 and 65535
 
 
@@ -49,8 +49,8 @@ class ParlayStandardEndpoint(ThreadedEndpoint):
     def add_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                   dropdown_options=None, dropdown_sub_fields=None, topic_field=False):
         """
-        Add a field to this endpoints discovery.
-        This field will show up in the endpoint's CARD in the UI
+        Add a field to this items discovery.
+        This field will show up in the item's CARD in the UI
         """
 
         discovery = self.create_field(msg_key, input, label, required, hidden, default, dropdown_options,
@@ -63,7 +63,7 @@ class ParlayStandardEndpoint(ThreadedEndpoint):
 
     def add_property(self, name, attr_name=None, input=INPUT_TYPES.STRING, read_only=False, write_only=False):
         """
-        Add a property to this Endpointpoint.
+        Add a property to this Item.
         name : The name of the property
         attr_name = the name of the attr to set in 'self' when setting and getting (None if same as name)
         read_only = Read only
@@ -76,7 +76,7 @@ class ParlayStandardEndpoint(ThreadedEndpoint):
 
     def add_datastream(self, name, attr_name=None, units=""):
         """
-        Add a property to this Endpointpoint.
+        Add a property to this Item.
         name : The name of the property
         attr_name = the name of the attr to set in 'self' when setting and getting (None if same as name)
         read_only = Read only
@@ -100,20 +100,20 @@ class ParlayStandardEndpoint(ThreadedEndpoint):
         Discovery method. You can override this in a subclass if you want, but it will probably be easier to use the
         self.add_property and self.add_field helper methods and call this method like:
         def get_discovery(self):
-            discovery = ParlayStandardEndpoint.get_discovery(self)
+            discovery = ParlayStandardItem.get_discovery(self)
             # do other stuff for subclass here
             return discovery
         """
 
         #get from parent
-        discovery = BaseEndpoint.get_discovery(self)
+        discovery = BaseItem.get_discovery(self)
         discovery["TOPIC_FIELDS"] = self._topic_fields
         discovery["CONTENT_FIELDS"] = self._content_fields
         discovery["PROPERTIES"] = [x for x in self._properties.values()]  # already formatted correctly.
         discovery["DATASTREAMS"] = [x for x in self._datastreams.values()]  # already .formatted correctly.
 
-        if self.endpoint_type is not None:
-            discovery["TYPE"] = self.endpoint_type
+        if self.item_type is not None:
+            discovery["TYPE"] = self.item_type
 
         return discovery
 
@@ -128,7 +128,7 @@ class ParlayStandardEndpoint(ThreadedEndpoint):
         if contents is None:
             contents = {}
         if from_ is None:
-            from_ = self.endpoint_id
+            from_ = self.item_id
 
         msg = {"TOPICS": {"TO": to, "FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE": msg_type, "MSG_ID": msg_id,
                           "MSG_STATUS": msg_status, "RESPONSE_REQ": response_req},
@@ -177,8 +177,8 @@ def parlay_command(async=False, auto_type_cast=True):
 
 class parlay_property(object):
     """
-    A Property convenience class for ParlayCommandEndpoints.
-    In the endpoint use like: self.prop = parlay_property()
+    A Property convenience class for ParlayCommandItems.
+    In the item use like: self.prop = parlay_property()
 
     init_val : an inital value for the property
     val_type : the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type on set
@@ -207,8 +207,8 @@ class parlay_property(object):
 
 class parlay_datastream(object):
     """
-    A DataStream convenience class for ParlayCommandEndpoints.
-    In the endpoint use like: self.prop = parlay_datastream()
+    A DataStream convenience class for ParlayCommandItems.
+    In the item use like: self.prop = parlay_datastream()
     Datastream are read-only values that alert listeners  at a certain frequency
 
     init_val : an inital value for the property
@@ -251,36 +251,36 @@ class BadStatusError(Exception):
         self.error = error
         self.description = description
                                                     #inherit from script for easy command access
-class ParlayCommandEndpoint(ParlayStandardEndpoint):
+class ParlayCommandItem(ParlayStandardItem):
     """
-    This is a parlay endpoint that takes commands, with values.
+    This is a parlay item that takes commands, with values.
     If there is more than one command A dropdown will appear
     """
     #id generator for auto numbering class instances
 
     __ID_GEN = message_id_generator(2^32, 1)
 
-    def __init__(self, endpoint_id=None, name=None):
+    def __init__(self, item_id=None, name=None):
         # call parent
         """
 
         :rtype : object
         """
-        if endpoint_id is None:
-            endpoint_id = self.__class__.__name__ + " " + str(ParlayCommandEndpoint.__ID_GEN.next())
+        if item_id is None:
+            item_id = self.__class__.__name__ + " " + str(ParlayCommandItem.__ID_GEN.next())
 
         if name is None:
             name = self.__class__.__name__
 
-        ParlayStandardEndpoint.__init__(self, endpoint_id, name)
+        ParlayStandardItem.__init__(self, item_id, name)
         self._commands = {}  # dict with command name -> callback function
 
         #ease of use deferred for wait* functions
         self._wait_for_next_sent_message = defer.Deferred()
         self._wait_for_next_recv_message = defer.Deferred()
 
-        self._broker.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.endpoint_id)
-        self._broker.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.endpoint_id)
+        self._broker.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.item_id)
+        self._broker.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.item_id)
 
         #add any function that have been decorated
         for member_name in [x for x in dir(self) if not x.startswith("__")]:
@@ -297,7 +297,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
 
         #run discovery to init everything for a first time
         #call it immediately after init
-        self._broker._reactor.callLater(0, ParlayCommandEndpoint.get_discovery, self)
+        self._broker._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
 
 
     def get_discovery(self):
@@ -311,7 +311,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
         self._add_datastreams_to_discovery()
 
         #call parent
-        return ParlayStandardEndpoint.get_discovery(self)
+        return ParlayStandardItem.get_discovery(self)
 
     def _add_commands_to_discovery(self):
         """
@@ -498,7 +498,7 @@ class ParlayCommandEndpoint(ParlayStandardEndpoint):
 class ParlayStandardScriptProxy(object):
     """
     A proxy class for the script to use, that will auto-detect discovery information and allow script writers to
-    intuitively use the endpoint
+    intuitively use the item
     """
 
     class PropertyProxy(object):
@@ -506,9 +506,9 @@ class ParlayStandardScriptProxy(object):
         Proxy class for a parlay property
         """
 
-        def __init__(self, name, endpoint_proxy, blocking_set=True):
+        def __init__(self, name, item_proxy, blocking_set=True):
             self._name = name
-            self._endpoint_proxy = endpoint_proxy
+            self._item_proxy = item_proxy
             # do we want to block on a set until we get the ACK?
             self._blocking_set = blocking_set
 
@@ -527,7 +527,7 @@ class ParlayStandardScriptProxy(object):
             resp = instance._script.send_parlay_message(msg)
 
         def __str__(self):
-            return str(self.__get__(self._endpoint_proxy, self._endpoint_proxy))
+            return str(self.__get__(self._item_proxy, self._item_proxy))
 
 
     class StreamProxy(object):
@@ -535,17 +535,17 @@ class ParlayStandardScriptProxy(object):
         Proxy class for a parlay stream
         """
 
-        def __init__(self, name, endpoint_proxy, rate):
+        def __init__(self, name, item_proxy, rate):
             self._name = name
-            self._endpoint_proxy = endpoint_proxy
+            self._item_proxy = item_proxy
             self._val = None
             self._rate = rate
 
-            endpoint_proxy._script.add_listener(self._update_val_listener)
+            item_proxy._script.add_listener(self._update_val_listener)
 
-            msg = endpoint_proxy._script.make_msg(endpoint_proxy.name, None, msg_type=MSG_TYPES.STREAM,
+            msg = item_proxy._script.make_msg(item_proxy.name, None, msg_type=MSG_TYPES.STREAM,
                                             direct=True, response_req=False, STREAM=self._name, RATE=rate)
-            endpoint_proxy._script.send_parlay_message(msg)
+            item_proxy._script.send_parlay_message(msg)
 
         def _update_val_listener(self, msg):
             """
@@ -567,11 +567,11 @@ class ParlayStandardScriptProxy(object):
 
     def __init__(self, discovery, script):
         """
-        discovery: The discovery dictionary for the endpoint that we're proxying
+        discovery: The discovery dictionary for the item that we're proxying
         script: The script object we're running in
         """
         self.name = discovery["NAME"]
-        self.endpoint_id = discovery["ID"]
+        self.item_id = discovery["ID"]
         self._discovery = discovery
         self._script = script
         self.datastream_update_rate_hz = 2
@@ -603,7 +603,7 @@ class ParlayStandardScriptProxy(object):
                                 raise TypeError("Missing argument: "+name)
 
                         #send the message and block for response
-                        msg = self._script.make_msg(self.endpoint_id, func_id, msg_type=MSG_TYPES.COMMAND,
+                        msg = self._script.make_msg(self.item_id, func_id, msg_type=MSG_TYPES.COMMAND,
                                                 direct=True, response_req=True, COMMAND=func_name, **kwargs)
                         resp = self._script.send_parlay_message(msg, timeout=self.timeout)
                         return resp['CONTENTS'].get('RESULT', None)
@@ -626,7 +626,7 @@ class ParlayStandardScriptProxy(object):
         Manually send a parlay command. Returns a handle that can be paused on
         """
         #send the message and block for response
-        msg = self._script.make_msg(self.endpoint_id, self._command_id_lookup[command], msg_type=MSG_TYPES.COMMAND,
+        msg = self._script.make_msg(self.item_id, self._command_id_lookup[command], msg_type=MSG_TYPES.COMMAND,
                                 direct=True, response_req=True, COMMAND=command, **kwargs)
         self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
         return CommandHandle(msg, self._script)
@@ -655,8 +655,8 @@ class ParlayStandardScriptProxy(object):
         return object.__setattr__(self, name, value)
 
 # register the proxy so it can be used in scripts
-ENDPOINT_PROXIES['ParlayStandardEndpoint'] = ParlayStandardScriptProxy
-ENDPOINT_PROXIES['ParlayCommandEndpoint'] =  ParlayStandardScriptProxy
+ITEM_PROXIES['ParlayStandardItem'] = ParlayStandardScriptProxy
+ITEM_PROXIES['ParlayCommandItem'] =  ParlayStandardScriptProxy
 
 class CommandHandle(object):
     """

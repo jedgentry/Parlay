@@ -3,7 +3,7 @@ from parlay.server.broker import Broker, run_in_broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command, MSG_TYPES
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, MSG_TYPES
 from parlay.protocols.utils import timeout
 
 
@@ -54,12 +54,12 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
 
     def __init__(self, port):
         self._parlay_name = port
-        self.endpoints = getattr(self, "endpoints", [LineEndpoint(self._parlay_name, self._parlay_name, self)])
+        self.items = getattr(self, "items", [LineItem(self._parlay_name, self._parlay_name, self)])
         BaseProtocol.__init__(self)
 
     def lineReceived(self, line):
-        # only 1 endpoint
-        self.endpoints[0].send_message(to="UI", contents={"DATA": line}, msg_type=MSG_TYPES.EVENT)
+        # only 1 item
+        self.items[0].send_message(to="UI", contents={"DATA": line}, msg_type=MSG_TYPES.EVENT)
 
     def rawDataReceived(self, data):
         pass
@@ -68,10 +68,10 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         return "Serial Terminal @ " + self._parlay_name
 
 
-class LineEndpoint(ParlayCommandEndpoint):
+class LineItem(ParlayCommandItem):
 
-    def __init__(self, endpoint_id, name, protocol):
-        ParlayCommandEndpoint.__init__(self, endpoint_id, name)
+    def __init__(self, item_id, name, protocol):
+        ParlayCommandItem.__init__(self, item_id, name)
         self._protocol = protocol
 
     @parlay_command(async=True)

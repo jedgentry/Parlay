@@ -1,11 +1,11 @@
-# a list of Endpoint proxy classes for Scripts
-ENDPOINT_PROXIES = {}
+# a list of Item proxy classes for Scripts
+ITEM_PROXIES = {}
 
 from twisted.internet import defer
-from parlay.endpoints.base import MSG_TYPES, MSG_STATUS
+from parlay.items.base import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
-from base import BaseEndpoint
+from base import BaseItem
 from parlay.server.broker import Broker
 import sys
 import json
@@ -21,14 +21,14 @@ def cleanup():
 #cleanup our deferreds
 Broker.call_on_stop(cleanup)
 
-class ThreadedEndpoint(BaseEndpoint):
+class ThreadedItem(BaseItem):
     """Base object for all Parlay scripts"""
 
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
 
-    def __init__(self, endpoint_id, name, reactor=None):
-        BaseEndpoint.__init__(self, endpoint_id, name)
+    def __init__(self, item_id, name, reactor=None):
+        BaseItem.__init__(self, item_id, name)
         self.reactor = self._broker._reactor if reactor is None else reactor
         self._msg_listeners = []
         self._system_errors = []
@@ -117,7 +117,7 @@ class ThreadedEndpoint(BaseEndpoint):
         msg['TOPICS']['RESPONSE_REQ'] = response_req
         msg['TOPICS']['MSG_ID'] = self._message_id_generator.next()
         msg['TOPICS']['TO'] = to
-        msg['TOPICS']['FROM'] = self.endpoint_id
+        msg['TOPICS']['FROM'] = self.item_id
         msg['CONTENTS']['COMMAND'] = command
         return msg
 
@@ -144,7 +144,7 @@ class ThreadedEndpoint(BaseEndpoint):
 
     def discover(self, force=True):
         """
-        Run a discovery so that the script knows what endpoints are attached and can get handles to them.
+        Run a discovery so that the script knows what items are attached and can get handles to them.
         :param force If True, will force a rediscovery, if False will take the last cached discovery
         """
         print "Running discovery..."
@@ -170,54 +170,54 @@ class ThreadedEndpoint(BaseEndpoint):
             self.discovery = json.load(f)
 
 
-    def get_endpoint_by_id(self, endpoint_id):
-        endpoint_disc = self._find_endpoint_info(self.discovery, endpoint_id, "ID")
-        if endpoint_disc is None:
-            raise KeyError("Couldn't find endpoint with id " + str(endpoint_id))
+    def get_item_by_id(self, item_id):
+        item_disc = self._find_item_info(self.discovery, item_id, "ID")
+        if item_disc is None:
+            raise KeyError("Couldn't find item with id " + str(item_id))
         else:
-            return self._proxy_endpoint(endpoint_disc)
+            return self._proxy_item(item_disc)
 
-    def get_endpoint_by_name(self, endpoint_name):
-        endpoint_disc = self._find_endpoint_info(self.discovery, endpoint_name, "NAME")
-        if endpoint_disc is None:
-            raise KeyError("Couldn't find endpoint with name " + str(endpoint_name))
+    def get_item_by_name(self, item_name):
+        item_disc = self._find_item_info(self.discovery, item_name, "NAME")
+        if item_disc is None:
+            raise KeyError("Couldn't find item with name " + str(item_name))
         else:
-            return self._proxy_endpoint(endpoint_disc)
+            return self._proxy_item(item_disc)
 
-    def _proxy_endpoint(self, endpoint_disc):
+    def _proxy_item(self, item_disc):
         """
-        Get an Endpoint Proxy object by the discovery
-        :param endpoint_disc The endpoint discovery object
-        :type endpoint_disc dict
+        Get an Item Proxy object by the discovery
+        :param item_disc The item discovery object
+        :type item_disc dict
         """
-        # Do we have a valid endpoint discovery object?
-        if endpoint_disc is None:
-            raise KeyError("Couldn't make Proxy Endpoint with None type")
+        # Do we have a valid item discovery object?
+        if item_disc is None:
+            raise KeyError("Couldn't make Proxy Item with None type")
 
         # now that we have the discovery, let's try and construct a proxy out of it
-        templates = [x.strip() for x in endpoint_disc.get("TYPE", "").split("/")]
+        templates = [x.strip() for x in item_disc.get("TYPE", "").split("/")]
         template = None
         # find and stop at the first valid one
         for t in templates:
             if template is None:
-                template = ENDPOINT_PROXIES.get(t, None)
+                template = ITEM_PROXIES.get(t, None)
 
         # if it's still None, then that means that we couldn't find it
         if template is None:
-            raise KeyError("Couldn't find template proxy for:" + endpoint_disc.get("TYPE", ""))
+            raise KeyError("Couldn't find template proxy for:" + item_disc.get("TYPE", ""))
 
         # we have a good template class! Let's construct it
-        return template(endpoint_disc, self)
+        return template(item_disc, self)
 
-    def _find_endpoint_info(self, discovery, endpoint_id, key):
+    def _find_item_info(self, discovery, item_id, key):
         """
-        Find the endpoint with a given id recursively (or None if it can't be found)
+        Find the item with a given id recursively (or None if it can't be found)
         @type: discovery list
         """
-        for endpoint in discovery:
-            if endpoint.get(key, None) == endpoint_id:
-                return endpoint
-            found = self._find_endpoint_info(endpoint.get('CHILDREN', []), endpoint_id, key)
+        for item in discovery:
+            if item.get(key, None) == item_id:
+                return item
+            found = self._find_item_info(item.get('CHILDREN', []), item_id, key)
             # did a child find it?
             if found is not None:
                 return found
@@ -247,7 +247,7 @@ class ThreadedEndpoint(BaseEndpoint):
         def listener(received_msg):
             # See if this is the response we are waiting for
             if received_msg['TOPICS'].get('MSG_TYPE', "") == MSG_TYPES.RESPONSE:
-                if received_msg['TOPICS']['TO'] == self.endpoint_id and\
+                if received_msg['TOPICS']['TO'] == self.item_id and\
                                 received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
                     if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ACK:
                         return False  # keep waiting, an ACK means its not finished yet, it jsut got our msg

@@ -194,10 +194,10 @@ Example Error Response:
 
 
 
-Discover attached endpoints
+Discover attached items
 ----------------------------------
-In order to discover attached endpoints, send a 'discover' command to the broker.
-The broker will respond back with a list of attached endpoints.
+In order to discover attached items, send a 'discover' command to the broker.
+The broker will respond back with a list of attached items.
 
 Message format:
 
@@ -209,10 +209,10 @@ Message format:
     * force : true | false (optional. default=false)
 
 The response will be a list of objects where each object will have a protocol name
-and a list of children.  Each child will be an endpoint. Each endpoint will have a 'name'
-and a 'type' field telling which endpoint type it is, and an optional 'children' field that will
-be a list of other endpoint objects with the same requirements.  Depending on the 'type' of the
-endpoint, there may be more fields in the object besides just 'type','name', (optional) 'interfaces', and (optionally)
+and a list of children.  Each child will be an item. Each item will have a 'name'
+and a 'type' field telling which item type it is, and an optional 'children' field that will
+be a list of other item objects with the same requirements.  Depending on the 'type' of the
+item, there may be more fields in the object besides just 'type','name', (optional) 'interfaces', and (optionally)
 'children'.
 
 Example response:
@@ -235,12 +235,12 @@ Example response:
                 * children : (list)
                 [
                     * name : Motor 1
-                    * type : SSCOM/CommandResponse/Endpoint
+                    * type : SSCOM/CommandResponse/Item
                     * interface : [ Motor, Stepper Motor ]
                     * commands : { 5 : PREPARE, 105: MOVE_TO_POS, ...}   ('type' specific key/value)
                     ,
                     * name : Controller
-                    * type : SSCOM/CommandResponse/Endpoint
+                    * type : SSCOM/CommandResponse/Item
                     * commands : { 5 : PREPARE, 105: START_RUN, ...}   ('type' specific key/value)
                     ,
                     *.......
