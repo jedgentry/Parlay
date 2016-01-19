@@ -8,10 +8,10 @@ class LeapSSCOMRotor(ParlayScript):
         print "Discover"
         self.discover()
 
-        leap = self.get_endpoint_by_name("LEAP0")
+        leap = self.get_item_by_name("LEAP0")
         leap.start_sampling()
 
-        #rotor = self.get_endpoint(0xf001)
+        #rotor = self.get_item(0xf001)
         #poll the stream
         while True:
             coords = (leap.stream1_x, leap.stream1_y, leap.stream1_z)

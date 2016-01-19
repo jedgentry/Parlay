@@ -40,7 +40,7 @@ class BaseProtocol(object):
     __metaclass__ = ProtocolMeta
 
     def __init__(self):
-        self.endpoints = getattr(self, "endpoints", [])
+        self.items = getattr(self, "items", [])
 
     @classmethod
     def open(cls, broker):
@@ -108,11 +108,11 @@ class BaseProtocol(object):
         """
         This will get called when a discovery message is sent out. Return a deferred that will be called back with
         all attached:
-        endpoint types, message types, and connected endpoint instances
+        item types, message types, and connected item instances
         """
         return {'TEMPLATE': 'Protocol', 'NAME': str(self),
                                                               'protocol_type': getattr(self, "_protocol_type_name",
                                                                                        "UNKNOWN"),
-                                                              'CHILDREN': [x.get_discovery() for x in self.endpoints]}
+                                                              'CHILDREN': [x.get_discovery() for x in self.items]}
 
 

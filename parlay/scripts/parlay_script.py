@@ -7,26 +7,26 @@ from autobahn.twisted.websocket import  WebSocketClientProtocol, WebSocketClient
 import json
 import sys
 import traceback
-from parlay.endpoints.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES
+from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES
 from parlay.protocols.utils import message_id_generator
 import traceback
-from parlay.endpoints.threaded_endpoint import ThreadedEndpoint, ENDPOINT_PROXIES
-from parlay.endpoints.parlay_standard import ParlayStandardEndpoint
+from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES
+from parlay.items.parlay_standard import ParlayStandardItem
 
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
-class ParlayScript(ThreadedEndpoint, WebSocketClientProtocol):
+class ParlayScript(ThreadedItem, WebSocketClientProtocol):
 
-    def __init__(self, endpoint_id=None, name=None, _reactor=None):
-        if endpoint_id is None:
-            endpoint_id = self.__class__.__name__ + ".py"
+    def __init__(self, item_id=None, name=None, _reactor=None):
+        if item_id is None:
+            item_id = self.__class__.__name__ + ".py"
         if name is None:
             name = self.__class__.__name__ + ".py"
 
         #default to default reactor
         _reactor = reactor if _reactor is None else _reactor
         #default script name and id to the name of this class
-        ThreadedEndpoint.__init__(self, endpoint_id, name, _reactor)
+        ThreadedItem.__init__(self, item_id, name, _reactor)
         WebSocketClientProtocol.__init__(self)
 
 
@@ -42,7 +42,7 @@ class ParlayScript(ThreadedEndpoint, WebSocketClientProtocol):
         # schedule calling the script entry
         self.reactor.callLater(0, lambda: self._send_parlay_message({"TOPICS": {'type': 'subscribe'},
                                      "CONTENTS": {
-                                         'TOPICS': {'TO': self.endpoint_id}
+                                         'TOPICS': {'TO': self.item_id}
                                      }
         }))
         self.reactor.callLater(0, self._start_script)

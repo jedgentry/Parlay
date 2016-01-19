@@ -6,8 +6,8 @@ from parlay.protocols.protocol import BaseProtocol
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 
-from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_command
-from serial_line import ASCIILineProtocol, LineEndpoint, BadStatusError
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command
+from serial_line import ASCIILineProtocol, LineItem, BadStatusError
 from math import radians, degrees, sqrt, atan2, pi, acos, sin, cos, asin
 from parlay.protocols.utils import delay
 
@@ -52,16 +52,16 @@ class EliteArmProtocol(ASCIILineProtocol):
     def __init__(self, port):
         BaseProtocol.__init__(self)
         self._parlay_name = port
-        self.endpoints = [EliteArmEndpoint(self._parlay_name, "Elite Arm", self)]
+        self.items = [EliteArmItem(self._parlay_name, "Elite Arm", self)]
 
 
-class EliteArmEndpoint(LineEndpoint):
+class EliteArmItem(LineItem):
     """
-    Endpoint for an Elite Arm
+    Item for an Elite Arm
     """
 
-    def __init__(self, endpoint_id, name, protocol):
-        ParlayCommandEndpoint.__init__(self, endpoint_id, name)
+    def __init__(self, item_id, name, protocol):
+        ParlayCommandItem.__init__(self, item_id, name)
         self._protocol = protocol
         self._inited = False
         self._in_move = False

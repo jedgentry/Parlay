@@ -11,7 +11,7 @@ from parlay.server.broker import Broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.endpoints.parlay_standard import ParlayCommandEndpoint, parlay_datastream, parlay_command
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_datastream, parlay_command
 from parlay.protocols.utils import delay
 import math
 import time
@@ -35,9 +35,9 @@ class LeapProtocol(BaseProtocol):
             LeapProtocol.controller = Leap.Controller()
 
         #add ourselves as a listener
-        endpoint = LeapEndpoint()
-        self.endpoints = [endpoint]
-        #self.listener = LeapListener(endpoint)
+        item = LeapItem()
+        self.items = [item]
+        #self.listener = LeapListener(item)
         #LeapProtocol.controller.add_listener(self.listener)
 
 
@@ -46,13 +46,13 @@ class LeapProtocol(BaseProtocol):
 
 class LeapListener(Leap.Listener):
 
-    def __init__(self, endpoint):
-        self.endpoint = endpoint
+    def __init__(self, item):
+        self.item = item
         Leap.Listener.__init__(self)
 
     def on_connect(self, controller):
         print "LeapMotion Connected"
-        # we have only one endpoint
+        # we have only one item
 
 
     def on_frame(self, controller):
@@ -62,18 +62,18 @@ class LeapListener(Leap.Listener):
         rightmost = frame.hands.rightmost
         hand1 = leftmost.palm_position.to_tuple() + (leftmost.direction.to_tuple(), leftmost.pinch_strength, leftmost.confidence)
         hand2 = rightmost.palm_position.to_tuple() + (rightmost.direction.to_tuple(), rightmost.pinch_strength, rightmost.confidence)
-        self.endpoint.hand1, self.endpoint.hand2 = hand1, hand2
-        self.endpoint.hand_velocity = leftmost.palm_velocity
+        self.item.hand1, self.item.hand2 = hand1, hand2
+        self.item.hand_velocity = leftmost.palm_velocity
 
 
-class LeapEndpoint(ParlayCommandEndpoint):
+class LeapItem(ParlayCommandItem):
 
     stream1_x = parlay_datastream()
     stream1_y = parlay_datastream()
     stream1_z = parlay_datastream()
 
     def __init__(self):
-        ParlayCommandEndpoint.__init__(self, "LEAP0", "LEAP0")
+        ParlayCommandItem.__init__(self, "LEAP0", "LEAP0")
         # x,y,z, (direction unit x,y,z, pinch_strength, confidence)openness position of hand1 (leftmost) and hand2 (rightmost)
         self.hand1 = (0, 0, 0, 0, 0, 0)  # parlay_datastream((0, 0, 0, 0, 0, 0))
         self.hand2 = (0, 0, 0, 0, 0, 0)  # parlay_datastream((0, 0, 0, 0, 0, 0))
@@ -115,7 +115,7 @@ class LeapEndpoint(ParlayCommandEndpoint):
     def link_up(self, arm_id):
         arm_id = "/dev/ttyUSB0"
         self.discover(force=False)
-        arm = self.get_endpoint_by_id(arm_id)
+        arm = self.get_item_by_id(arm_id)
         print "connecting to: " + arm_id
         while True:
             # update hand position
