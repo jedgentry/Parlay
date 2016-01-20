@@ -67,4 +67,4 @@ from items.parlay_standard import ParlayCommandItem, parlay_property, parlay_com
 from protocols.local_item import local_item
 
 # Script Public API
-from scripts.parlay_script import ParlayScript
+from utils.parlay_script import ParlayScript
