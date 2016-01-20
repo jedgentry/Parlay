@@ -513,14 +513,14 @@ class ParlayStandardScriptProxy(object):
             self._blocking_set = blocking_set
 
         def __get__(self, instance, owner):
-            msg = instance._script.make_msg(instance.name, None, msg_type=MSG_TYPES.PROPERTY,
+            msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
                                             direct=True, response_req=True, PROPERTY=self._name, ACTION="GET")
             resp = instance._script.send_parlay_message(msg)
             #reutn the VALUE of the response
             return resp["CONTENTS"]["VALUE"]
 
         def __set__(self, instance, value):
-            msg = instance._script.make_msg(instance.name, None, msg_type=MSG_TYPES.PROPERTY,
+            msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
                                             direct=True, response_req=self._blocking_set,
                                             PROPERTY=self._name, ACTION="SET", VALUE=value)
             #Wait until we're sure its set
@@ -543,7 +543,7 @@ class ParlayStandardScriptProxy(object):
 
             item_proxy._script.add_listener(self._update_val_listener)
 
-            msg = item_proxy._script.make_msg(item_proxy.name, None, msg_type=MSG_TYPES.STREAM,
+            msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
                                             direct=True, response_req=False, STREAM=self._name, RATE=rate)
             item_proxy._script.send_parlay_message(msg)
 
