@@ -22,7 +22,7 @@ You can use python's package manager, pip, to install Parlay directly from the g
 To install directly with pip, enter the following on your command line.  
 
 ```
-c:\> pip install git+ssh://git@local.promenadesoftware.com/PromenadeCommon/Parlay.git
+c:\> pip install git+ssh://git@github.com/PromenadeSoftware/Parlay.git
 ```
 
 _On OSX and linux, this installation method will automatically install all dependencies_.  
@@ -33,7 +33,7 @@ _On OSX and linux, this installation method will automatically install all depen
 Most python packages can be installed by cloning the repository (or just downloading their source), then running setup.py with the "install" command.  
 
 ```
-c:\> git clone git@local.promenadesoftware.com:PromenadeCommon/Parlay.git
+c:\> git clone git@github.com:PromenadeSoftware/Parlay.git
 c:\> cd Parlay
 c:\Parlay\> python setup.py install
 ```
