@@ -119,12 +119,18 @@ class Broker(object):
         return Broker.instance
 
     @staticmethod
-    def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True):
+    def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
+              websocket_port=8085, secure_websocket_port=8086):
         """
         Run the default Broker implementation.
         This call will not return
         """
-        return Broker.get_instance().run(mode=mode, ssl_only=ssl_only, open_browser=open_browser)
+        broker = Broker.get_instance()
+        broker.http_port = http_port
+        broker.https_port = https_port
+        broker.websocket_port = websocket_port
+        broker.secure_websocket_port = secure_websocket_port
+        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser)
 
 
     def publish(self, msg, write_method):
