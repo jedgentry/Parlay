@@ -9,6 +9,7 @@ from parlay.items.threaded_item import ITEM_PROXIES, ThreadedItem
 from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, INPUT_TYPE_CONVERTER_LOOKUP
 import json
 import re
+import inspect
 
 class ParlayStandardItem(ThreadedItem):
     """
@@ -153,7 +154,10 @@ def parlay_command(async=False, auto_type_cast=True):
 
     def decorator(fn):
         if async:
-            wrapper = run_in_broker(fn)
+            if inspect.isgeneratorfunction(fn):
+                wrapper = run_in_broker(defer.inlineCallbacks(fn))
+            else:
+                wrapper = run_in_broker(fn)
         else:
             wrapper = run_in_thread(fn)
 
