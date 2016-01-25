@@ -10,7 +10,8 @@
  *	    action: {
  *		    text: "Text that the action button displays.",
  *		    callback: "Function to invoke when Toast action is clicked."
- *	    }
+ *	    },
+ *	    warning: True // Only true if the given notification is a warning and should be styled as such.
  *  });
  */
 
@@ -19,11 +20,19 @@ function RunNotification($notification) {
     $notification.requestPermission();
 }
 
+/**
+ * Stores the contents of all displayed toasts.
+ */
 function ParlayNotificationHistory() {
 
 	var history = [];
 
     return {
+        /**
+         * Records toast contents and action. Notes time it has been displayed.
+         * @param {String|Object} contents - Contents of notification that was displayed.
+         * @param {Object} action - Contains text of action button as well as a callback function.
+         */
         add: function (contents, action) {
             history.push({
                 time: new Date(),
@@ -40,12 +49,16 @@ function ParlayNotificationHistory() {
     };
 }
 
-function ParlayNotificationFactory($mdToast, $notification, NotificationDisplayDuration, ParlayNotificationHistory) {
+function ParlayNotificationFactory($mdToast, $mdSidenav, $notification, NotificationDisplayDuration, ParlayNotificationHistory) {
 	"use strict";
 
+    // True if a toast is currently being displayed.
 	var toast_active = false;
-	
+
+    // Queue like Array containing Toast that are pending display, FCFS order.
 	var pending_toasts = [];
+
+    // Contains references to HTML5 Notification objects
 	var active_browser_notifications = [];
 	
 	// Clear browser notifications if visibility of the document changes.
@@ -77,7 +90,14 @@ function ParlayNotificationFactory($mdToast, $notification, NotificationDisplayD
 	 */
     function prepToast(configuration) {
 	    var toast = $mdToast.simple().content(configuration.content).hideDelay(NotificationDisplayDuration);
-        
+
+        // If the warning option is true we should theme the toast to indicate that a warning has occurred.
+        if (configuration.warning) toast.theme("warning-toast");
+
+        // Guess if the content that we want to add to the toast could overflow the container that is available.
+        // TODO: Do check in more deterministic way that leverages DOM elements.
+        var could_overflow = !angular.isString(configuration.content) || configuration.content.length > 60;
+
         if (configuration.action) {
 	        toast.action(configuration.action.text).highlightAction(true);
 	        
@@ -86,6 +106,14 @@ function ParlayNotificationFactory($mdToast, $notification, NotificationDisplayD
 		        callback: configuration.action.callback
 	        });
         }
+		else if (could_overflow) {
+			toast.action("More").highlightAction(true);
+
+			pending_toasts.push({
+				toast: toast,
+				callback: $mdSidenav("notifications").open
+			});
+		}
         else {
 	        pending_toasts.push({toast: toast});
         }
@@ -104,6 +132,10 @@ function ParlayNotificationFactory($mdToast, $notification, NotificationDisplayD
         }));
     }
 
+    /**
+     * Records contents and action from a toast in the notification history.
+     * @param {Object} configuration - Toast configuration object
+     */
     function addToHistory(configuration) {
         ParlayNotificationHistory.add(configuration.content, configuration.action);
     }
@@ -128,6 +160,9 @@ function ParlayNotificationFactory($mdToast, $notification, NotificationDisplayD
 		    
 		    if (document.hidden) prepBrowserNotification(configuration);        
 	    },
+        /**
+         * Creates Toast that contains a linear indeterminate progress bar. Will remain indefinitely until hidden.
+         */
 	    showProgress: function () {
 			if (!toast_active) {
 
@@ -140,10 +175,8 @@ function ParlayNotificationFactory($mdToast, $notification, NotificationDisplayD
     };
 }
 
-
-
 angular.module("parlay.notification", ["ngMaterial", "notification", "templates-main"])
 	.run(["$notification", RunNotification])
 	.value("NotificationDisplayDuration", 4000)
 	.factory("ParlayNotificationHistory", ParlayNotificationHistory)
-	.factory("ParlayNotification", ["$mdToast", "$notification", "NotificationDisplayDuration", "ParlayNotificationHistory", ParlayNotificationFactory]);
+	.factory("ParlayNotification", ["$mdToast", "$mdSidenav", "$notification", "NotificationDisplayDuration", "ParlayNotificationHistory", ParlayNotificationFactory]);
