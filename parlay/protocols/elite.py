@@ -6,8 +6,8 @@ from parlay.protocols.protocol import BaseProtocol
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command
-from serial_line import ASCIILineProtocol, LineItem, BadStatusError
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, BadStatusError
+from serial_line import ASCIILineProtocol, LineItem
 from math import radians, degrees, sqrt, atan2, pi, acos, sin, cos, asin
 from parlay.protocols.utils import delay
 
@@ -82,7 +82,7 @@ class EliteArmItem(LineItem):
     def home(self, motor_num):
         self.send_raw_data("HA"+str(motor_num))
 
-    @defer.inlineCallbacks
+
     @parlay_command(async=True)
     def init_motors(self):
         self.send_raw_data("EAL")
@@ -92,7 +92,7 @@ class EliteArmItem(LineItem):
             self.send_raw_data("SRCD"+str(i+1))
             yield self.wait_for_ack()
 
-    @defer.inlineCallbacks
+
     @parlay_command(async=True)
     def set_move_rate(self, rate_ms):
         for i in range(6):
@@ -103,7 +103,6 @@ class EliteArmItem(LineItem):
         self._ms_per_1000_steps = float(rate_ms)
 
 
-    @defer.inlineCallbacks
     @parlay_command(async=True)
     def home_all(self):
         for x in range(6):
@@ -114,7 +113,7 @@ class EliteArmItem(LineItem):
     def shutdown(self):
         self.send_raw_data("SHUTDOWN")
 
-    @defer.inlineCallbacks
+
     @parlay_command(async=True)
     def get_positions(self):
         self.send_raw_data("REFB")
@@ -125,13 +124,13 @@ class EliteArmItem(LineItem):
         vals = [int(x) for x in val_str.split(" ") if int(x) % 2 == 0]
         defer.returnValue(vals)
 
-    @defer.inlineCallbacks
+
     @parlay_command(async=True)
     def move_motor(self, motor, pos):
         self.send_raw_data("SPC"+str(int(motor)+1)+" "+str(int(pos)))
         yield self.wait_for_ack()
 
-    @defer.inlineCallbacks
+
     @parlay_command(async=True)
     def move_all_motors(self, motor1, motor2, motor3, motor4, motor5, motor6):
 
@@ -190,7 +189,7 @@ class EliteArmItem(LineItem):
         print "Done Moving"
 
 
-    @defer.inlineCallbacks
+
     @parlay_command(async=True)
     def move_hand(self, x, y, z, wrist_pitch, wrist_roll, grip): # grip is between -10 and 10
         """

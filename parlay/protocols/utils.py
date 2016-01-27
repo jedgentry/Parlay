@@ -86,7 +86,12 @@ def message_id_generator(radix, min=0):
 def timeout(d, seconds):
     """
     Call d's errback if it hasn't been called back within 'seconds' number of seconds
+    If 'seconds' is None, then do nothing
     """
+    #get out of here if no timeout
+    if seconds is None:
+        return d
+
     timeout_deferred = defer.Deferred()
     d.addBoth(lambda x:  timeout_deferred.callback(x) if not timeout_deferred.called else None)
 

@@ -3,9 +3,8 @@ from parlay.server.broker import Broker, run_in_broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, MSG_TYPES
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, parlay_property, MSG_TYPES, BadStatusError
 from parlay.protocols.utils import timeout
-
 
 class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
@@ -14,6 +13,11 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
 
     broker = Broker.get_instance()
+    def __init__(self):
+        BaseProtocol.__init__(self)
+        LineReceiver.__init__(self)
+        self._new_data = defer.Deferred()
+
 
     @classmethod
     def open(cls, broker, port="/dev/tty.usbserial-FTAJOUB2", baudrate=57600, delimiter="\n"):
@@ -30,6 +34,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
 
         p = cls(port)
         cls.delimiter = str(delimiter).decode("string_escape")
+
         SerialPort(p, port, broker._reactor, baudrate=baudrate)
 
         return p
@@ -58,8 +63,12 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         BaseProtocol.__init__(self)
 
     def lineReceived(self, line):
-        # only 1 item
-        self.items[0].send_message(to="UI", contents={"DATA": line}, msg_type=MSG_TYPES.EVENT)
+        #update our items
+        for item in self.items:
+            item.LAST_LINE_RECEIVED = line
+
+        # send to all children
+        self.got_new_data(line)
 
     def rawDataReceived(self, data):
         pass
@@ -67,8 +76,32 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     def __str__(self):
         return "Serial Terminal @ " + self._parlay_name
 
+    @run_in_broker
+    def wait_for_data(self, timeout_secs=None):
+        """
+        Call this to wait until there is data from the serial line.
+        If threaded: Will block. Return value is serial line data
+        If Async   : Will not blocl. Return value is Deferred that will be called back with serial line data
+        :param timeout_secs : Timeout if you don't get data in time. None if no timeout
+        :type timeout_secs : int|None
+        """
+        assert timeout_secs is None or timeout_secs >= 0
+        return timeout(self._new_data, timeout_secs)
+
+    @run_in_broker
+    def got_new_data(self, data):
+        """
+        Call this when you have new data and want to pass it to any waiting Items
+        """
+        self._new_data.callback(data)
+        self._new_data = defer.Deferred()
+
+
+
 
 class LineItem(ParlayCommandItem):
+
+    LAST_LINE_RECEIVED = parlay_property(val_type=str, default="")
 
     def __init__(self, item_id, name, protocol):
         ParlayCommandItem.__init__(self, item_id, name)
@@ -78,12 +111,5 @@ class LineItem(ParlayCommandItem):
     def send_raw_data(self, data):
         self._protocol.sendLine(str(data))
 
-
-    @run_in_broker
-    @defer.inlineCallbacks
     def wait_for_data(self, timeout_secs=3):
-        while True:
-            next_resp = yield timeout(self.wait_for_next_sent_msg(), timeout_secs)
-            if next_resp["TOPICS"].get("MSG_TYPE", "") == MSG_TYPES.EVENT:
-                    resp = next_resp["CONTENTS"]["DATA"]
-                    defer.returnValue(resp)
+        return self._protocol.wait_for_data(timeout_secs)
