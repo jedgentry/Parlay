@@ -45,6 +45,8 @@ class ThreadedItem(BaseItem):
 
         # Add this listener so it will be first in the list to pickup errors, warnings and events.
         self.add_listener(self._system_listener)
+        self.add_listener(self._discovery_request_listener)
+
         self._broker.subscribe(self._discovery_broadcast_listener, type='DISCOVERY_BROADCAST')
 
     def _discovery_broadcast_listener(self, msg):
@@ -68,6 +70,18 @@ class ThreadedItem(BaseItem):
                 self._system_errors.append(msg)
             elif status == 'WARNING' or status == 'INFO':
                 self._system_events.append(msg)
+        return False
+
+    def _discovery_request_listener(self, msg):
+        """
+        Respond to a get_protocol_discovery message with an empty get_protocol_discovery_response message.
+        :param msg: incoming message
+        :return: False so that it is never removed from the listener list
+        """
+        if msg['TOPICS'].get('type', "") == 'get_protocol_discovery':
+            msg = {'TOPICS': {'type': 'get_protocol_discovery_response'},
+                   'CONTENTS': {"CHILDREN": [self.get_discovery()]}}
+            self._send_parlay_message(msg)
         return False
 
     def open(self, protocol, **params):
