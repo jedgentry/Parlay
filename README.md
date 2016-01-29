@@ -1,79 +1,31 @@
+![Parlay Logo](parlay/ui/images/logo.png)
 
-## Install Parlay
+# Parlay: Powerful Development and Testing System for Embedded Device Software
 
-There are several methods for installing Parlay.  Unless noted, these methods work for Windows, OSX, and Linux users.  
+Parlay is software that brings visibility and accessibility to embedded devices. 
 
-### Windows only -- Install Dependencies
-
-If you are installing Parlay on a Windows PC, you will need to install several dependencies with their own installers.  If you are on OSX or Linux, you can skip to [Install Parlay](#install-parlay) below.  
-
-The following links will take you the download pages for each required package.  Select the appropriate installer (Python 2.7, 32- or 64-bit depending on your machine), and run each installer.  
-
-* [Twisted](https://twistedmatrix.com/trac/wiki/Downloads#Windows)
-* [zope.interface](https://pypi.python.org/pypi/zope.interface#download)
+It enables:
+* Comprehensive test and analysis
+* Painless scientific experimentation and investigation
+* Automated instrument verification with easy-to-write python scripts
+* Secure remote diagnostics and data capture
 
 
-### Install with pip
+## Full Documentation
 
-You can use python's package manager, pip, to install Parlay directly from the git repository.  
+See the [wiki](https://github.com/PromenadeSoftware/Parlay/wiki) for the complete documentation. 
 
-**Note**: this is NOT the way to install if you want to track the latest state of the repository.  This will only upgrade your Parlay installation when there is an official release with a new version number.  
 
-To install directly with pip, enter the following on your command line.  
+## Installation
 
+Parlay requires Python 2.7 to be installed.  This is included on OSX and Linux.  Windows users can install python [here](https://www.python.org/ftp/python/2.7.11/python-2.7.11.amd64.msi).  For Windows users who already have Python 2.7 installed, it is recommonded to upgrade to the latest version (2.7.11), especially since it includes the python package manager "pip". 
+
+The easiest way to install Parlay is with pip:
 ```
-c:\> pip install git+ssh://git@github.com/PromenadeSoftware/Parlay.git
-```
-
-_On OSX and linux, this installation method will automatically install all dependencies_.  
-
-
-### Clone repository and run setup.py
-
-Most python packages can be installed by cloning the repository (or just downloading their source), then running setup.py with the "install" command.  
-
-```
-c:\> git clone git@github.com:PromenadeSoftware/Parlay.git
-c:\> cd Parlay
-c:\Parlay\> python setup.py install
+c:\> pip install git+https://github.com/PromenadeSoftware/Parlay.git
 ```
 
-To update Parlay to the latest version in the repository, just pull the latest from the repository and run setup.py again:  
-```
-c:\> cd Parlay
-c:\Parlay\> git pull
-c:\Parlay\> python setup.py install
-```
+## License
 
-_On OSX and linux, this installation method will automatically install all dependencies_.  
-
-### Clone repository and create virtual environment
-
-This is a more advanced method of installation.  Virtual environments allow you to isolate python applications and their dependencies.  
-
-* Be sure virtualenv and virtualenvwrapper are installed.  
-
-* Clone the repository  
-```
-c:\> git clone git@github.com:PromenadeSoftware/Parlay.git
-```
-
-* Create the virtual environment, and add the Parlay folder to the PYTHON_PATH with add2virtualenv  
-```
-c:\> mkvirtualenv parlay
-(parlay) c:\> add2virtualenv Parlay
-(parlay) c:\> deactivate
-c:\>
-```
-
-* When the virtual environment you created is active, then the "parlay" package is available.  When you deactivate the virtual environment, the "parlay" package is no longer available.  
-```
-c:\> python -c "import parlay"  
-   ** should see ImportError message here **
-c:\> workon parlay
-(parlay) c:\> python -c "import parlay"  
-   ** should be no errors here **
-(parlay) c:\> deactivate
-c:\>
-```
+Parlay is released under the GPLv3 License. 
 
