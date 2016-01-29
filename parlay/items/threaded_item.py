@@ -150,7 +150,7 @@ class ThreadedItem(BaseItem):
         :param force If True, will force a rediscovery, if False will take the last cached discovery
         """
         if not self.reactor.running:
-            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+            raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
         print "Running discovery..."
         # block the thread until we get a discovery or error
@@ -175,7 +175,7 @@ class ThreadedItem(BaseItem):
 
     def get_item_by_id(self, item_id):
         if not self.reactor.running:
-            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+            raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
         item_disc = self._find_item_info(self.discovery, item_id, "ID")
         if item_disc is None:
@@ -185,7 +185,7 @@ class ThreadedItem(BaseItem):
 
     def get_item_by_name(self, item_name):
         if not self.reactor.running:
-            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+            raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
         item_disc = self._find_item_info(self.discovery, item_name, "NAME")
         if item_disc is None:
@@ -234,7 +234,7 @@ class ThreadedItem(BaseItem):
 
     def sleep(self, timeout):
         if not self.reactor.running:
-            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+            raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
         return self.reactor.maybeblockingCallFromThread(self._sleep, timeout)
 
