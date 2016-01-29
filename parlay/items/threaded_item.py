@@ -147,6 +147,9 @@ class ThreadedItem(BaseItem):
         Run a discovery so that the script knows what items are attached and can get handles to them.
         :param force If True, will force a rediscovery, if False will take the last cached discovery
         """
+        if not self.reactor.running:
+            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+
         print "Running discovery..."
         #block the thread until we get a discovery or error
         return self.reactor.maybeblockingCallFromThread(self._in_reactor_discover, force)
@@ -169,8 +172,10 @@ class ThreadedItem(BaseItem):
         with open(path, 'r') as f:
             self.discovery = json.load(f)
 
-
     def get_item_by_id(self, item_id):
+        if not self.reactor.running:
+            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+
         item_disc = self._find_item_info(self.discovery, item_id, "ID")
         if item_disc is None:
             raise KeyError("Couldn't find item with id " + str(item_id))
@@ -178,6 +183,9 @@ class ThreadedItem(BaseItem):
             return self._proxy_item(item_disc)
 
     def get_item_by_name(self, item_name):
+        if not self.reactor.running:
+            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+
         item_disc = self._find_item_info(self.discovery, item_name, "NAME")
         if item_disc is None:
             raise KeyError("Couldn't find item with name " + str(item_name))
@@ -223,11 +231,11 @@ class ThreadedItem(BaseItem):
                 return found
         return None
 
-
     def sleep(self, timeout):
+        if not self.reactor.running:
+            raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
+
         return self.reactor.maybeblockingCallFromThread(self._sleep, timeout)
-
-
 
 
     ####################### THe following  must be run from the reactor thread ####################################
