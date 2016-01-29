@@ -1,6 +1,3 @@
-# a list of Item proxy classes for Scripts
-ITEM_PROXIES = {}
-
 from twisted.internet import defer
 from parlay.items.base import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
@@ -10,15 +7,21 @@ from parlay.server.broker import Broker
 import sys
 import json
 
+
+# a list of Item proxy classes for Scripts
+ITEM_PROXIES = {}
+
 DEFAULT_TIMEOUT = 120
-# list of deffereds to cancel when cleaning up
+
+# list of deferreds to cancel when cleaning up
 CLEANUP_DEFERRED = set()
 
 def cleanup():
     for d in CLEANUP_DEFERRED:
         if not d.called:
             d.cancel()
-#cleanup our deferreds
+
+# cleanup our deferreds
 Broker.call_on_stop(cleanup)
 
 class ThreadedItem(BaseItem):
@@ -44,14 +47,12 @@ class ThreadedItem(BaseItem):
         self.add_listener(self._system_listener)
         self._broker.subscribe(self._discovery_broadcast_listener, type='DISCOVERY_BROADCAST')
 
-
     def _discovery_broadcast_listener(self, msg):
         """
         Listen for discovery broadcast listeners and update our discovery accordingly
         """
         if self._auto_update_discovery and msg['CONTENTS'].get("status", "") == "ok":
             self.discovery = msg['CONTENTS'].get('discovery', self.discovery)
-
 
     def _system_listener(self, msg):
         """
@@ -69,19 +70,19 @@ class ThreadedItem(BaseItem):
                 self._system_events.append(msg)
         return False
 
-
-
     def open(self, protocol, **params):
         """
         :param protocol: protocol being used
         :param params: other parameters
         :return:
         """
-        msg = {'TOPICS': {'type': 'broker', 'request': 'open_protocol'}, "CONTENTS": {'protocol_name': protocol, 'params': params}}
+        msg = {"TOPICS": {'type': 'broker', 'request': 'open_protocol'},
+               "CONTENTS": {'protocol_name': protocol, 'params': params}}
         self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
 
         def wait_for_response():
             result = defer.Deferred()
+
             def listener(msg):
                 if msg['TOPICS'].get('response', "") == 'open_protocol_response':
                     if msg['CONTENTS']['STATUS'] == 'ok':
@@ -90,6 +91,7 @@ class ThreadedItem(BaseItem):
                         result.errback(Failure(msg['CONTENTS']['STATUS']))
                     return True  # we're done here
                 return False  # keep waiting
+
             self.add_listener(listener)
             return result
 
@@ -134,13 +136,13 @@ class ThreadedItem(BaseItem):
             wait = msg['TOPICS'].get('RESPONSE_REQ', False)
 
         if wait:
-            #block the thread until we get a response or timeout
-            return self.reactor.maybeblockingCallFromThread(self._send_parlay_message_from_thread, msg=msg, timeout=timeout)
+            # block the thread until we get a response or timeout
+            return self.reactor.maybeblockingCallFromThread(self._send_parlay_message_from_thread,
+                                                            msg=msg, timeout=timeout)
         else:
-            #send this to the reactor without waiting for a response
+            # send this to the reactor without waiting for a response
             self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
             return None  # nothing to wait on, no response
-
 
     def discover(self, force=True):
         """
@@ -151,9 +153,8 @@ class ThreadedItem(BaseItem):
             raise Exception("You must call parlay.scripts.setup() at the beginning of a script!")
 
         print "Running discovery..."
-        #block the thread until we get a discovery or error
+        # block the thread until we get a discovery or error
         return self.reactor.maybeblockingCallFromThread(self._in_reactor_discover, force)
-
 
     def save_discovery(self, path):
         """
@@ -161,7 +162,7 @@ class ThreadedItem(BaseItem):
         :param path : The Path to the file to save to (Warning: will be overwritten)
         """
         with open(path, "w") as f:
-                                         # pretty print in case a human wants to read it
+            # pretty print in case a human wants to read it
             json.dump(self.discovery, f, indent=4, sort_keys=True)
 
     def load_discovery(self, path):
@@ -258,15 +259,15 @@ class ThreadedItem(BaseItem):
                 if received_msg['TOPICS']['TO'] == self.item_id and\
                                 received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
                     if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ACK:
-                        return False  # keep waiting, an ACK means its not finished yet, it jsut got our msg
+                        return False  # keep waiting, an ACK means its not finished yet, it just got our msg
                     if timer is not None:
-                        #Clear the timer
+                        # Clear the timer
                         timer.cancel()
                     if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ERROR:
-                         #return error to waiting thread
+                        # return error to waiting thread
                         response.errback(Failure(ErrorResponse(received_msg)))
                     else:
-                        #send the response back to the waiting thread
+                        # send the response back to the waiting thread
                         response.callback(received_msg)
                     return True  # remove this listener from the list
 
@@ -276,7 +277,7 @@ class ThreadedItem(BaseItem):
                         # clear out the timer
                         timer.cancel()
                     # report an error to the waiting thread
-                    response.errback(Failure(SystemError(self._system_errors.pop(0))))
+                    response.errback(Failure(AsyncSystemError(self._system_errors.pop(0))))
                     return True  # remove this listener
 
             return False  # not for this listener - don't remove
@@ -286,8 +287,8 @@ class ThreadedItem(BaseItem):
             # remove the listener
             if listener in self._msg_listeners:
                 self._msg_listeners.remove(listener)
-            #send failure to thread waiting.
-            response.errback(Failure(SystemError(msg)))
+            # send failure to thread waiting.
+            response.errback(Failure(AsyncSystemError(msg)))
 
         # If we already have a system error, fail
         if len(self._system_errors) > 0:
@@ -310,7 +311,6 @@ class ThreadedItem(BaseItem):
         """
         Send a dictionary msg.  Must be filled in by subclass with protocol specific implementation
         """
-
         raise NotImplementedError()
 
     def _in_reactor_discover(self, force):
@@ -322,7 +322,7 @@ class ThreadedItem(BaseItem):
 
         def discovery_listener(msg):
             if msg['TOPICS'].get("type", "") != 'broker' and \
-                            msg['TOPICS'].get("response", "") != "get_discovery_response":
+                    msg['TOPICS'].get("response", "") != "get_discovery_response":
                 return False  # not the msg we're looking for
 
             if msg['CONTENTS'].get("status", "") == "ok":
@@ -336,8 +336,7 @@ class ThreadedItem(BaseItem):
         self.add_listener(discovery_listener)
 
         self._send_parlay_message({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
-                                     "CONTENTS": {'force': force}
-        })
+                                   "CONTENTS": {'force': force}})
 
         return result
 
@@ -350,21 +349,22 @@ class ThreadedItem(BaseItem):
         response = defer.Deferred()
         CLEANUP_DEFERRED.add(response)
         timer = None
+
         def listener(received_msg):
             # look for system errors while we are waiting
             if len(self._system_errors) > 0:
                 # cancel out the timer
                 if timer is not None:
                     timer.cancel()
-                #return the error to our waiting thread
-                response.errback(Failure(SystemError(self.errors.pop(0))))
+                # return the error to our waiting thread
+                response.errback(Failure(AsyncSystemError(self.errors.pop(0))))
                 return True  # remove the listener from the list
             return False  # don't remove
 
         def cb(msg):
-            #remove outselves from cleanup list
+            # remove ourselves from cleanup list
             CLEANUP_DEFERRED.remove(response)
-            #remove our listener function if it is in the list.
+            # remove our listener function if it is in the list.
             if listener in self._msg_listeners:
                 self._msg_listeners.remove(listener)
 
@@ -374,17 +374,15 @@ class ThreadedItem(BaseItem):
                 response.callback(msg)
             else:
                 # Error
-                response.errback(Failure(SystemError(msg)))
-
+                response.errback(Failure(AsyncSystemError(msg)))
 
         # check we don't already have an error
-        if len(self._system_errors)>0 :
-             self._timer = self.reactor.callLater(0, cb, self._system_errors.pop(0))
+        if len(self._system_errors) > 0:
+            self._timer = self.reactor.callLater(0, cb, self._system_errors.pop(0))
         else:
             timer = self.reactor.callLater(timeout, cb, {'TOPICS': {'MSG_TYPE': 'TIMEOUT'}})
             self.add_listener(listener)
         return response
-
 
     def _runListeners(self, msg):
         remove_list = []
@@ -396,6 +394,7 @@ class ThreadedItem(BaseItem):
         if len(remove_list) > 0:
             self._msg_listeners = [x for i, x in enumerate(self._msg_listeners) if i not in remove_list]
 
+
 class ErrorResponse(Exception):
     def __init__(self, error_msg):
         self.error_msg = error_msg
@@ -405,9 +404,10 @@ class ErrorResponse(Exception):
     def __str__(self):
         return self.str
 
-class SystemError(Exception):
+
+class AsyncSystemError(Exception):
     """
-    This error class if for  asynchronous system errors.
+    This error class is for asynchronous system errors.
     """
     def __init__(self, error_msg):
         self.error_msg = error_msg
