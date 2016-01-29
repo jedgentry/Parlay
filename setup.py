@@ -29,11 +29,12 @@ if USE_CYTHON:
 setup(
     name="parlay",
     version='0.0.1',
-    description="A system for building a private internet-of-things and easily talking with cyber-physical systems",
+    description="A framework for developing and testing software for embedded devices",
     ext_modules=extensions,
     packages=find_packages(),
     package_data={"parlay": [ os.path.relpath(filename, "parlay") for module_name, filename in find_files("parlay/ui", "*")] },  # include ui files
-    install_requires=["Twisted >14.0.0", # 13.1.0
-                      "autobahn >0.9.0", # 0.8.5
-                      "pyopenssl"] 
+    install_requires=["Twisted >=15.0.0",
+                      "autobahn >=0.9.0",
+                      "pyopenssl >=0.15.0",
+                      "service-identity >= 14.0.0]
 )
