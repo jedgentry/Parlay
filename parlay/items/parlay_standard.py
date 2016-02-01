@@ -324,12 +324,13 @@ class ParlayCommandItem(ParlayStandardItem):
 
         if len(self._commands) == 0:
             return  # nothing to do here
+
         if len(self._commands) == 1:
-            # If only one, then drop the dropdown option and have a hidden text option
+            # If only one, then drop the dropdown option
             func_name=self._commands.keys()[0]
             func = self._commands[func_name]
-            self.add_field("COMMAND", INPUT_TYPES.STRING, default=func_name, hidden=True)
-            #add the arguments as strait input fields
+            self.add_field("COMMAND", INPUT_TYPES.STRING, default=func_name)
+            # add the arguments as straight input fields
             self._content_fields.extend(func._parlay_sub_fields)
 
         else:  # more than 1 option
@@ -339,8 +340,7 @@ class ParlayCommandItem(ParlayStandardItem):
             # add the command selection dropdown
             self.add_field("COMMAND", INPUT_TYPES.DROPDOWN, label='command', default=command_names[0],
                            dropdown_options=[(x, x) for x in command_names],
-                           dropdown_sub_fields=[self._commands[x]._parlay_sub_fields for x in command_names]
-                           )
+                           dropdown_sub_fields=[self._commands[x]._parlay_sub_fields for x in command_names])
 
     def _add_properties_to_discovery(self):
         """
