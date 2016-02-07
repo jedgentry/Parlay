@@ -18,14 +18,21 @@ See the [wiki](https://github.com/PromenadeSoftware/Parlay/wiki) for the complet
 
 ## Installation
 
-Parlay requires Python 2.7 to be installed.  This is included on OSX and Linux.  Windows users can install python [here](https://www.python.org/ftp/python/2.7.11/python-2.7.11.amd64.msi).  For Windows users who already have Python 2.7 installed, it is recommonded to upgrade to the latest version (2.7.11), especially since it includes the python package manager "pip". 
+#### Windows Installer
 
-The easiest way to install Parlay is with pip:
+An installer for 64-bit Windows is [available on our organization page](http://promenadesoftware.github.io).
+
+#### Install via Python Pip
+
+For users familiar with python, the easiest way to install Parlay is with pip:
 ```
 c:\> pip install git+https://github.com/PromenadeSoftware/Parlay.git
 ```
 
 ## License
 
-Parlay is released under the GPLv3 License. 
+Parlay is released under the GPLv3 License.
 
+## Copyright
+
+Parlay is Copyright (C) 2015 by Promenade Software, Inc.
