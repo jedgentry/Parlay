@@ -50,7 +50,7 @@ class EliteArmProtocol(ASCIILineProtocol):
         return args
 
     def __init__(self, port):
-        BaseProtocol.__init__(self)
+        ASCIILineProtocol.__init__(self, port)
         self._parlay_name = port
         self.items = [EliteArmItem(self._parlay_name, "Elite Arm", self)]
 
@@ -61,7 +61,7 @@ class EliteArmItem(LineItem):
     """
 
     def __init__(self, item_id, name, protocol):
-        ParlayCommandItem.__init__(self, item_id, name)
+        LineItem.__init__(self, item_id, name, protocol)
         self._protocol = protocol
         self._inited = False
         self._in_move = False
@@ -73,7 +73,9 @@ class EliteArmItem(LineItem):
     @defer.inlineCallbacks
     def wait_for_ack(self, timeout_secs=1):
         resp = yield self.wait_for_data(timeout_secs=timeout_secs)
-        if resp != "ACK" and not resp.endswith("OK"):
+        if resp is None:
+            raise RuntimeError("TIMEOUT WAITING FOR ACK")
+        elif resp != "ACK" and not resp.endswith("OK"):
             raise BadStatusError(resp)
         else:
             defer.returnValue(resp)
