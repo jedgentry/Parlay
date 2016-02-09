@@ -61,34 +61,50 @@ function PromenadeStandardItemFactory(ParlayItem) {
 			} 
 	    });
 
+        // Add toolbar and tabs directives.
         this.addDefaultDirectives("toolbar", ["promenadeStandardItemCardToolbar"]);
+        this.addDefaultDirectives("tabs", [
+            "promenadeStandardItemCardCommands",
+            "promenadeStandardItemCardProperty",
+            "promenadeStandardItemCardGraph",
+            "promenadeStandardItemCardLog"
+        ]);
+
+        this.addAvailableDirectives("tabs", [
+            "promenadeStandardItemCardCommands",
+            "promenadeStandardItemCardProperty",
+            "promenadeStandardItemCardGraph",
+            "promenadeStandardItemCardLog"
+        ]);
 
         if (data.CONTENT_FIELDS) {
-            // Automatically add command tab if content fields are available.
-            this.addDefaultDirectives("tabs", ["promenadeStandardItemCardCommands"]);
-            this.addAvailableDirectives("tabs", ["promenadeStandardItemCardCommands"]);
-            this.content_fields = data.CONTENT_FIELDS.reduce(function (accumulator, field) {
-                var parsed_field = parseField(field);
-                accumulator[parsed_field.label] = parsed_field;
-                return accumulator;
-            }, {});
+
+			// If there are multiple commands available they will be contained in a dropdown field
+			if (data.CONTENT_FIELDS.length == 1) {
+				this.content_fields = data.CONTENT_FIELDS.reduce(function (accumulator, field) {
+					var parsed_field = parseField(field);
+					accumulator[parsed_field.label] = parsed_field;
+					return accumulator;
+				}, {});
+			}
+			// Otherwise the single available command will have it's parameters as it's siblings
+			else {
+				var parsed_field = parseField(data.CONTENT_FIELDS[0]);
+                parsed_field.sub_fields = [parseField(data.CONTENT_FIELDS[1])];
+                this.content_fields = {command: parsed_field};
+			}
+
         }
-        
+
         if (data.PROPERTIES) {
-            // Automatically add command property tab if properties are available.
-            this.addDefaultDirectives("tabs", ["promenadeStandardItemCardProperty"]);
-            this.addAvailableDirectives("tabs", ["promenadeStandardItemCardProperty"]);
 	        this.properties = data.PROPERTIES.reduce(function (accumulator, current) {
 		        current.value = current.INPUT === "STRINGS" || current.INPUT === "NUMBERS" ? [] : undefined;
 		        accumulator[current.NAME] = current;
 		        return accumulator;
 	        }, {});
         }
-        
-        if (data.DATASTREAMS) {
-            // Automatically add graph tab if data streams are available.
-            this.addDefaultDirectives("tabs", ["promenadeStandardItemCardGraph"]);
-            this.addAvailableDirectives("tabs", ["promenadeStandardItemCardGraph"]);
+
+		if (data.DATASTREAMS) {
 	        this.data_streams = data.DATASTREAMS.reduce(function (accumulator, current) {
 		        accumulator[current.NAME] = current;
 		        accumulator[current.NAME].value = undefined;
@@ -98,10 +114,6 @@ function PromenadeStandardItemFactory(ParlayItem) {
 		        return accumulator;
 	        }, {});	        
         }
-
-		// Automatically add log tab.
-		this.addAvailableDirectives("tabs", ["promenadeStandardItemCardLog"]);
-		this.addDefaultDirectives("tabs", ["promenadeStandardItemCardLog"]);
         
     }
     

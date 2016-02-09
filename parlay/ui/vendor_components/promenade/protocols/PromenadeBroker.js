@@ -1,4 +1,4 @@
-function PromenadeBrokerFactory(ParlaySocket, $q, ParlayNotification, ParlayErrorDialog) {
+function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, ParlayErrorDialog) {
 	"use strict";
 	
 	/**
@@ -160,7 +160,9 @@ function PromenadeBrokerFactory(ParlaySocket, $q, ParlayNotification, ParlayErro
                 action: {
                     text: "Reconnect",
                     callback: this.connect.bind(this)
-                }
+                },
+                permanent: true,
+                warning: true
             } : {
                 content: "Failed to connect to Parlay Broker!",
                 action: {
@@ -188,9 +190,24 @@ function PromenadeBrokerFactory(ParlaySocket, $q, ParlayNotification, ParlayErro
 	PromenadeBroker.prototype.requestDiscovery = function (is_forced) {
 	    // Check we are connected first, otherwise display ParlayNotification.
 	    if (this.isConnected()) {
-			ParlayNotification.showProgress();
 
-			return this.sendMessage({request: "get_discovery"}, {"force": !!is_forced}, {response: "get_discovery_response"});
+            // $q Deferred that will be resolved upon discovery response.
+            var deferred = $q.defer();
+
+            // Wait before displaying the discovery progress notification in case of a quick discovery response.
+            var registration = $timeout(function () {
+                // Show progress and pass deferred so that we can hide hide dialog when it is resolved.
+                ParlayNotification.showProgress(deferred);
+            }, 500);
+
+			return this.sendMessage({request: "get_discovery"}, {"force": !!is_forced}, {response: "get_discovery_response"}).then(function (response) {
+                // Resolve deferred so that dialog can be hidden once response is received.
+                deferred.resolve(response);
+
+                // Prevent the dialog from displaying if we receive a quick discovery response.
+                $timeout.cancel(registration);
+                return response;
+            });
 		}
 	    else {
 	        ParlayNotification.show({content: "Cannot discover while not connected to Broker."});
@@ -243,4 +260,4 @@ function PromenadeBrokerFactory(ParlaySocket, $q, ParlayNotification, ParlayErro
 }
 
 angular.module("promenade.broker", ["parlay.socket", "parlay.notification", "parlay.notification.error", "ngMaterial"])
-	.factory("PromenadeBroker", ["ParlaySocket", "$q", "ParlayNotification", "ParlayErrorDialog", PromenadeBrokerFactory]);
+	.factory("PromenadeBroker", ["ParlaySocket", "$q", "$timeout", "ParlayNotification", "ParlayErrorDialog", PromenadeBrokerFactory]);

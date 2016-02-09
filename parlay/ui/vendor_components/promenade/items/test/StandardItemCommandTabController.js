@@ -13,9 +13,14 @@
                 rootScope = $rootScope;
     			scope = $rootScope.$new();
     			$timeout = _$timeout_;
-    			
+
+				var messageID = 100;
+
     			scope.item = {
                     name: "mockItem",
+					getMessageId: function () {
+						return messageID;
+					},
                     sendMessage: function (message) {
                         return $q(function (resolve, reject) {
                             if (message.COMMAND === "send") resolve({ TOPICS: { MSG_STATUS: "ok" } });
@@ -45,20 +50,16 @@
 	        		};
 	        		
 	        		expect(ctrl.sending).toBeFalsy();
-	        		expect(ctrl.error).toBeFalsy();
-	        		
+
 	        		spyOn(scope.item, "sendMessage").and.callThrough();
                     
                     // Passing undefined for $event
                     ctrl.send(undefined);
                     expect(scope.item.sendMessage).toHaveBeenCalled();
                     rootScope.$apply();
-                    expect(ctrl.status_message).toEqual("ok");
                     $timeout.flush();
                     
                     expect(ctrl.sending).toBeFalsy();
-                    expect(ctrl.error).toBeFalsy();
-                    expect(ctrl.status_message).toEqual(null);
         		});
         		
         		it("unsuccessfully", function () {
@@ -71,8 +72,7 @@
 	        		};
 	        		
 	        		expect(ctrl.sending).toBeFalsy();
-	        		expect(ctrl.error).toBeFalsy();
-	        		
+
 	        		spyOn(scope.item, "sendMessage").and.callThrough();
 	        		
 	        		// Passing undefined for $event
@@ -81,8 +81,6 @@
                     rootScope.$apply();
 
         		    expect(ctrl.sending).toBeFalsy();
-        		    expect(ctrl.error).toBeTruthy();
-        		    expect(ctrl.status_message).toEqual("error");
         		});
             		
             });    		

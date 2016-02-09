@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 from distutils.extension import Extension
-import os, fnmatch
+import os
+import fnmatch
 
 RELEASE = False
 USE_CYTHON = False
@@ -11,10 +12,10 @@ def find_files(directory, pattern):
     for root, dirs, files in os.walk(directory):
         for basename in files:
             if fnmatch.fnmatch(basename, pattern):
-                filename = os.path.join(root, basename)
-                module_name = os.path.splitext(filename)[0].replace(os.path.sep, ".")
-                print "Found: " + module_name
-                yield module_name, filename
+                _filename = os.path.join(root, basename)
+                _modulename = os.path.splitext(_filename)[0].replace(os.path.sep, ".")
+                print "Found: " + _modulename
+                yield _modulename, _filename
 
 
 ext = '*.pyx' if USE_CYTHON else '*.c'
@@ -32,9 +33,10 @@ setup(
     description="A framework for developing and testing software for embedded devices",
     ext_modules=extensions,
     packages=find_packages(),
-    package_data={"parlay": [ os.path.relpath(filename, "parlay") for module_name, filename in find_files("parlay/ui", "*")] },  # include ui files
+    package_data={"parlay": [os.path.relpath(filename, "parlay")
+                             for module_name, filename in find_files("parlay/ui", "*")]},  # include ui files
     install_requires=["Twisted >=15.0.0",
                       "autobahn >=0.9.0",
                       "pyopenssl >=0.15.0",
-                      "service-identity >=14.0.0"]
-)
+                      "service-identity >=14.0.0",
+                      "pyserial < 3.0.0"])

@@ -72,25 +72,27 @@ function collectMessage(message, for_statement) {
  * @returns {String} - Python statement
  */
 function buildPythonCommand(item_name, message) {
-    try {
-        var var_name = "e_" + item_name.replace(" ", "_");
-        var setup = var_name + " = self.get_item_by_name('" + item_name + "')";
-        var func = message.COMMAND ? message.COMMAND : message.FUNC;
 
-        // Remove command or func field from message.
-        delete message[Object.keys(message).find(function (field) {
-            return message[field] === func;
-        })];
+    var var_name = "e_" + item_name.replace(" ", "_");
+    var setup = var_name + " = self.get_item_by_name('" + item_name + "')";
 
-        return setup + "\n" + var_name + "." + func + "(" + Object.keys(message).map(function (key) {
-                var value = JSON.stringify(message[key]);
-                if (value === undefined) value = "None";
-                return key + "=" + value;
-        }).join(", ") + ")";
+    // If we are given an empty message return only the setup
+    if (!message) {
+        return setup;
     }
-    catch(e) {
-        console.log("Can't build" + e);
-    }
+
+    var func = message.COMMAND ? message.COMMAND : message.FUNC;
+
+    // Remove command or func field from message.
+    delete message[Object.keys(message).find(function (field) {
+        return message[field] === func;
+    })];
+
+    return setup + "\n" + var_name + "." + func + "(" + Object.keys(message).map(function (key) {
+        var value = JSON.stringify(message[key]);
+        if (value === undefined) value = "None";
+        return key + "=" + value;
+    }).join(", ") + ")";
 }
 
 /**
@@ -98,10 +100,9 @@ function buildPythonCommand(item_name, message) {
  * @constructor
  * @param {AngularJS $scope} $scope - A AngularJS $scope Object.
  * @param {AngularJS Service} $timeout - AngularJS timeout service.
- * @param {Parlay Service} ParlayScriptLogger - ParlayScriptLogger Service.
  * @param {Parlay Service} ParlayUtility - Parlay Utlity Service.
  */
-function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayScriptLogger, ParlayNotification) {
+function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayNotification) {
 	ParlayBaseTabController.call(this, $scope, "promenadeStandardItemCardCommands");
 	
 	// Due to the way JavaScript prototypical inheritance works and AngularJS scoping we want to enclose the message Object within another object.
@@ -109,12 +110,16 @@ function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayS
 	$scope.wrapper = {
 		message: {}
 	};
-	
-	// Controller attributes that reflect the state of the command form.
-	this.error = false;
+
+    this.command_builder_collapsed = false;
+    this.script_builder_collapsed = false;
+    this.response_contents_collapsed = false;
+
+    // Controller attributes that reflect the state of the command form.
 	this.sending = false;
-	this.status_message= null;
-	
+
+    this.responses = [];
+
 	// Reference to a $timeout deregistration function.
 	var sending_timeout = null;
 	
@@ -126,41 +131,45 @@ function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayS
 		// Push the buffer into the md-chips ng-model
 		if ($event) pushChipBuffer($event.target.querySelectorAll('md-chips'));
 			    
-	    this.error = false;
 	    this.sending = true;
 
-		this.contents_message = undefined;
-	    
+        this.responses.push({
+            received: false,
+            MSG_ID: this.item.getMessageId() + 1,
+            message: undefined
+        });
+
+        this.responses = this.responses.filter(function (pending_response) {
+            return !pending_response.received;
+        });
+
 	    try {
 	    	this.item.sendMessage(collectMessage($scope.wrapper.message, false)).then(function (response) {
-		    	// Use the response to display feedback on the send button.			     	
-		        this.status_message = response.TOPICS.MSG_STATUS;
-				this.contents_message = response.CONTENTS;
-		        
-		        // If we still have an outstanding timeout we should cancel it to prevent the send button from flickering.
+
+                var pending_response = this.responses.find(function (pending_response) {
+                    return pending_response.MSG_ID === response.TOPICS.MSG_ID;
+                });
+
+                if (pending_response) {
+                    pending_response.received = true;
+                    pending_response.message = response;
+                }
+
+                // If we still have an outstanding timeout we should cancel it to prevent the send button from flickering.
 	            if (sending_timeout !== null) $timeout.cancel(sending_timeout);
-	            
+
 	            // Setup a timeout to reset the button to it's default state after a brief period of time.
 	        	sending_timeout = $timeout(function () {
-		        	sending_timeout = null;
+                    sending_timeout = null;
 	                this.sending = false;
-	                this.status_message = null;
 	            }.bind(this), 500);
 	            
 	        }.bind(this)).catch(function (response) {
 		        this.sending = false;
-		        this.error = true;
-		        this.status_message = response.TOPICS.MSG_STATUS;
 		    }.bind(this));
-
-		    // Put the Python equivalent command in the log.
-	        ParlayScriptLogger.logCommand(this.generatePythonCommand());
-
 	    }
 	    catch (e) {
 		    this.sending = false;
-	     	this.error = true;
-	     	this.status_message = e;   
 	    }
 	};
 	
@@ -169,7 +178,7 @@ function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayS
 	 * @returns {String} - equivalent Python statements
 	 */
 	this.generatePythonCommand = function() {
-		return buildPythonCommand(this.item.name, collectMessage($scope.wrapper.message, true));
+        return buildPythonCommand(this.item.name, collectMessage($scope.wrapper.message, true));
 	};
 	
 	/**
@@ -183,6 +192,22 @@ function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayS
         else ParlayNotification.show({content: "Cannot copy empty command."});
 
 	};
+
+	this.clearResponses = function () {
+        this.responses = [];
+    };
+
+    this.toggleCommandBuilder = function () {
+		this.command_builder_collapsed = !this.command_builder_collapsed;
+	};
+
+    this.toggleScriptBuilder = function () {
+        this.script_builder_collapsed = !this.script_builder_collapsed;
+    };
+
+    this.toggleResponseContents = function () {
+        this.response_contents_collapsed = !this.response_contents_collapsed ;
+    };
 	
 	// Watch for new fields to fill with defaults.
     $scope.$watchCollection("wrapper.message", function () {
@@ -252,7 +277,7 @@ function PromenadeStandardItemCardCommandContainer(RecursionHelper, ParlayPersis
         },
         templateUrl: '../vendor_components/promenade/items/directives/promenade-standard-item-card-command-container.html',
         compile: RecursionHelper.compile,
-        controller: function ($scope, $mdConstant) {
+        controller: function ($scope) {
 
 	        var container = ParlayUtility.relevantScope($scope, 'container').container;
 			var directive_name = 'parlayItemCard.' + container.ref.name.replace(' ', '_') + '_' + container.uid;
@@ -294,7 +319,7 @@ function PromenadeStandardItemCardCommandContainer(RecursionHelper, ParlayPersis
     };
 }
 
-angular.module('promenade.items.standarditem.commands', ['ngMaterial', 'RecursionHelper', 'parlay.store', 'parlay.utility', 'parlay.navigation.scriptbuilder'])
-	.controller('PromenadeStandardItemCardCommandTabController', ['$scope', '$timeout', 'ParlayScriptLogger', 'ParlayNotification', PromenadeStandardItemCardCommandTabController])
+angular.module('promenade.items.standarditem.commands', ['ngMaterial', 'RecursionHelper', 'parlay.store', 'parlay.utility', 'parlay.notification'])
+	.controller('PromenadeStandardItemCardCommandTabController', ['$scope', '$timeout', 'ParlayNotification', PromenadeStandardItemCardCommandTabController])
 	.directive("promenadeStandardItemCardCommands", PromenadeStandardItemCardCommands)
 	.directive("promenadeStandardItemCardCommandContainer", ['RecursionHelper', 'ParlayPersistence', 'ParlayUtility', PromenadeStandardItemCardCommandContainer]);
