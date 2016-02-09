@@ -325,14 +325,6 @@ class ParlayCommandItem(ParlayStandardItem):
         if len(self._commands) == 0:
             return  # nothing to do here
 
-        if len(self._commands) == 1:
-            # If only one, then drop the dropdown option
-            func_name=self._commands.keys()[0]
-            func = self._commands[func_name]
-            self.add_field("COMMAND", INPUT_TYPES.STRING, default=func_name)
-            # add the arguments as straight input fields
-            self._content_fields.extend(func._parlay_sub_fields)
-
         else:  # more than 1 option
             command_names = self._commands.keys()
             command_names.sort()  # pretty-sort
