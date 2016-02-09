@@ -13,10 +13,13 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
 
     broker = Broker.get_instance()
-    def __init__(self):
+    def __init__(self, port):
         BaseProtocol.__init__(self)
-        LineReceiver.__init__(self)
+        #LineReceiver.__init__(self)
         self._new_data = defer.Deferred()
+        self._parlay_name = port
+        self.items = getattr(self, "items", [LineItem(self._parlay_name, self._parlay_name, self)])
+        BaseProtocol.__init__(self)
 
 
     @classmethod
@@ -57,17 +60,11 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         self.transport.loseConnection()
         return defer.succeed(None)  # fake deferred since we don't have anything asynchronous to do
 
-    def __init__(self, port):
-        self._parlay_name = port
-        self.items = getattr(self, "items", [LineItem(self._parlay_name, self._parlay_name, self)])
-        BaseProtocol.__init__(self)
-
     def lineReceived(self, line):
-        #update our items
         for item in self.items:
             item.LAST_LINE_RECEIVED = line
 
-        # send to all children
+        # send to all children who are waiting for it
         self.got_new_data(line)
 
     def rawDataReceived(self, data):
@@ -93,8 +90,11 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         """
         Call this when you have new data and want to pass it to any waiting Items
         """
-        self._new_data.callback(data)
+        old_new_data = self._new_data
+        #setup the new data in case it causes a callback to fire
         self._new_data = defer.Deferred()
+        old_new_data.callback(data)
+
 
 
 
