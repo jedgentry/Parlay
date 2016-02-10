@@ -6,7 +6,7 @@ from parlay.protocols.protocol import BaseProtocol
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, BadStatusError
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, BadStatusError, parlay_property
 from serial_line import ASCIILineProtocol, LineItem
 from math import radians, degrees, sqrt, atan2, pi, acos, sin, cos, asin
 from parlay.protocols.utils import delay
@@ -59,6 +59,8 @@ class EliteArmItem(LineItem):
     """
     Item for an Elite Arm
     """
+    Y_FACTOR = parlay_property(val_type=float, default=1.0)
+    WRIST_ROLL_FACTOR = parlay_property(val_type=float, default=1.0)
 
     def __init__(self, item_id, name, protocol):
         LineItem.__init__(self, item_id, name, protocol)
@@ -200,11 +202,14 @@ class EliteArmItem(LineItem):
         try:
             print "Moving hands"
             x,y,z =float(x), float(y), float(z) # Kinematics.scale_to_max_radius(x,y,z)
+            y = y * self.Y_FACTOR
             thetas = Kinematics.xyz_to_joint_angles(x, y, z)
             m1 = Kinematics.base_angle_to_motor(thetas[0])
             m2 = Kinematics.shoulder_angle_to_motor(thetas[1])
             m3 = Kinematics.elbow_angle_to_motor(thetas[2])
             m4 = Kinematics.wrist_pitch_to_motor(Kinematics.pitch_to_wrist_angle(thetas[1], thetas[2], float(wrist_pitch)))
+            wrist_roll = float(wrist_roll) * self.WRIST_ROLL_FACTOR
+
             m5 = Kinematics.wrist_roll_to_motor(Kinematics.roll_to_wrist_roll_angle(float(wrist_roll)))
 
             m_g = float(grip)*3000
