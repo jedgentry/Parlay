@@ -32,19 +32,32 @@ function ParlaySettingsDialogController ($scope, $mdDialog, ParlaySettings, Prom
     };
 
     this.requestNotificationPermission = function () {
-        Notification.requestPermission();
-        $scope.notification_permission = Notification.permission === "granted";
+        // Ensure browser has HTML 5 Notification support.
+        if (this.isMSEdge()) {
+            Notification.requestPermission();
+        }
+        $scope.notification_permission = this.isMSEdge() && Notification.permission === "granted";
+    };
+
+    this.isMSEdge = function () {
+        return navigator.userAgent.includes("Edge");
     };
 
     var discovery_settings = ParlaySettings.getDiscoverySettings();
+    var log_settings = ParlaySettings.getLogSettings();
 
     $scope.auto_discovery = discovery_settings && discovery_settings.auto_discovery ? true : false;
+    $scope.max_log_size = parseInt(log_settings.max_size);
 
-    $scope.notification_permission = Notification.permission === "granted";
+    $scope.notification_permission = !navigator.userAgent.includes("Edge") && Notification.permission === "granted";
 
     $scope.$watch("auto_discovery", function (newValue) {
         $scope.auto_discovery_message = newValue ? "enabled" : "disabled";
         ParlaySettings.setDiscoverySettings({auto_discovery: newValue});
+    });
+
+    $scope.$watch("max_log_size", function (newValue) {
+        ParlaySettings.setLogSettings({max_size: newValue});
     });
 
 }
