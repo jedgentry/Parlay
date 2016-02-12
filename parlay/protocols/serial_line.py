@@ -14,11 +14,12 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
 
     broker = Broker.get_instance()
     def __init__(self, port):
-        BaseProtocol.__init__(self)
+        #BaseProtocol.__init__(self)
         #LineReceiver.__init__(self)
         self._new_data = defer.Deferred()
         self._parlay_name = port
-        self.items = getattr(self, "items", [LineItem(self._parlay_name, self._parlay_name, self)])
+        if not hasattr(self, "items"):
+            self.items = [LineItem(self._parlay_name, self._parlay_name, self)]
         BaseProtocol.__init__(self)
 
 

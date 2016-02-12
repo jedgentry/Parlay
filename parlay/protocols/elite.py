@@ -12,25 +12,7 @@ from math import radians, degrees, sqrt, atan2, pi, acos, sin, cos, asin
 from parlay.protocols.utils import delay
 
 
-L0 = 8.5  # inches, upper arm length
-L1 = 7.0  # inches, forearm length
 
-THETA1_INIT = 0.0   # degrees
-
-THETA2_INIT = 80.0  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
-THETA3_INIT = 35.0  # degrees down from straight, corresponding to zero elbow motor coordinate
-THETA4_INIT = 25.0   # degrees up from straight, corresponding to zero wrist motor coordinate
-THETA5_INIT = -90.0   # degrees from horizontal, corresponding to zero wrist rotation coordinate
-
-BASE_ROT_ANGLE_TO_MOTOR = -90.0/3700.0 #-90.0/3750.0 # degrees per motor step count
-SHOULDER_ANGLE_TO_MOTOR = -90.0/1200.0  # degrees per motor step count
-ELBOW_ANGLE_TO_MOTOR = -45.0/1000.0
-
-WRIST_PITCH_TO_MOTOR = -90.0/2200.0
-WRIST_ROLL_TO_MOTOR = 90.0/1000.0
-
-MAX_RADIUS = L0 + L1 - 1  # max radius to keep the arm within.
-                          #  If instructed to go outside this radius, will instead touch the radius
 
 class EliteArmProtocol(ASCIILineProtocol):
 
@@ -50,17 +32,42 @@ class EliteArmProtocol(ASCIILineProtocol):
         return args
 
     def __init__(self, port):
-        ASCIILineProtocol.__init__(self, port)
         self._parlay_name = port
         self.items = [EliteArmItem(self._parlay_name, "Elite Arm", self)]
+        ASCIILineProtocol.__init__(self, port)
 
 
 class EliteArmItem(LineItem):
     """
     Item for an Elite Arm
     """
+    #Reflection and Kinematic config
+    X_FACTOR = parlay_property(val_type=float, default=1.0)
     Y_FACTOR = parlay_property(val_type=float, default=1.0)
+    Z_FACTOR = parlay_property(val_type=float, default=1.0)
     WRIST_ROLL_FACTOR = parlay_property(val_type=float, default=1.0)
+
+
+    #kinemtaic translation config
+    L0 = parlay_property(val_type=float, default=8.5)  # inches, upper arm length
+    L1 = parlay_property(val_type=float, default=7.0)  # inches, forearm length
+
+    THETA1_INIT = parlay_property(val_type=float, default=0.0)  # degrees
+
+    THETA2_INIT = parlay_property(val_type=float, default=80.0)  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
+    THETA3_INIT = parlay_property(val_type=float, default=35.0)  # degrees down from straight, corresponding to zero elbow motor coordinate
+    THETA4_INIT = parlay_property(val_type=float, default=25.0)   # degrees up from straight, corresponding to zero wrist motor coordinate
+    THETA5_INIT = parlay_property(val_type=float, default=-90.0)   # degrees from horizontal, corresponding to zero wrist rotation coordinate
+
+    BASE_ROT_ANGLE_TO_MOTOR = parlay_property(val_type=float, default=-90.0/3700.0) #-90.0/3750.0 # degrees per motor step count
+    SHOULDER_ANGLE_TO_MOTOR = parlay_property(val_type=float, default=-90.0/1200.0)  # degrees per motor step count
+    ELBOW_ANGLE_TO_MOTOR = parlay_property(val_type=float, default=-45.0/1000.0)
+
+    WRIST_PITCH_TO_MOTOR = parlay_property(val_type=float, default=-90.0/2200.0)
+    WRIST_ROLL_TO_MOTOR = parlay_property(val_type=float, default=90.0/1000.0)
+
+   # MAX_RADIUS = L0 + L1 - 1  # max radius to keep the arm within.
+                              #  If instructed to go outside this radius, will instead touch the radius
 
     def __init__(self, item_id, name, protocol):
         LineItem.__init__(self, item_id, name, protocol)
@@ -201,16 +208,15 @@ class EliteArmItem(LineItem):
         """
         try:
             print "Moving hands"
-            x,y,z =float(x), float(y), float(z) # Kinematics.scale_to_max_radius(x,y,z)
-            y = y * self.Y_FACTOR
-            thetas = Kinematics.xyz_to_joint_angles(x, y, z)
-            m1 = Kinematics.base_angle_to_motor(thetas[0])
-            m2 = Kinematics.shoulder_angle_to_motor(thetas[1])
-            m3 = Kinematics.elbow_angle_to_motor(thetas[2])
-            m4 = Kinematics.wrist_pitch_to_motor(Kinematics.pitch_to_wrist_angle(thetas[1], thetas[2], float(wrist_pitch)))
+            x, y, z =float(x) * self.X_FACTOR, float(y) * self.Y_FACTOR, float(z) * self.Z_FACTOR # Kinematics.scale_to_max_radius(x,y,z)
+            thetas = Kinematics.xyz_to_joint_angles(x, y, z, arm=self)
+            m1 = Kinematics.base_angle_to_motor(thetas[0], arm=self)
+            m2 = Kinematics.shoulder_angle_to_motor(thetas[1], arm=self)
+            m3 = Kinematics.elbow_angle_to_motor(thetas[2], arm=self)
+            m4 = Kinematics.wrist_pitch_to_motor(Kinematics.pitch_to_wrist_angle(thetas[1], thetas[2], float(wrist_pitch), arm=self), arm=self)
             wrist_roll = float(wrist_roll) * self.WRIST_ROLL_FACTOR
 
-            m5 = Kinematics.wrist_roll_to_motor(Kinematics.roll_to_wrist_roll_angle(float(wrist_roll)))
+            m5 = Kinematics.wrist_roll_to_motor(Kinematics.roll_to_wrist_roll_angle(float(wrist_roll), arm=self), arm=self)
 
             m_g = float(grip)*3000
             print "t=", thetas
@@ -225,13 +231,13 @@ class EliteArmItem(LineItem):
 class Kinematics:
 
     @staticmethod
-    def scale_to_max_radius(x, y, z):
+    def scale_to_max_radius(x, y, z, arm):
         x, y, z = float(x), float(y), float(z)
         r = sqrt(x*x + y*y + z*z)
-        if r > MAX_RADIUS:
-            x = x*MAX_RADIUS/r
-            y = y*MAX_RADIUS/r
-            z = z*MAX_RADIUS/r
+        if r > arm.MAX_RADIUS:
+            x = x*arm.MAX_RADIUS/r
+            y = y*arm.MAX_RADIUS/r
+            z = z*arm.MAX_RADIUS/r
 
         return x, y, z
 
@@ -259,7 +265,7 @@ class Kinematics:
         return x, y, z
 
     @staticmethod
-    def xyz_to_joint_angles(x, y, z):
+    def xyz_to_joint_angles(x, y, z, arm):
         """
         Inverse kinematics, convert desired hand position to required joint angles.
 
@@ -279,22 +285,22 @@ class Kinematics:
 
         d = sqrt(r**2 + h**2)
 
-        theta3_rad = pi - acos((L0**2 + L1**2 - d**2) / (2 * L0 * L1))
+        theta3_rad = pi - acos((arm.L0**2 + arm.L1**2 - d**2) / (2 * arm.L0 * arm.L1))
 
-        gamma_rad = acos((d**2 + L0**2 - L1**2) / (2 * L0 * d))
+        gamma_rad = acos((d**2 + arm.L0**2 - arm.L1**2) / (2 * arm.L0 * d))
         beta_rad = asin(h / d)
         theta2_rad = gamma_rad + beta_rad
 
         theta1_rad = atan2(y, x)
 
-        theta1 = degrees(theta1_rad) - THETA1_INIT
-        theta2 = degrees(theta2_rad) - THETA2_INIT
-        theta3 = degrees(theta3_rad) - THETA3_INIT
+        theta1 = degrees(theta1_rad) - arm.THETA1_INIT
+        theta2 = degrees(theta2_rad) - arm.THETA2_INIT
+        theta3 = degrees(theta3_rad) - arm.THETA3_INIT
 
         return theta1, theta2, theta3
 
     @staticmethod
-    def joint_angles_to_xyz(theta1, theta2, theta3):
+    def joint_angles_to_xyz(theta1, theta2, theta3, arm):
         """
         Converts joint angles of arm into x, y, z cartesian coordinates
         :param theta1: arm base rotation angle in degrees
@@ -302,43 +308,43 @@ class Kinematics:
         :param theta3: arm elbow bend angle in degrees
         :return: x, y, z in inches
         """
-        theta2_rad = radians(theta2 + THETA2_INIT)
-        theta3_rad = radians(theta3 + THETA3_INIT)
+        theta2_rad = radians(theta2 + arm.THETA2_INIT)
+        theta3_rad = radians(theta3 + arm.THETA3_INIT)
 
-        r = L0 * cos(theta2_rad) + L1 * cos(theta2_rad - theta3_rad)
-        h = L0 * sin(theta2_rad) + L1 * sin(theta2_rad - theta3_rad)
-        phi = theta1 + THETA1_INIT
+        r = arm.L0 * cos(theta2_rad) + arm.L1 * cos(theta2_rad - theta3_rad)
+        h = arm.L0 * sin(theta2_rad) + arm.L1 * sin(theta2_rad - theta3_rad)
+        phi = theta1 + arm.THETA1_INIT
 
         x, y, z = Kinematics._cylindrical_to_xyz(r, h, phi)
         return x, y, z
 
     @staticmethod
-    def pitch_to_wrist_angle(theta2, theta3, pitch):
-        return pitch - theta2 + theta3 - THETA4_INIT
+    def pitch_to_wrist_angle(theta2, theta3, pitch, arm):
+        return pitch - theta2 + theta3 - arm.THETA4_INIT
 
     @staticmethod
-    def roll_to_wrist_roll_angle(roll):
-        return roll - THETA5_INIT
+    def roll_to_wrist_roll_angle(roll, arm):
+        return roll - arm.THETA5_INIT
 
     @staticmethod
-    def shoulder_angle_to_motor(angle):
-        return angle / SHOULDER_ANGLE_TO_MOTOR
+    def shoulder_angle_to_motor(angle, arm):
+        return angle / arm.SHOULDER_ANGLE_TO_MOTOR
 
     @staticmethod
-    def elbow_angle_to_motor(angle):
-        return angle / ELBOW_ANGLE_TO_MOTOR
+    def elbow_angle_to_motor(angle, arm):
+        return angle / arm.ELBOW_ANGLE_TO_MOTOR
 
     @staticmethod
-    def base_angle_to_motor(angle):
-        return angle / BASE_ROT_ANGLE_TO_MOTOR
+    def base_angle_to_motor(angle, arm):
+        return angle / arm.BASE_ROT_ANGLE_TO_MOTOR
 
     @staticmethod
-    def wrist_pitch_to_motor(angle):
-        return angle / WRIST_PITCH_TO_MOTOR
+    def wrist_pitch_to_motor(angle, arm):
+        return angle / arm.WRIST_PITCH_TO_MOTOR
 
     @staticmethod
-    def wrist_roll_to_motor(angle):
-        return angle / WRIST_ROLL_TO_MOTOR
+    def wrist_roll_to_motor(angle, arm):
+        return angle / arm.WRIST_ROLL_TO_MOTOR
 
 
 
