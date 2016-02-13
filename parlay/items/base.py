@@ -10,12 +10,12 @@ class INPUT_TYPES(object):
     ARRAY = "ARRAY"
     DROPDOWN = "DROPDOWN"
 
-#lookup table for arg discovery
+# lookup table for arg discovery
 INPUT_TYPE_DISCOVERY_LOOKUP = {'str': INPUT_TYPES.STRING, 'string': INPUT_TYPES.STRING, 'char': INPUT_TYPES.STRING,
                                'int': INPUT_TYPES.NUMBER, 'float': INPUT_TYPES.NUMBER, 'double': INPUT_TYPES.NUMBER,
                                'short': INPUT_TYPES.NUMBER, 'long': INPUT_TYPES.NUMBER, 'list[]': INPUT_TYPES.ARRAY}
 
-#dynamically add list types
+# dynamically add list types
 for k in INPUT_TYPE_DISCOVERY_LOOKUP.keys():
     v = INPUT_TYPE_DISCOVERY_LOOKUP[k]
     list_type = INPUT_TYPES.ARRAY
@@ -25,9 +25,10 @@ for k in INPUT_TYPE_DISCOVERY_LOOKUP.keys():
         list_type = INPUT_TYPES.STRINGS
     INPUT_TYPE_DISCOVERY_LOOKUP['list['+k+']'] = list_type
 
-#lookup table for arg conversion
+# lookup table for arg conversion
 INPUT_TYPE_CONVERTER_LOOKUP = {'int': int, 'str': str, 'string': str, 'char': chr, 'float': float, 'double': float,
-                      'short' : int, 'long': int, 'list[]': lambda list_arg: list_arg}
+                               'short' : int, 'long': int, 'list[]': lambda list_arg: list_arg}
+
 # dynamically add list types
 for k in INPUT_TYPE_CONVERTER_LOOKUP.keys():
     v = INPUT_TYPE_CONVERTER_LOOKUP[k]
@@ -38,6 +39,7 @@ class TX_TYPES(object):
     DIRECT = 'DIRECT'
     BROADCAST = "BROADCAST"
 
+
 class MSG_TYPES(object):
     COMMAND = 'COMMAND'
     DATA = "DATA"
@@ -46,6 +48,7 @@ class MSG_TYPES(object):
     PROPERTY = 'PROPERTY'
     STREAM = 'STREAM'
 
+
 class MSG_STATUS(object):
     ERROR = "ERROR"
     WARNING = "WARNING"
@@ -53,23 +56,23 @@ class MSG_STATUS(object):
     OK = "OK"
     ACK = 'ACK'
 
+
 class BaseItem(object):
     """
     The Base Item that all other Items should inherit from
     """
-
 
     def __init__(self, item_id, name):
         self.item_id = item_id
         self.item_name = name
         """:type Broker"""
         self._broker = Broker.get_instance()
-        self.children = [] #child items
+        self.children = []  # child items
 
         # subscribe on_message to be called whenever we get a message *to* us
         self._broker.subscribe(self.on_message, TO=item_id)
         self._broker.subscribe(self.on_sent_message, FROM=item_id)
-        self._interfaces = [] #list of interfaces we support
+        self._interfaces = []  # list of interfaces we support
 
     def on_message(self, msg):
         """
@@ -80,18 +83,19 @@ class BaseItem(object):
 
     def on_sent_message(self, msg):
         """
-        any time there is a message SENT by us, this method will be called with it
+        Any time there is a message SENT by us, this method will be called with it.
         """
         pass
+
     def get_discovery(self):
         """
         The protocol can call this to get discovery from me
         """
+        # TODO: have interfaces automatically build in here
         discovery = {"NAME": self.item_name, "ID": self.item_id, "TYPE": self.get_item_template_string(),
                      "INTERFACES": self._interfaces, "CHILDREN": [x.get_discovery() for x in self.children]}
-                     # TODO: have interfaces automatically build in here
-        return discovery
 
+        return discovery
 
     def get_item_template_string(self):
         """
@@ -105,19 +109,18 @@ class BaseItem(object):
         return "/".join(templates)
 
 
-def get_recursive_base_list(cls, list=None):
+def get_recursive_base_list(cls, base_list=None):
     """
     Get the full class heirarchy list for a class, to see *all* classes and super classes a python class inherits from
     """
-    if list is None:
-        list = []
+    if base_list is None:
+        base_list = []
 
     for base in cls.__bases__:
-        list.append(base)
-        get_recursive_base_list(base, list)
+        base_list.append(base)
+        get_recursive_base_list(base, base_list)
 
-    return list
+    return base_list
 
 from twisted.internet import reactor
 from autobahn.twisted.websocket import  WebSocketClientProtocol, WebSocketClientFactory
-

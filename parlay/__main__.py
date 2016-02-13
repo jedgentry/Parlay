@@ -1,2 +1,3 @@
-from __init__ import start
+from parlay import start
+
 start()

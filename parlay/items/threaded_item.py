@@ -11,18 +11,23 @@ import json
 # a list of Item proxy classes for Scripts
 ITEM_PROXIES = {}
 
+
 DEFAULT_TIMEOUT = 120
+
 
 # list of deferreds to cancel when cleaning up
 CLEANUP_DEFERRED = set()
+
 
 def cleanup():
     for d in CLEANUP_DEFERRED:
         if not d.called:
             d.cancel()
 
+
 # cleanup our deferreds
 Broker.call_on_stop(cleanup)
+
 
 class ThreadedItem(BaseItem):
     """Base object for all Parlay scripts"""
@@ -97,12 +102,12 @@ class ThreadedItem(BaseItem):
         def wait_for_response():
             result = defer.Deferred()
 
-            def listener(msg):
-                if msg['TOPICS'].get('response', "") == 'open_protocol_response':
-                    if msg['CONTENTS']['STATUS'] == 'ok':
-                        result.callback(msg['CONTENTS']['STATUS'])
+            def listener(_msg):
+                if _msg['TOPICS'].get('response', "") == 'open_protocol_response':
+                    if _msg['CONTENTS']['STATUS'] == 'ok':
+                        result.callback(_msg['CONTENTS']['STATUS'])
                     else:
-                        result.errback(Failure(msg['CONTENTS']['STATUS']))
+                        result.errback(Failure(_msg['CONTENTS']['STATUS']))
                     return True  # we're done here
                 return False  # keep waiting
 
@@ -117,9 +122,10 @@ class ThreadedItem(BaseItem):
         """
         self._msg_listeners.append(listener_function)
 
-    ##################################################################################################################
+    ###############################################################################################
     ###################  The functions below are used by the script ###############################
-    def make_msg(self, to, command, msg_type=MSG_TYPES.COMMAND, direct=True, response_req=True, _extra_topics=None, **kwargs):
+    def make_msg(self, to, command, msg_type=MSG_TYPES.COMMAND, direct=True,
+                 response_req=True, _extra_topics=None, **kwargs):
         """
         Prepare a message for the broker to disperse
         """
@@ -252,8 +258,7 @@ class ThreadedItem(BaseItem):
 
         return self.reactor.maybeblockingCallFromThread(self._sleep, timeout)
 
-
-    ####################### THe following  must be run from the reactor thread ####################################
+    ####################### THe following  must be run from the reactor thread ###################
     #############################   Do not call directly from script thread #####################
     def _send_parlay_message_from_thread(self, msg, timeout):
         """
@@ -270,8 +275,9 @@ class ThreadedItem(BaseItem):
         def listener(received_msg):
             # See if this is the response we are waiting for
             if received_msg['TOPICS'].get('MSG_TYPE', "") == MSG_TYPES.RESPONSE:
-                if received_msg['TOPICS']['TO'] == self.item_id and\
-                                received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
+                if received_msg['TOPICS']['TO'] == self.item_id and \
+                        received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
+
                     if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ACK:
                         return False  # keep waiting, an ACK means its not finished yet, it just got our msg
                     if timer is not None:
@@ -296,13 +302,13 @@ class ThreadedItem(BaseItem):
 
             return False  # not for this listener - don't remove
 
-        def cb(msg):
+        def cb(_msg):
             # got a timeout or started with an error
             # remove the listener
             if listener in self._msg_listeners:
                 self._msg_listeners.remove(listener)
             # send failure to thread waiting.
-            response.errback(Failure(AsyncSystemError(msg)))
+            response.errback(Failure(AsyncSystemError(_msg)))
 
         # If we already have a system error, fail
         if len(self._system_errors) > 0:

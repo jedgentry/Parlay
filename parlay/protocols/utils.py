@@ -7,6 +7,7 @@ from twisted.internet import reactor
 from twisted.python import failure
 from parlay.server.broker import Broker
 
+
 class MessageQueue(object):
     """
     A basic message queue for messages that need to be acknowledged
@@ -20,7 +21,8 @@ class MessageQueue(object):
         """
         self._q = deque()
         self._callback = callback
-        #:type defer.Deferred
+
+        # :type defer.Deferred
         self._active_sent = None  # deferred for the one we're sending
 
     def add(self, message):
@@ -39,24 +41,23 @@ class MessageQueue(object):
             return self._active_sent
         elif self._active_sent is not None:
             d = defer.Deferred()
-            #queue up the message and the deferred to call
+            # queue up the message and the deferred to call
             self._q.append((message, d))
             return d
         else:
             raise RuntimeError("""Invalid message queue state! Queue not empty but not working on anything.
-            Make sure that your callback function returns a deferred and calls it back properly""")
-
-
+                               Make sure that your callback function returns a deferred and calls it back properly""")
 
     def _done_with_msg(self, msg_result):
         if isinstance(msg_result, failure.Failure):
             print "Error encoding packet -- moving on to next packet"
             msg_result.printTraceback()
 
-        #reactor.callLater(0, self._active_sent.callback, msg_result)
+        # reactor.callLater(0, self._active_sent.callback, msg_result)
         # send the next one (if there is one)
         if len(self._q) > 0:
             next_msg, self._active_sent = self._q.popleft()
+
             # process the message, and set up our callback
             d = self._callback(next_msg)
             d.addBoth(self._done_with_msg)
@@ -65,22 +66,16 @@ class MessageQueue(object):
             self._active_sent = None
 
 
-
-
-
-
-def message_id_generator(radix, min=0):
+def message_id_generator(radix, minimum=0):
     """
     makes an infinite iterator that will be modulo radix
     """
-    counter = min
+    counter = minimum
     while True:
         yield counter
         counter = (counter + 1) % radix
-        if counter < min:
-            counter = min
-
-
+        if counter < minimum:
+            counter = minimum
 
 
 def timeout(d, seconds):
@@ -88,7 +83,7 @@ def timeout(d, seconds):
     Call d's errback if it hasn't been called back within 'seconds' number of seconds
     If 'seconds' is None, then do nothing
     """
-    #get out of here if no timeout
+    # get out of here if no timeout
     if seconds is None:
         return d
 
@@ -106,16 +101,23 @@ def timeout(d, seconds):
 class TimeoutError(Exception):
     pass
 
-def delay(timeout):
+
+def delay(seconds):
+    """
+
+    :param seconds:
+    :return:
+    """
     d = defer.Deferred()
-    Broker.get_instance()._reactor.callLater(timeout, lambda: d.callback(None))
+    Broker.get_instance()._reactor.callLater(seconds, lambda: d.callback(None))
     return d
 
 
 class PrivateDeferred(defer.Deferred):
     """
     A Private Deferred is like a normal deferred, except that it can be passed around and callbacks can be attached
-    by anone, but callback() and errback() have been overridden to throw an exception.  the private _callback() and _errback() must be used
+    by anone, but callback() and errback() have been overridden to throw an exception.  the private _callback() and
+    _errback() must be used
 
     This ensures that only a user that 'knows what their doing' can issue the callback
     """

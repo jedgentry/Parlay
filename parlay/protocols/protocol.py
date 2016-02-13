@@ -20,7 +20,7 @@ class ProtocolMeta(type):
     """
 
     def __init__(cls, name, bases, dct):
-        #register the message type
+        # register the message type
         if not hasattr(cls, 'protocol_registry'):
             cls.protocol_registry = {}
         else:
@@ -33,7 +33,6 @@ class ProtocolMeta(type):
             cls.protocol_registry[protocol_name] = cls
 
         super(ProtocolMeta, cls).__init__(name, bases, dct)
-
 
 
 class BaseProtocol(object):
@@ -84,8 +83,8 @@ class BaseProtocol(object):
     @classmethod
     def get_open_params_defaults(cls):
         """
-        return the defaults for parameters to the cls.open() using inspect. Feel free to overwrite this in a sub-class if this default
-        implementation doesn't fit your protocol's needs.
+        return the defaults for parameters to the cls.open() using inspect. Feel free to overwrite this in a sub-class
+        if this default implementation doesn't fit your protocol's needs.
         :return: A dictionary of parameter names -> default values.
         :rtype: dict
         """
@@ -95,7 +94,6 @@ class BaseProtocol(object):
         # cut params to only the last x (defaults are always at the end of the signature)
         params = params[len(params) - len(defaults):]
         return dict(zip(params, defaults))
-
 
     def get_protocol_discovery_meta_info(self):
         """
@@ -110,9 +108,7 @@ class BaseProtocol(object):
         all attached:
         item types, message types, and connected item instances
         """
-        return {'TEMPLATE': 'Protocol', 'NAME': str(self),
-                                                              'protocol_type': getattr(self, "_protocol_type_name",
-                                                                                       "UNKNOWN"),
-                                                              'CHILDREN': [x.get_discovery() for x in self.items]}
-
-
+        return {'TEMPLATE': 'Protocol',
+                'NAME': str(self),
+                'protocol_type': getattr(self, "_protocol_type_name", "UNKNOWN"),
+                'CHILDREN': [x.get_discovery() for x in self.items]}

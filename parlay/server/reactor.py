@@ -8,6 +8,7 @@ import thread as python_thread
 from twisted.internet import threads as twisted_threads
 import functools
 
+
 class ReactorWrapper(object):
     def __init__(self, wrapped_reactor):
         self._reactor = wrapped_reactor
@@ -61,7 +62,6 @@ class ReactorWrapper(object):
             return callable(*args, **kwargs)
 
 
-
 def run_in_reactor(reactor):
         """
         Decorator for automatically handling deferred <-> thread handoff. Any function wrapped in this will work in both
@@ -77,6 +77,7 @@ def run_in_reactor(reactor):
 
         return decorator
 
+
 def run_in_thread(reactor):
         """
         Decorator for automatically handling deferred <-> thread handoff. Any function wrapped in this will work in both
@@ -90,5 +91,6 @@ def run_in_thread(reactor):
             return functools.wraps(fn)(lambda *args, **kwargs: reactor.maybeDeferToThread(fn, *args, **kwargs))
 
         return decorator
+
 
 reactor = ReactorWrapper(twisted_reactor)

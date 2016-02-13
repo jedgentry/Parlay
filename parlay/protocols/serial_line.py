@@ -6,6 +6,7 @@ from twisted.protocols.basic import LineReceiver
 from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, parlay_property, MSG_TYPES, BadStatusError
 from parlay.protocols.utils import timeout
 
+
 class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
     When a client connects over a serial, this is the protocol that will handle the communication.
@@ -13,15 +14,13 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
 
     broker = Broker.get_instance()
+
     def __init__(self, port):
-        #BaseProtocol.__init__(self)
-        #LineReceiver.__init__(self)
         self._new_data = defer.Deferred()
         self._parlay_name = port
         if not hasattr(self, "items"):
             self.items = [LineItem(self._parlay_name, self._parlay_name, self)]
         BaseProtocol.__init__(self)
-
 
     @classmethod
     def open(cls, broker, port="/dev/tty.usbserial-FTAJOUB2", baudrate=57600, delimiter="\n"):
@@ -92,12 +91,10 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         Call this when you have new data and want to pass it to any waiting Items
         """
         old_new_data = self._new_data
-        #setup the new data in case it causes a callback to fire
+
+        # setup the new data in case it causes a callback to fire
         self._new_data = defer.Deferred()
         old_new_data.callback(data)
-
-
-
 
 
 class LineItem(ParlayCommandItem):

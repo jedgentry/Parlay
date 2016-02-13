@@ -3,11 +3,12 @@
 The files in this folder are the SSL keys used by the Broker for secure connections.
 
 Given that these keys are the default and the private keys are publicly handed out
-THEY ARE NOT SECURE. You *MUST* change these if you want secure communications in Parlay
+THEY ARE NOT SECURE. You *MUST* change these if you want secure communications in Parlay.
 
-All keys labeled broker.* are used by the broker. Keys labeled remote.* are used by the broker for remote communication (e.g. remote service applications where the broker is a client)
+All keys labeled broker.* are used by the broker. Keys labeled remote.* are used by the broker for
+remote communication (e.g. remote service applications where the broker is a client).
 
-here is an example of how to generate keys on a Linux bash shell using openssl:
+Here is an example of how to generate keys on a Linux bash shell using openssl:
 
 openssl genrsa -out broker.key 4096
 openssl req -new -key broker.key -out broker.csr
