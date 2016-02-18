@@ -106,6 +106,7 @@ class Broker(object):
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
+        self._discovery_cache = None
 
 
     @staticmethod
@@ -460,9 +461,8 @@ class Broker(object):
                 message_callback(reply)
 
         elif request == "get_discovery":
-            cached_file_name = PARLAY_PATH + "/cached_discovery.json"
             # if we're forcing a refresh, or have no cache
-            if msg['CONTENTS'].get('force', False) or not os.path.isfile(cached_file_name):
+            if msg['CONTENTS'].get('force', False) or self._discovery_cache is None:
                 d_list = []
                 discovery = []
                 for p in self.protocols:
@@ -486,8 +486,7 @@ class Broker(object):
                 all_d = defer.gatherResults(d_list, consumeErrors=False)
                 def discovery_done(*args):
 
-                    with open(cached_file_name, 'w') as outfile:
-                        json.dump(discovery, outfile)
+                    self._discovery_cache = discovery
                     #append the discovery for the broker
                     discovery.append(Broker._discovery)
                     reply['CONTENTS']['status'] = 'ok'
