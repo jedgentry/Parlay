@@ -201,6 +201,11 @@ class parlay_property(object):
         return self._val_lookup.get(instance, self._init_val)
 
     def __set__(self, instance, value):
+        # special case for boolean
+        if self._val_type == bool and isinstance(value, basestring):
+            if value.lower() == "false" or value == "0":
+                value = False
+
         # coerce the val
         val = value if self._val_type is None else self._val_type(value)
         self._val_lookup[instance] = val
