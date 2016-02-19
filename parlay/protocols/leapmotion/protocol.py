@@ -11,7 +11,7 @@ from parlay.server.broker import Broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_datastream, parlay_command
+from parlay.items.parlay_standard import ParlayCommandItem, ParlayDatastream, parlay_command
 from parlay.protocols.utils import delay
 import math
 import time
@@ -68,15 +68,15 @@ class LeapListener(Leap.Listener):
 
 class LeapItem(ParlayCommandItem):
 
-    stream1_x = parlay_datastream()
-    stream1_y = parlay_datastream()
-    stream1_z = parlay_datastream()
+    stream1_x = ParlayDatastream()
+    stream1_y = ParlayDatastream()
+    stream1_z = ParlayDatastream()
 
     def __init__(self):
         ParlayCommandItem.__init__(self, "LEAP0", "LEAP0")
         # x,y,z, (direction unit x,y,z, pinch_strength, confidence)openness position of hand1 (leftmost) and hand2 (rightmost)
-        self.hand1 = (0, 0, 0, 0, 0, 0)  # parlay_datastream((0, 0, 0, 0, 0, 0))
-        self.hand2 = (0, 0, 0, 0, 0, 0)  # parlay_datastream((0, 0, 0, 0, 0, 0))
+        self.hand1 = (0, 0, 0, 0, 0, 0)  # ParlayDatastream((0, 0, 0, 0, 0, 0))
+        self.hand2 = (0, 0, 0, 0, 0, 0)  # ParlayDatastream((0, 0, 0, 0, 0, 0))
 
         self.hand1_velocity = 0
         self.hand2_velocity = 0

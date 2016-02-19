@@ -176,10 +176,10 @@ def parlay_command(async=False, auto_type_cast=True):
     return decorator
 
 
-class parlay_property(object):
+class ParlayProperty(object):
     """
     A Property convenience class for ParlayCommandItems.
-    In the item use like: self.prop = parlay_property()
+    In the item use like: self.prop = ParlayProperty()
 
     init_val : an inital value for the property
     val_type : the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type on set
@@ -211,10 +211,10 @@ class parlay_property(object):
         self._val_lookup[instance] = val
 
 
-class parlay_datastream(object):
+class ParlayDatastream(object):
     """
     A DataStream convenience class for ParlayCommandItems.
-    In the item use like: self.prop = parlay_datastream()
+    In the item use like: self.prop = ParlayDatastream()
     Datastream are read-only values that alert listeners  at a certain frequency
 
     init_val : an inital value for the property
@@ -344,7 +344,7 @@ class ParlayCommandItem(ParlayStandardItem):
         self._properties = {}
         for member_name in [x for x in dir(self.__class__) if not x.startswith("__")]:
             member = self.__class__.__dict__.get(member_name, None)
-            if isinstance(member, parlay_property):
+            if isinstance(member, ParlayProperty):
                 self.add_property(member_name, member_name, INPUT_TYPES.STRING,
                                   read_only=member._read_only, write_only=member._write_only)
 
@@ -356,7 +356,7 @@ class ParlayCommandItem(ParlayStandardItem):
         self._datastreams = {}
         for member_name in [x for x in dir(self.__class__) if not x.startswith("__")]:
             member = self.__class__.__dict__.get(member_name, None)
-            if isinstance(member, parlay_datastream):
+            if isinstance(member, ParlayDatastream):
                 self.add_datastream(member_name, member_name, member.units)
 
     def _send_parlay_message(self, msg):

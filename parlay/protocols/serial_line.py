@@ -3,7 +3,7 @@ from parlay.server.broker import Broker, run_in_broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, parlay_property, MSG_TYPES, BadStatusError
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, ParlayProperty, MSG_TYPES, BadStatusError
 from parlay.protocols.utils import timeout
 
 
@@ -99,7 +99,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
 
 class LineItem(ParlayCommandItem):
 
-    LAST_LINE_RECEIVED = parlay_property(val_type=str, default="")
+    LAST_LINE_RECEIVED = ParlayProperty(val_type=str, default="")
 
     def __init__(self, item_id, name, protocol):
         ParlayCommandItem.__init__(self, item_id, name)

@@ -63,7 +63,7 @@ def open_protocol(protocol_name, **kwargs):
     Broker.call_on_start(lambda: Broker.get_instance().open_protocol(protocol_name, kwargs))
 
 # Item Public API
-from items.parlay_standard import ParlayCommandItem, parlay_property, parlay_command, parlay_datastream
+from items.parlay_standard import ParlayCommandItem, ParlayProperty, parlay_command, ParlayDatastream
 from protocols.local_item import local_item
 
 # Script Public API

@@ -6,7 +6,7 @@ from parlay.protocols.protocol import BaseProtocol
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, BadStatusError, parlay_property
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, BadStatusError, ParlayProperty
 from serial_line import ASCIILineProtocol, LineItem
 from math import radians, degrees, sqrt, atan2, pi, acos, sin, cos, asin
 from parlay.protocols.utils import delay
@@ -42,29 +42,29 @@ class EliteArmItem(LineItem):
     Item for an Elite Arm
     """
     #Reflection and Kinematic config
-    X_FACTOR = parlay_property(val_type=float, default=1.0)
-    Y_FACTOR = parlay_property(val_type=float, default=1.0)
-    Z_FACTOR = parlay_property(val_type=float, default=1.0)
-    WRIST_ROLL_FACTOR = parlay_property(val_type=float, default=1.0)
+    X_FACTOR = ParlayProperty(val_type=float, default=1.0)
+    Y_FACTOR = ParlayProperty(val_type=float, default=1.0)
+    Z_FACTOR = ParlayProperty(val_type=float, default=1.0)
+    WRIST_ROLL_FACTOR = ParlayProperty(val_type=float, default=1.0)
 
 
     #kinemtaic translation config
-    L0 = parlay_property(val_type=float, default=8.5)  # inches, upper arm length
-    L1 = parlay_property(val_type=float, default=7.0)  # inches, forearm length
+    L0 = ParlayProperty(val_type=float, default=8.5)  # inches, upper arm length
+    L1 = ParlayProperty(val_type=float, default=7.0)  # inches, forearm length
 
-    THETA1_INIT = parlay_property(val_type=float, default=0.0)  # degrees
+    THETA1_INIT = ParlayProperty(val_type=float, default=0.0)  # degrees
 
-    THETA2_INIT = parlay_property(val_type=float, default=80.0)  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
-    THETA3_INIT = parlay_property(val_type=float, default=35.0)  # degrees down from straight, corresponding to zero elbow motor coordinate
-    THETA4_INIT = parlay_property(val_type=float, default=25.0)   # degrees up from straight, corresponding to zero wrist motor coordinate
-    THETA5_INIT = parlay_property(val_type=float, default=-90.0)   # degrees from horizontal, corresponding to zero wrist rotation coordinate
+    THETA2_INIT = ParlayProperty(val_type=float, default=80.0)  # degrees up from horizontal, corresponding to zero shoulder motor coordinate
+    THETA3_INIT = ParlayProperty(val_type=float, default=35.0)  # degrees down from straight, corresponding to zero elbow motor coordinate
+    THETA4_INIT = ParlayProperty(val_type=float, default=25.0)   # degrees up from straight, corresponding to zero wrist motor coordinate
+    THETA5_INIT = ParlayProperty(val_type=float, default=-90.0)   # degrees from horizontal, corresponding to zero wrist rotation coordinate
 
-    BASE_ROT_ANGLE_TO_MOTOR = parlay_property(val_type=float, default=-90.0/3700.0) #-90.0/3750.0 # degrees per motor step count
-    SHOULDER_ANGLE_TO_MOTOR = parlay_property(val_type=float, default=-90.0/1200.0)  # degrees per motor step count
-    ELBOW_ANGLE_TO_MOTOR = parlay_property(val_type=float, default=-45.0/1000.0)
+    BASE_ROT_ANGLE_TO_MOTOR = ParlayProperty(val_type=float, default=-90.0 / 3700.0) #-90.0/3750.0 # degrees per motor step count
+    SHOULDER_ANGLE_TO_MOTOR = ParlayProperty(val_type=float, default=-90.0 / 1200.0)  # degrees per motor step count
+    ELBOW_ANGLE_TO_MOTOR = ParlayProperty(val_type=float, default=-45.0 / 1000.0)
 
-    WRIST_PITCH_TO_MOTOR = parlay_property(val_type=float, default=-90.0/2200.0)
-    WRIST_ROLL_TO_MOTOR = parlay_property(val_type=float, default=90.0/1000.0)
+    WRIST_PITCH_TO_MOTOR = ParlayProperty(val_type=float, default=-90.0 / 2200.0)
+    WRIST_ROLL_TO_MOTOR = ParlayProperty(val_type=float, default=90.0 / 1000.0)
 
    # MAX_RADIUS = L0 + L1 - 1  # max radius to keep the arm within.
                               #  If instructed to go outside this radius, will instead touch the radius
