@@ -51,7 +51,7 @@ There are two 'special type' messages that are *not* published. The are distingu
 
 """
 
-from twisted.internet import defer, ssl
+from twisted.internet import defer
 from parlay.server.reactor import reactor
 from parlay.protocols.protocol import BaseProtocol
 
@@ -635,25 +635,32 @@ class Broker(object):
         self._reactor.callWhenRunning(self._started.callback, None)
         self._reactor.run()
 
+try:
+    from twisted.internet import ssl
 
-class BrokerSSlContextFactory(ssl.ContextFactory):
-    """
-    A more secure context factory than the default one. Only supports high security encryption ciphers and exchange
-    formats. Last Updated August 2015
-    """
+    class BrokerSSlContextFactory(ssl.ContextFactory):
+        """
+        A more secure context factory than the default one. Only supports high security encryption ciphers and exchange
+        formats. Last Updated August 2015
+        """
 
-    def getContext(self):
-        """Return a SSL.Context object. override in subclasses."""
+        def getContext(self):
+            """Return a SSL.Context object. override in subclasses."""
 
-        ssl_context_factory = ssl.DefaultOpenSSLContextFactory(PARLAY_PATH+'/keys/broker.key',
-                                                               PARLAY_PATH+'/keys/broker.crt')
-        # We only want to use 'High' and 'Medium' ciphers, not 'Weak' ones. We want *actual* security here.
-        ssl_context = ssl_context_factory.getContext()
-        # perfect forward secrecy ciphers
-        ssl_context.set_cipher_list('EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH' +
-                                    '+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL' +
-                                    '!eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS')
-        return ssl_context
+            ssl_context_factory = ssl.DefaultOpenSSLContextFactory(PARLAY_PATH+'/keys/broker.key',
+                                                                   PARLAY_PATH+'/keys/broker.crt')
+            # We only want to use 'High' and 'Medium' ciphers, not 'Weak' ones. We want *actual* security here.
+            ssl_context = ssl_context_factory.getContext()
+            # perfect forward secrecy ciphers
+            ssl_context.set_cipher_list('EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH' +
+                                        '+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL' +
+                                        '!eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS')
+            return ssl_context
+
+except ImportError:
+        print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
+except Exception as e:
+        print "WARNING: PyOpenSSL has had an error: " + str(e)
 
 
 def run_in_broker(fn):

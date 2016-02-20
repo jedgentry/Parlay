@@ -4,7 +4,7 @@ from threading import Thread
 import thread
 import inspect
 import time
-
+import datetime
 global script, THREADED_REACTOR
 #get the script name importing me so it can have an ID
 script_name = inspect.stack()[0][1]
@@ -44,7 +44,7 @@ def start_reactor(ip, port):
     except Exception as e:
         print e
 
-def setup(ip='localhost', port=DEFAULT_ENGINE_WEBSOCKET_PORT):
+def setup(ip='localhost', port=DEFAULT_ENGINE_WEBSOCKET_PORT, timeout=3):
     global script, THREADED_REACTOR
     # **ON IMPORT** start the reactor in a separate thread
     if not THREADED_REACTOR.running:
@@ -52,8 +52,11 @@ def setup(ip='localhost', port=DEFAULT_ENGINE_WEBSOCKET_PORT):
         r.daemon = True
         r.start()
         # wait till we're ready
+        start = datetime.datetime.now()
         print "Connecting to", ip, ":", port
         while THREADED_REACTOR is None or (not THREADED_REACTOR.running) or not script._ready:
             time.sleep(0.001)
+            if (datetime.datetime.now() - start).total_seconds() > timeout:
+                raise RuntimeError("Could not connect to parlay. Is the parlay system running?")
 
 
