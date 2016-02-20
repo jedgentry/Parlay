@@ -78,14 +78,15 @@ class ParlayStandardItem(ThreadedItem):
 
     def add_datastream(self, name, attr_name=None, units=""):
         """
-        Add a property to this Item.
-        name : The name of the property
-        attr_name = the name of the attr to set in 'self' when setting and getting (None if same as name)
-        read_only = Read only
-        write_only = write_only
+        Add a datastream to this Item.
+
+        :param name: The name of the datastream
+        :param attr_name: the name of the attr to set in 'self' when setting and getting (same as name if None)
+        :param units: units of streaming value that will be reported during discovery
         """
         attr_name = attr_name if attr_name is not None else name  # default
-                                                # attr_name isn't needed for discovery, but for lookup
+
+        # attr_name isn't needed for discovery, but for lookup
         self._datastreams[name] = {"NAME": name, "ATTR_NAME": attr_name, "UNITS": units}  # add to internal list
 
     def clear_fields(self):
@@ -144,8 +145,11 @@ def parlay_command(async=False, auto_type_cast=True):
     """
     Make the decorated method a parlay_command.
 
-    :param: async: If True, will run as a normal twisted async function call. If False, parlay will spawn a separate
-    thread and run the function synchronously (Default false)
+    :param async: If True, will run as a normal twisted async function call. If False, parlay will spawn a separate
+      thread and run the function synchronously (Default false)
+
+    :param auto_type_cast: If true, will search the function's docstring for type info about the arguments, and provide
+      that information during discovery
     """
 
     def decorator(fn):
@@ -178,17 +182,25 @@ def parlay_command(async=False, auto_type_cast=True):
 
 class ParlayProperty(object):
     """
-    A Property convenience class for ParlayCommandItems.
-    In the item use like: self.prop = ParlayProperty()
+    A convenience class for creating properties of ParlayCommandItems.
 
-    init_val : an inital value for the property
-    val_type : the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type on set
-                and throw an exception if it couldn't be coerced
-    read_only: Set to true to make read only
-    write_only: Set to true to make write only
+    Example Usage:
+    ::
+        class MyItem(ParlayCommandItem):
+            self.x = ParlayProperty(default=0, val_type=int)
     """
 
     def __init__(self, default=None, val_type=None, read_only=False, write_only=True):
+        """
+        Init method for the ParlayProperty class
+
+        :param default: an inital value for the property
+        :param val_type: the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type
+        on set and throw an exception if it couldn't be coerced
+        :param read_only: Set to true to make read only
+        :param write_only: Set to true to make write only
+        :return: none
+        """
         self._val_lookup = {}  # lookup based on instance
         self._init_val = default
         self._read_only = read_only
@@ -213,18 +225,22 @@ class ParlayProperty(object):
 
 class ParlayDatastream(object):
     """
-    A DataStream convenience class for ParlayCommandItems.
-    In the item use like: self.prop = ParlayDatastream()
-    Datastream are read-only values that alert listeners  at a certain frequency
+    A convenience class for creating datastreams within ParlayCommandItems.
 
-    init_val : an inital value for the property
-    val_type : the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type on set
-                and throw an exception if it couldn't be coerced
-    read_only: Set to true to make read only
-    write_only: Set to true to make write only
+    Example Usage:
+    ::
+        class MyItem(ParlayCommandItem):
+            self.altitude = ParlayDatastream(default=0, units="ft")
     """
 
     def __init__(self, default=None, units=""):
+        """
+        Init method for ParlayDatastream class
+
+        :param default: default value for the streaming data
+        :param units: optional string indicating units, to be returned during discovery
+        :return:
+        """
         self._default_val = default
         self.listeners = {}  # key -> (key -> value) | requester -> (instance -> repeater)
         self.units = units
@@ -260,8 +276,7 @@ class BadStatusError(Exception):
 
 class ParlayCommandItem(ParlayStandardItem):
     """
-    This is a parlay item that takes commands, with values.
-    If there is more than one command A dropdown will appear
+    This is a parlay item that takes commands, with arguments.
     """
 
     # id generator for auto numbering class instances
