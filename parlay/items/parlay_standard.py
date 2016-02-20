@@ -184,8 +184,8 @@ class ParlayProperty(object):
     """
     A convenience class for creating properties of ParlayCommandItems.
 
-    Example Usage:
-    ::
+    Example Usage::
+
         class MyItem(ParlayCommandItem):
             self.x = ParlayProperty(default=0, val_type=int)
     """
@@ -227,8 +227,8 @@ class ParlayDatastream(object):
     """
     A convenience class for creating datastreams within ParlayCommandItems.
 
-    Example Usage:
-    ::
+    Example Usage::
+
         class MyItem(ParlayCommandItem):
             self.altitude = ParlayDatastream(default=0, units="ft")
     """
