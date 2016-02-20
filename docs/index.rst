@@ -39,6 +39,7 @@ API Documentation
     :glob:
 
     apidoc/parlay
+    apidoc/parlay.utils
 
 
 
