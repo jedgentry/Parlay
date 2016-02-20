@@ -613,7 +613,7 @@ class ParlayStandardScriptProxy(object):
                             kwargs[_arg_names[j][0]] = args[j]
 
                         # check args
-                        for name, default in arg_names:
+                        for name, default in _arg_names:
                             if name not in kwargs and default is None:
                                 raise TypeError("Missing argument: "+name)
 
