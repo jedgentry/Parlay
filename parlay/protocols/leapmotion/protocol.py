@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(src_dir, arch_dir)))
 print os.path.abspath(os.path.join(src_dir, arch_dir))
 #standard leaps
 import Leap
-from parlay.protocols.protocol import BaseProtocol
+from parlay.protocols.base_protocol import BaseProtocol
 from parlay.server.broker import Broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort

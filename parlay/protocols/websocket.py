@@ -1,4 +1,4 @@
-from parlay.protocols.protocol import BaseProtocol
+from parlay.protocols.base_protocol import BaseProtocol
 from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
 from parlay.server.broker import Broker
 import json

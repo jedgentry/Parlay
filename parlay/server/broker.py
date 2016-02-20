@@ -53,7 +53,7 @@ There are two 'special type' messages that are *not* published. The are distingu
 
 from twisted.internet import defer
 from parlay.server.reactor import reactor
-from parlay.protocols.protocol import BaseProtocol
+from parlay.protocols.meta_protocol import ProtocolMeta
 
 from autobahn.twisted.websocket import WebSocketServerFactory, listenWS
 from twisted.web import static, server
@@ -337,12 +337,12 @@ class Broker(object):
         """
 
         # make sure we know about the protocol
-        if protocol_name not in BaseProtocol.protocol_registry:
+        if protocol_name not in ProtocolMeta.protocol_registry:
             raise KeyError(str(protocol_name)+" not in protocol registry. Is there a typo?")
 
         else:
             # we have the protocol! open it
-            protocol_class = BaseProtocol.protocol_registry[protocol_name]
+            protocol_class = ProtocolMeta.protocol_registry[protocol_name]
             d = defer.maybeDeferred(protocol_class.open, self, **open_params)
 
             # append to list on success
@@ -374,7 +374,7 @@ class Broker(object):
                  'CONTENTS': {'status': "STATUS NOT FILLED IN"}}
 
         if request == 'get_protocols':
-            reg = BaseProtocol.protocol_registry
+            reg = ProtocolMeta.protocol_registry
             # make a dictionary of protocol names (keys) to (values) a dictionary of open params and defaults
             protocols = {k: {} for k in reg.keys()}
             for name in protocols.keys():

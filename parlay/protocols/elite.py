@@ -1,7 +1,7 @@
 """
 Protocols for Elite Engineering devices
 """
-from parlay.protocols.protocol import BaseProtocol
+from parlay.protocols.base_protocol import BaseProtocol
 
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort

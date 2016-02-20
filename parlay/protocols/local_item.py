@@ -2,7 +2,7 @@
 The Local Item protocol lets you open arbitrary items that have been registered as local
 """
 
-from protocol import BaseProtocol
+from base_protocol import BaseProtocol
 from parlay.server.broker import Broker
 
 LOCAL_ITEM_CLASSES = {}
