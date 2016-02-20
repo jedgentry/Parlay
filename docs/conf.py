@@ -122,7 +122,8 @@ html_theme = 'alabaster'
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    'description': 'Easier development and testing for embedded devices.'
+    'logo': 'logo.png',
+    'description': "Easier development and testing for embedded devices."
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -137,7 +138,7 @@ html_theme_options = {
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = "_static/logo.png"
+#html_logo = "_static/logo.png"
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -164,7 +165,7 @@ html_static_path = ['_static']
 
 # Custom sidebar templates, maps document names to template names.
 html_sidebars = {
-    '**': ['navigation.html', 'searchbox.html']
+    '**': ['about.html', 'navigation.html', 'searchbox.html']
 }
 
 # Additional templates that should be rendered to pages, maps page names to
