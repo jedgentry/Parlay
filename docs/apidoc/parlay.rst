@@ -1,31 +1,15 @@
-parlay package
-==============
+===========================
+Parlay -- top level members
+===========================
 
-Subpackages
------------
+.. module:: parlay
 
-.. toctree::
+These functions and classes are defined in submodules, but are so commonly
+used that they are made available directly as members of the parlay module.
 
-    parlay.modules
-    parlay.protocols
-    parlay.server
-
-Submodules
-----------
-
-parlay.enum module
-------------------
-
-.. automodule:: parlay.enum
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-Module contents
----------------
-
-.. automodule:: parlay
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. autofunction:: open_protocol
+.. autofunction:: local_item
+.. autoclass:: ParlayCommandItem
+.. autoclass:: ParlayProperty
+.. autoclass:: ParlayDatastream
+.. autofunction:: parlay_command

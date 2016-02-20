@@ -4,6 +4,8 @@ Welcome to the documentation for Parlay!
 
 Parlay is a software tool that makes it easier to develop and test embedded devices.
 
+.. _install:
+
 Installation
 ------------
 
@@ -12,9 +14,10 @@ See :doc:`install` for instructions on installing Parlay on your machine.
 
 
 .. _tutorials:
+
 Tutorials
 ---------
-The tutorial documents will walk you through the basics of the Parlay system. 
+These tutorials will walk you through the basics of the Parlay system.
 
 .. toctree::
     :maxdepth: 1
@@ -26,7 +29,21 @@ The tutorial documents will walk you through the basics of the Parlay system.
     tutorials/case_study_serial_dc_motor_controller
 
 
+.. _api:
+
+API Documentation
+-----------------
+
+.. toctree::
+    :maxdepth: 1
+    :glob:
+
+    apidoc/parlay
+
+
+
 .. _specs:
+
 Specifications
 --------------
 
