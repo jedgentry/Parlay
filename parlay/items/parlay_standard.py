@@ -190,7 +190,7 @@ class ParlayProperty(object):
             self.x = ParlayProperty(default=0, val_type=int)
     """
 
-    def __init__(self, default=None, val_type=None, read_only=False, write_only=True):
+    def __init__(self, default=None, val_type=None, read_only=False, write_only=False):
         """
         Init method for the ParlayProperty class
 

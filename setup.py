@@ -26,15 +26,18 @@ if USE_CYTHON:
     from Cython.Build import cythonize
     extensions = cythonize(extensions, gdb_debug=(not RELEASE))
 
-
+files = [os.path.relpath(filename, "parlay")
+                             for module_name, filename in find_files("parlay/ui/dist", "*")]
+# include docs
+files.extend([os.path.relpath(filename, "parlay")
+                             for module_name, filename in find_files("parlay/docs/_build", "*")])
 setup(
     name="parlay",
     version='0.0.1',
     description="A framework for developing and testing software for embedded devices",
     ext_modules=extensions,
     packages=find_packages(),
-    package_data={"parlay": [os.path.relpath(filename, "parlay")
-                             for module_name, filename in find_files("parlay/ui", "*")]},  # include ui files
+    package_data={"parlay": files},  # include ui files
     install_requires=["Twisted >=15.0.0",
                       "autobahn >=0.9.0",
                       "pyopenssl >=0.15.0",
