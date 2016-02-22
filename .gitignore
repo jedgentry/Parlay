@@ -14,3 +14,4 @@ parlay/ui/doc
 parlay/ui/coverage
 parlay/ui/tmp
 parlay/cached_discovery.json
+parlay/docs/_build/

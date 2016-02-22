@@ -606,10 +606,11 @@ class Broker(object):
             factory.setProtocolOptions(allowHixie76=True)
             listenWS(factory, ssl_context_factory, interface=interface)
 
-            webdir = static.File(PARLAY_PATH + "/ui/dist")
-            webdir.contentTypes['.crt'] = 'application/x-x509-ca-cert'
-            web = server.Site(webdir)
-            self._reactor.listenSSL(self.https_port, web, ssl_context_factory, interface=interface)
+            root = static.File(PARLAY_PATH + "/ui/dist")
+            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
+
+            root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
+            self._reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
 
         except ImportError:
             print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
@@ -626,6 +627,7 @@ class Broker(object):
 
             # http server
             root = static.File(PARLAY_PATH + "/ui/dist")
+            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
             site = server.Site(root)
             self._reactor.listenTCP(self.http_port, site, interface=interface)
             if open_browser:
