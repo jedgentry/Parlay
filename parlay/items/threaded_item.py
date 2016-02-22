@@ -167,7 +167,8 @@ class ThreadedItem(BaseItem):
     def discover(self, force=True):
         """
         Run a discovery so that the script knows what items are attached and can get handles to them.
-        :param force If True, will force a rediscovery, if False will take the last cached discovery
+
+        :param force: If True, will force a rediscovery, if False will take the last cached discovery
         """
         if not self.reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
@@ -179,7 +180,8 @@ class ThreadedItem(BaseItem):
     def save_discovery(self, path):
         """
         Save the current discovery information to a file so it can be loaded later
-        :param path : The Path to the file to save to (Warning: will be overwritten)
+
+        :param path: The Path to the file to save to (Warning: will be overwritten)
         """
         with open(path, "w") as f:
             # pretty print in case a human wants to read it
@@ -188,12 +190,20 @@ class ThreadedItem(BaseItem):
     def load_discovery(self, path):
         """
         Load discovery from a file.
-        :param path : The path to the file that has the JSON discovery
+
+        :param path: The path to the file that has the JSON discovery
         """
         with open(path, 'r') as f:
             self.discovery = json.load(f)
 
     def get_item_by_id(self, item_id):
+        """
+        Returns a handler object that can be used to send messages to an item.
+
+        :param item_id: globally unique id of the item
+        :return: a proxy object for the item
+        """
+
         if not self.reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
@@ -204,6 +214,13 @@ class ThreadedItem(BaseItem):
             return self._proxy_item(item_disc)
 
     def get_item_by_name(self, item_name):
+        """
+        Returns a handler object that can be used to send messages to an item.
+
+        :param item_name: globally unique name of the item
+        :return: a proxy object for the item
+        """
+
         if not self.reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
@@ -216,8 +233,9 @@ class ThreadedItem(BaseItem):
     def _proxy_item(self, item_disc):
         """
         Get an Item Proxy object by the discovery
-        :param item_disc The item discovery object
-        :type item_disc dict
+
+        :param item_disc: The item discovery object
+        :type item_disc: dict
         """
         # Do we have a valid item discovery object?
         if item_disc is None:
@@ -241,7 +259,8 @@ class ThreadedItem(BaseItem):
     def _find_item_info(self, discovery, item_id, key):
         """
         Find the item with a given id recursively (or None if it can't be found)
-        @type: discovery list
+
+        :type: discovery list
         """
         for item in discovery:
             if item.get(key, None) == item_id:
@@ -253,6 +272,12 @@ class ThreadedItem(BaseItem):
         return None
 
     def sleep(self, timeout):
+        """
+        Sleep for <timeout> seconds.  This call is BLOCKING.
+
+        :param timeout: number of seconds to sleep
+        """
+
         if not self.reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 

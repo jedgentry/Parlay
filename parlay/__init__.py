@@ -51,20 +51,28 @@ speed and direction intuitively, and hook that Item with other Items that requir
 implements the 'DATASTREAM' interface, then the user can graph an output stream from that Item.
 
 """
+
+# Item Public API
+from items.parlay_standard import ParlayCommandItem, ParlayProperty, parlay_command, ParlayDatastream
+from protocols.local_item import local_item
+
+# Script Public API
+from utils.parlay_script import ParlayScript
+
+
 from server.broker import Broker
 
 # Broker public API
 Modes = Broker.Modes
 start = Broker.start
+
+
 def open_protocol(protocol_name, **kwargs):
     """
-    Open a protocol right when the Broker initializes
+    Open a protocol immediately after the Broker initializes.
+
+    :param protocol_name: name of protocol class to call the open method
+    :param kwargs: keyword arguments to pass to the protocol's _open_ method
+    :return: none
     """
     Broker.call_on_start(lambda: Broker.get_instance().open_protocol(protocol_name, kwargs))
-
-# Item Public API
-from items.parlay_standard import ParlayCommandItem, parlay_property, parlay_command, parlay_datastream
-from protocols.local_item import local_item
-
-# Script Public API
-from utils.parlay_script import ParlayScript

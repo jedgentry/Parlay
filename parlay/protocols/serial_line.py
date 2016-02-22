@@ -1,10 +1,10 @@
-from parlay.protocols.protocol import BaseProtocol
+from parlay.protocols.base_protocol import BaseProtocol
 from parlay.server.broker import Broker, run_in_broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, parlay_property, MSG_TYPES, BadStatusError
-from parlay.protocols.utils import timeout
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, ParlayProperty, MSG_TYPES, BadStatusError
+
 
 
 class ASCIILineProtocol(BaseProtocol, LineReceiver):
@@ -16,7 +16,6 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     broker = Broker.get_instance()
 
     def __init__(self, port):
-        self._new_data = defer.Deferred()
         self._parlay_name = port
         if not hasattr(self, "items"):
             self.items = [LineItem(self._parlay_name, self._parlay_name, self)]
@@ -73,33 +72,12 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     def __str__(self):
         return "Serial Terminal @ " + self._parlay_name
 
-    @run_in_broker
-    def wait_for_data(self, timeout_secs=None):
-        """
-        Call this to wait until there is data from the serial line.
-        If threaded: Will block. Return value is serial line data
-        If Async   : Will not blocl. Return value is Deferred that will be called back with serial line data
-        :param timeout_secs : Timeout if you don't get data in time. None if no timeout
-        :type timeout_secs : int|None
-        """
-        assert timeout_secs is None or timeout_secs >= 0
-        return timeout(self._new_data, timeout_secs)
 
-    @run_in_broker
-    def got_new_data(self, data):
-        """
-        Call this when you have new data and want to pass it to any waiting Items
-        """
-        old_new_data = self._new_data
-
-        # setup the new data in case it causes a callback to fire
-        self._new_data = defer.Deferred()
-        old_new_data.callback(data)
 
 
 class LineItem(ParlayCommandItem):
 
-    LAST_LINE_RECEIVED = parlay_property(val_type=str, default="")
+    LAST_LINE_RECEIVED = ParlayProperty(val_type=str, default="")
 
     def __init__(self, item_id, name, protocol):
         ParlayCommandItem.__init__(self, item_id, name)

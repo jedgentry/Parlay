@@ -1,44 +1,19 @@
-"""
-Define the base Protocol classes and meta-classes.
-
-For documentation on broker and common message types see parlay.protocols::
-"""
+from meta_protocol import ProtocolMeta
 import inspect
-
-
-class InvalidProtocolDeclaration(Exception):
-    """
-    Raised when there was a problem with your protocol declaration
-    """
-    pass
-
-
-class ProtocolMeta(type):
-    """
-    Meta-Class that will keep track of *all* message types declared
-    Also builds the message field lookups from the Django-model-style message class definitions
-    """
-
-    def __init__(cls, name, bases, dct):
-        # register the message type
-        if not hasattr(cls, 'protocol_registry'):
-            cls.protocol_registry = {}
-        else:
-            protocol_name = name if not hasattr(cls, 'name') else cls.name
-            cls._protocol_type_name = protocol_name
-            if protocol_name in cls.protocol_registry:
-                raise InvalidProtocolDeclaration(protocol_name + " has already been declared." +
-                                                 "Please choose a different protocol name")
-
-            cls.protocol_registry[protocol_name] = cls
-
-        super(ProtocolMeta, cls).__init__(name, bases, dct)
+from twisted.internet import defer
+from parlay.server.broker import run_in_broker
+from parlay.protocols.utils import timeout
 
 
 class BaseProtocol(object):
+    """
+    This the base protocol that *all* parlay protocols must inherit from. Subclass this to make custom protocols to
+    talk to 3rd party equipment.
+    """
     __metaclass__ = ProtocolMeta
 
     def __init__(self):
+        self._new_data = defer.Deferred()
         self.items = getattr(self, "items", [])
 
     @classmethod
@@ -112,3 +87,26 @@ class BaseProtocol(object):
                 'NAME': str(self),
                 'protocol_type': getattr(self, "_protocol_type_name", "UNKNOWN"),
                 'CHILDREN': [x.get_discovery() for x in self.items]}
+
+    @run_in_broker
+    def wait_for_data(self, timeout_secs=None):
+        """
+        Call this to wait until there is data from the serial line.
+        If threaded: Will block. Return value is serial line data
+        If Async   : Will not blocl. Return value is Deferred that will be called back with serial line data
+        :param timeout_secs : Timeout if you don't get data in time. None if no timeout
+        :type timeout_secs : int|None
+        """
+        assert timeout_secs is None or timeout_secs >= 0
+        return timeout(self._new_data, timeout_secs)
+
+    @run_in_broker
+    def got_new_data(self, data):
+        """
+        Call this when you have new data and want to pass it to any waiting Items
+        """
+        old_new_data = self._new_data
+
+        # setup the new data in case it causes a callback to fire
+        self._new_data = defer.Deferred()
+        old_new_data.callback(data)
