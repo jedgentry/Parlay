@@ -5,8 +5,7 @@ ui:
 	cd parlay/ui; npm install; grunt clean; grunt build
 
 docs: 
-	cd parlay/docs
-	make html
+	cd parlay/docs; make -f Makefile html
 
 clean:
 	cd parlay/ui; grunt clean;
