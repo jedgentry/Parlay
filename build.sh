@@ -3,6 +3,6 @@ npm install
 grunt clean
 grunt build
 
-cd ../docs
+cd parlay/docs
 make html
 echo "Done Building"
