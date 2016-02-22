@@ -5,4 +5,4 @@ grunt build
 
 cd ../docs
 make html
-echo "Done Building
+echo "Done Building"
