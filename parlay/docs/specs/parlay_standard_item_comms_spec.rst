@@ -55,7 +55,7 @@ user-defined keys will have no effect on the Parlay Standard Endpoint
 User Interface card.
 
 Valid Values for MSG\_STATUS key
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------
 
 The "MSG\_STATUS" key in the "TOPICS" object is used for response or
 asynchronous messages. The following values are allowed for the
@@ -151,7 +151,7 @@ elsewhere, but it includes a list of Endpoint objects that have the
 following format.
 
 Endpoint Object Format
-~~~~~~~~~~~~~~~~~~~~~~
+----------------------
 
 +----------------+-------------+-----------------------------------------------+
 | Key            | Required?   | Value                                         |
@@ -186,7 +186,7 @@ Endpoint Object Format
 +----------------+-------------+-----------------------------------------------+
 
 Property Object Format
-~~~~~~~~~~~~~~~~~~~~~~
+----------------------
 
 +----------------+-------------+-----------------------------------------------+
 | Key            | Required?   | Value                                         |
@@ -204,7 +204,7 @@ Property Object Format
 +----------------+-------------+-----------------------------------------------+
 
 DataStream Object Format
-~~~~~~~~~~~~~~~~~~~~~~~~
+------------------------
 
 +-----------+------------+----------------------------------------------------------------+
 | Key       | Required   | Value                                                          |
@@ -215,7 +215,7 @@ DataStream Object Format
 +-----------+------------+----------------------------------------------------------------+
 
 Field Object format
-~~~~~~~~~~~~~~~~~~~
+-------------------
 
 +----------------+-------------+-----------------------------------------------+
 | Key            | Required?   | Value                                         |
