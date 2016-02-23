@@ -12,7 +12,7 @@ Motor Controller Serial Interface
 The interface with the motor controller is very simple. The motor
 controller drives two DC motors. Over a serial connection, we can
 command the motors to spin with an ASCII string formatted like
-"1f5:raw-latex:`\r`". There are three characters in the command, and
+"1f5\\r". There are three characters in the command, and
 then it is terminated with a carriage return (not a newline character!).
 
 -  1st character: "1" means motor 1, "2" means motor 2
@@ -139,7 +139,7 @@ For our motor controller, the baudrate and delimiter character are
 specified by the hardware, so there's no need to make the user specify
 that. So, in ``SerialMotorControllerProtocol``, we also override the
 ``open`` class method and specify the baudrate to be 115200 baud, and
-the delimiter character to be ":raw-latex:`\r`", or carriage return.
+the delimiter character to be "\\r", or carriage return.
 
 The ``broker`` argument of the ``__open__`` function is required.
 
