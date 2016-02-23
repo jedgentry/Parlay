@@ -6,6 +6,13 @@ parlay.utils
     :undoc-members:
     :show-inheritance:
 
+.. autofunction:: parlay.utils.setup
+.. autofunction:: parlay.utils.discover
+.. autofunction:: parlay.utils.get_item_by_name
+.. autofunction:: parlay.utils.get_item_by_id
+.. autofunction:: parlay.utils.sleep
+
+
 parlay.utils.parlay_script
 --------------------------
 
