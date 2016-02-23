@@ -13,7 +13,9 @@ import traceback
 from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES
 from parlay.items.parlay_standard import ParlayStandardItem
 
+
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
+
 
 class ParlayScript(ThreadedItem, WebSocketClientProtocol):
 
@@ -23,30 +25,24 @@ class ParlayScript(ThreadedItem, WebSocketClientProtocol):
         if name is None:
             name = self.__class__.__name__ + ".py"
 
-        #default to default reactor
+        # default to default reactor
         _reactor = reactor if _reactor is None else _reactor
-        #default script name and id to the name of this class
+        # default script name and id to the name of this class
         ThreadedItem.__init__(self, item_id, name, _reactor)
         WebSocketClientProtocol.__init__(self)
-
 
     def _send_parlay_message(self, msg):
         self.sendMessage(json.dumps(msg))
 
-
     def onConnect(self, response):
         """
-        Overriden from WebSocketClientProtocol. Called when Protocol is opened
+        Overridden from WebSocketClientProtocol. Called when Protocol is opened.
         """
         WebSocketClientProtocol.onConnect(self, response)
         # schedule calling the script entry
         self.reactor.callLater(0, lambda: self._send_parlay_message({"TOPICS": {'type': 'subscribe'},
-                                     "CONTENTS": {
-                                         'TOPICS': {'TO': self.item_id}
-                                     }
-        }))
+                                                                     "CONTENTS": {'TOPICS': {'TO': self.item_id}}}))
         self.reactor.callLater(0, self._start_script)
-
 
     def onMessage(self, packet, isBinary):
         """
@@ -61,9 +57,7 @@ class ParlayScript(ThreadedItem, WebSocketClientProtocol):
         self._runListeners(msg)
 
     def kill(self):
-        """
-        kill the current script
-        """
+        """ Kill the current script """
         self.cleanup()
 
     def cleanup(self, *args):
@@ -74,30 +68,22 @@ class ParlayScript(ThreadedItem, WebSocketClientProtocol):
         """
 
         def internal_cleanup():
-
             self.transport.loseConnection()
-            #should we stop the reactor on close?
+            # should we stop the reactor on close?
             if self.__class__.stop_reactor_on_close:
                 reactor.stop()
 
         self.sendClose()
         reactor.callLater(1, internal_cleanup)
 
-
     def _start_script(self):
-        """
-        Init and run the script
-        @param cleanup: Automatically clean up when we're done running
-        """
-        #run the script and run cleanup after.
+        """ Init and run the script """
+        # run the script and run cleanup after.
         defer = self.reactor.maybeDeferToThread(self._in_thread_run_script)
         defer.addBoth(self.cleanup)
 
-
     def _in_thread_run_script(self):
-        """
-        Run the script.
-        """
+        """ Run the script. """
         try:
             self.run_script()
 
@@ -109,10 +95,10 @@ class ParlayScript(ThreadedItem, WebSocketClientProtocol):
 
             # print traceback, excluding this file
             traceback.print_tb(exc_traceback)
-            #exc_strings = traceback.format_list(traceback.extract_tb(exc_traceback))
-            #exc_strings = [s for s in exc_strings if s.find("parlay_script.py")< 0 ]
-            #for s in exc_strings:
-            #    print s
+            # exc_strings = traceback.format_list(traceback.extract_tb(exc_traceback))
+            # exc_strings = [s for s in exc_strings if s.find("parlay_script.py")< 0 ]
+            # for s in exc_strings:
+            #     print s
 
     def run_script(self):
         """
@@ -125,11 +111,12 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
                  stop_reactor_on_close=None, skip_checks=False):
     """
     Construct a new script from the script class and start it
+
     :param script_class : The ParlayScript class to run (Must be subclass of ParlayScript)
     :param engine_ip : The ip of the broker that the script will be running on
     :param engine_port : the port of the broker that the script will be running on
-    :param stop_reactor_on_close: Boolean regarding whether ot not to stop the reactor when the script closes\
-     (Defaults to False if the reactor is running, True if the reactor is not currently running)
+    :param stop_reactor_on_close: Boolean regarding whether ot not to stop the reactor when the script closes
+    (Defaults to False if the reactor is running, True if the reactor is not currently running)
     :param skip_checks : if True will not do sanity checks on script (CAREFUL: BETTER KNOW WHAT YOU ARE DOING!)
     """
     if not skip_checks:
@@ -137,16 +124,13 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
             raise TypeError("start_script called with: "+str(script_class)+" \n" +
                             "Can only call start_script on an instance of a subclass of ParlayScript")
 
-    #set whether to stop the reactor or not (default to the opposite of reactor running)
+    # et whether to stop the reactor or not (default to the opposite of reactor running)
     script_class.stop_reactor_on_close = stop_reactor_on_close if stop_reactor_on_close is not None else not reactor.running
 
-    #connect it up
+    # connect it up
     factory = WebSocketClientFactory("ws://" + engine_ip + ":" + str(engine_port))
     factory.protocol = script_class
     reactor.connectTCP(engine_ip, engine_port, factory)
 
     if not reactor.running:
         reactor.run()
-
-
-
