@@ -40,7 +40,7 @@ API Documentation
 
     apidoc/parlay
     apidoc/parlay.utils
-
+    apidoc/parlay_full
 
 
 .. _specs:
