@@ -4,6 +4,7 @@ The Local Item protocol lets you open arbitrary items that have been registered 
 
 from base_protocol import BaseProtocol
 from parlay.server.broker import Broker
+from functools import wraps
 
 LOCAL_ITEM_CLASSES = {}
 
@@ -20,6 +21,20 @@ def local_item(auto_connect=False):
         class_name = cls.__name__
         cls._local_item_auto_connect = auto_connect  # set the auto connect flag
         LOCAL_ITEM_CLASSES[class_name] = cls
+        # override __init__
+        orig_init = cls.__init__
+
+        @wraps(orig_init)
+        def new_init(self, *args, **kwargs):
+            """
+            Call the original ctor and then pass self to a new local protocol and append it to the broker
+            """
+            result = orig_init(self, *args, **kwargs)
+            broker = Broker.get_instance()
+            protocol_obj = LocalItemProtocol(self)
+            broker.protocols.append(protocol_obj)
+            return result
+        cls.__init__ = new_init
         return cls
 
     return decorator
@@ -51,6 +66,7 @@ class LocalItemProtocol(BaseProtocol):
     def __str__(self):
         return "Local:" + str(self.items[0].__class__) + " # " + str(self._unique_id)
 
+auto_started_items = []
 
 def auto_start():
     """
@@ -58,9 +74,8 @@ def auto_start():
     """
     for name, cls in LOCAL_ITEM_CLASSES.iteritems():
         if cls._local_item_auto_connect:
-            broker = Broker.get_instance()
-            obj = LocalItemProtocol.open(broker, name)
-            broker.protocols.append(obj)
+            #construct them on init and store them in the list so they don't get garbage collected
+            auto_started_items.append(cls())
 
 # call this when the Broker is up and running
 Broker.call_on_start(auto_start)

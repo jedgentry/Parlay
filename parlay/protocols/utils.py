@@ -65,6 +65,8 @@ class MessageQueue(object):
         else:  # nothing left in queue
             self._active_sent = None
 
+    def __len__(self):
+        return len(self._q)
 
 def message_id_generator(radix, minimum=0):
     """
