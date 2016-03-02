@@ -523,24 +523,11 @@ class Broker(object):
                 reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
                 self.publish(reply, lambda _: _)
 
-        elif request == "eval_statement":
-            # This feature is very powerful and *very* dangerous in a production environment.
-            # Let's turn it off in production for safety
-            if self._run_mode != Broker.Modes.DEVELOPMENT:
-                reply['CONTENTS']['status'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
-                reply['CONTENTS']['result'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
-                message_callback(reply)
-                return
+        elif request == "shutdown":
+            reply["CONTENTS"]['status'] = "ok"
+            message_callback(reply)
+            self.cleanup()
 
-            result = self._reactor.maybeDeferToThread(eval, msg['CONTENTS']['statement'])
-
-            def eval_done(r):
-                reply['CONTENTS']['status'] = 'ok'
-                reply['CONTENTS']['result'] = str(r)
-                message_callback(reply)
-
-            result.addCallback(eval_done)
-            result.addErrback(eval_done)
 
     def handle_subscribe_message(self, msg, message_callback):
         self.subscribe(message_callback, **(msg['CONTENTS']['TOPICS']))
