@@ -66,6 +66,8 @@ import signal
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
+BROKER_VERSION = "0.0.1"
+
 
 class Broker(object):
     """
@@ -77,7 +79,8 @@ class Broker(object):
     _stopped = defer.Deferred()
 
     # discovery info for the broker
-    _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "interfaces": ['broker'],
+    _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "VERSION": BROKER_VERSION,
+                  "interfaces": ['broker'],
                   "CHILDREN": []}
 
     class Modes:
