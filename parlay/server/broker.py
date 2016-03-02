@@ -538,7 +538,8 @@ class Broker(object):
         elif request == "shutdown":
             reply["CONTENTS"]['status'] = "ok"
             message_callback(reply)
-            self.cleanup()
+            #give some time for the message to propagate, and the even queue to clean
+            self._reactor.callLater(0.1, self.cleanup)
 
 
     def handle_subscribe_message(self, msg, message_callback):
