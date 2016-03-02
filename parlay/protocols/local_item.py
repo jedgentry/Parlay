@@ -32,7 +32,7 @@ def local_item(auto_connect=False):
             result = orig_init(self, *args, **kwargs)
             broker = Broker.get_instance()
             protocol_obj = LocalItemProtocol(self)
-            broker.protocols.append(protocol_obj)
+            broker.track_protocol(protocol_obj)
             return result
         cls.__init__ = new_init
         return cls
