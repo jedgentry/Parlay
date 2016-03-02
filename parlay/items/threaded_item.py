@@ -444,7 +444,10 @@ class ErrorResponse(Exception):
     def __init__(self, error_msg):
         self.error_msg = error_msg
         self.description = error_msg['CONTENTS'].get('DESCRIPTION', '')
-        self.str = "Response Error: " + self.description
+
+        # copy our traceback from the other exception
+        self._traceback = error_msg["CONTENTS"].get('TRACEBACK', None)
+        self.str = "Response Error: " + self.description + "\n\n\nOriginal Traceback:\n" + str(self._traceback)
 
     def __str__(self):
         return self.str
