@@ -98,7 +98,7 @@ class Broker(object):
         assert(Broker.instance is None)
 
         # the currently connected protocols
-        self.protocols = []
+        self._protocols = []
 
         # The listeners that will be called whenever a message is received
         self._listeners = {}  # See Listener lookup document for more info
@@ -295,13 +295,22 @@ class Broker(object):
                         # call it again
                         self.unsubscribe_all(owner, root_list[k][v])
 
+    def track_protocol(self, protocol):
+        """
+        track the given protocol for discovery
+        """
+
+        self._discovery_cache = None  # reset the cache
+        self._protocols.append(protocol)
+
     def untrack_protocol(self, protocol):
         """
         Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
         """
         self.unsubscribe_all(protocol)
+        self._discovery_cache = None  # reset the discovery cache
         try:
-            self.protocols.remove(protocol)
+            self._protocols.remove(protocol)
         except ValueError:
             pass
 
@@ -347,7 +356,7 @@ class Broker(object):
 
             # append to list on success
             def ok(p):
-                self.protocols.append(p)
+                self.track_protocol(p)
                 return p
 
             d.addCallback(ok)
@@ -422,7 +431,7 @@ class Broker(object):
             try:
                 reply['CONTENTS']['protocols'] = [{"name": str(x),
                                                    "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
-                                                  for x in self.protocols]
+                                                  for x in self._protocols]
                 reply['CONTENTS']['status'] = 'ok'
             except Exception as e:
                 reply['CONTENTS']['status'] = 'Error while listing protocols: ' + str(e)
@@ -431,7 +440,7 @@ class Broker(object):
 
         elif request == 'close_protocol':
             # close the protocol with the string repr given
-            open_protocols = [str(x) for x in self.protocols]
+            open_protocols = [str(x) for x in self._protocols]
             reply['CONTENTS']['protocols'] = open_protocols
 
             to_close = msg['CONTENTS']['protocol']
@@ -443,15 +452,15 @@ class Broker(object):
 
             new_protocol_list = []
             try:
-                for x in self.protocols:
+                for x in self._protocols:
                     if str(x) == to_close:
                         x.close()
                     else:
                         new_protocol_list.append(x)
 
-                self.protocols = new_protocol_list
+                self._protocols = new_protocol_list
                 # recalc list
-                reply['CONTENTS']['protocols'] = [str(x) for x in self.protocols]
+                reply['CONTENTS']['protocols'] = [str(x) for x in self._protocols]
                 reply['CONTENTS']['STATUS'] = "ok"
                 message_callback(reply)
 
@@ -468,7 +477,7 @@ class Broker(object):
             if msg['CONTENTS'].get('force', False) or self._discovery_cache is None:
                 d_list = []
                 discovery = []
-                for p in self.protocols:
+                for p in self._protocols:
                     d = defer.maybeDeferred(p.get_discovery)
 
                     # add this protocols discovery

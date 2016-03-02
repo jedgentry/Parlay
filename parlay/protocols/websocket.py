@@ -57,7 +57,7 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
 
     def onConnect(self, request):
         # let the broker know we exist!
-        self.broker.protocols.append(self)
+        self.broker.track_protocol(self)
 
     def get_discovery(self):
 
