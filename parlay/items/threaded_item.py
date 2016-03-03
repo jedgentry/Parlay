@@ -447,7 +447,7 @@ class ErrorResponse(Exception):
 
         # copy our traceback from the other exception
         self._traceback = error_msg["CONTENTS"].get('TRACEBACK', None)
-        self.str = "Response Error: " + self.description + "\n\n\nOriginal Traceback:\n" + str(self._traceback)
+        self.str = "Response Error: {} \n\n\nOriginal Traceback:\n {}".format(self.description, self._traceback)
 
     def __str__(self):
         return self.str
@@ -463,4 +463,4 @@ class AsyncSystemError(Exception):
         self.code = error_msg.get('CONTENTS', {}).get('ERROR_CODE', 0)
 
     def __str__(self):
-        return "Critical Error: " + self.description + "CODE: " + self.code + " MSG:" + self.error_msg
+        return "Critical Error: {} \nCODE: {} \nERROR_MESSAGE: {} ".format(self.description, self.code, self.error_msg)
