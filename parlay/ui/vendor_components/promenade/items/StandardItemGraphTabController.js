@@ -9,7 +9,6 @@
  * @param {Parlay Service} ParlayPersistence - Service that provides automatic persistence of scope variables to localStorage.
  */
 function PromenadeStandardItemCardGraphTabController($scope, $mdDialog, $interval, $mdMedia, ParlayUtility, ParlayPersistence) {
-	ParlayBaseTabController.call(this, $scope, "promenadeStandardItemCardGraph");
 
 	this.enabled_streams = [];
 
@@ -59,9 +58,6 @@ function PromenadeStandardItemCardGraphTabController($scope, $mdDialog, $interva
 		
 }
 
-// Prototypically inherit from ParlayBaseTabController.
-PromenadeStandardItemCardGraphTabController.prototype = Object.create(ParlayBaseTabController.prototype);
-
 /**
  * Returns a count of all currently enabled streams.
  * @returns {Number} - Count of currently enabled streams.
@@ -75,7 +71,7 @@ PromenadeStandardItemCardGraphTabController.prototype.streamCount = function() {
  * @constructor
  * @param {Material Angular Service} $mdDialog - Dialog modal service.
  */
-function PromenadeStandardItemCardGraphTabConfigurationController($mdDialog) {
+function PromenadeStandardItemCardGraphTabConfigurationController($scope, $mdDialog, $mdMedia) {
 	this.hide = $mdDialog.hide;
 	
 	// When minValue or maxValue are defined we should initialize their lock to true.
@@ -91,7 +87,7 @@ function PromenadeStandardItemCardGraphTabConfigurationController($mdDialog) {
             this.enabled_streams.push(stream.NAME);
 
             // If stream value currently undefined request the stream automatically.
-            if (!stream.value) {
+            if (stream.value === undefined) {
 				this.item.requestStream(stream);
             }
         }
@@ -99,7 +95,7 @@ function PromenadeStandardItemCardGraphTabConfigurationController($mdDialog) {
             this.enabled_streams.splice(this.enabled_streams.indexOf(stream.NAME), 1);
 
             // If stream value currently defined ask the user if they want to request the stream.
-            if (stream.value) {
+            if (stream.value !== undefined) {
                 // Ask the user if they'd like to cancel the stream as well.
                 $mdDialog.show($mdDialog.confirm()
                     .title("Cancel streaming " + stream.NAME + "?")
@@ -116,6 +112,9 @@ function PromenadeStandardItemCardGraphTabConfigurationController($mdDialog) {
 	this.updateRate = function(stream) {
 		this.item.requestStream(stream);
 	};
+
+    // Attach reference to $mdMedia to scope so that media queries can be done.
+    $scope.$mdMedia = $mdMedia;
 	
 }
 
@@ -189,5 +188,5 @@ function PromenadeStandardItemCardGraph() {
 
 angular.module('promenade.items.standarditem.graph', ["promenade.smoothiechart"])
 	.controller("PromenadeStandardItemCardGraphTabController", ["$scope", "$mdDialog", "$interval", "$mdMedia", "ParlayUtility", "ParlayPersistence", PromenadeStandardItemCardGraphTabController])
-	.controller("PromenadeStandardItemCardGraphTabConfigurationController", ["$mdDialog", "item", "enabled_streams", "smoothie", PromenadeStandardItemCardGraphTabConfigurationController])
+	.controller("PromenadeStandardItemCardGraphTabConfigurationController", ["$scope", "$mdDialog", "$mdMedia", "item", "enabled_streams", "smoothie", PromenadeStandardItemCardGraphTabConfigurationController])
 	.directive('promenadeStandardItemCardGraph', PromenadeStandardItemCardGraph);

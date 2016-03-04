@@ -1,14 +1,30 @@
-.parlay-script-builder-text {
+.promenade-item-card-tab-content {
+    padding-top: 16px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.promenade-command-container {
+    margin-top: 0;
+    margin-bottom: -10px;
+}
+
+.promenade-command-container > md-select {
+    margin-top: -5px;
+    margin-bottom: 25px;
+}
+
+.promenade-script-builder-text {
     white-space: pre-line;
     overflow-x: scroll;
 }
-.parlay-response-contents-body > p, span {
+.promenade-response-contents-body > p, span {
     padding-top: 0;
     padding-bottom: 0;
     margin-top: 0;
     margin-bottom: 0;
 }
 
-.parlay-response-contents-key-values {
+.promenade-response-contents-key-values {
     overflow-wrap: break-word;
 }

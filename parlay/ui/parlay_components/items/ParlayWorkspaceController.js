@@ -43,15 +43,13 @@ function ParlayWorkspaceManagementController($scope, $mdDialog, $mdMedia, Parlay
      * Saves current items in workspace to a workspace of the name collected by launching a
      * $mdDialog to allow user to name the saved workspace.
      */
+    /* istanbul ignore next */
     this.saveCurrentWorkspaceAs = function () {
         $mdDialog.show({
             controller: "ParlayWorkspaceSaveAsDialogController",
             controllerAs: "ctrl",
             templateUrl: "../parlay_components/items/directives/parlay-workspace-save-as-dialog.html",
-            onComplete: function (scope, element) {
-                element.find("input").focus();
-            },
-            fullscreen: !$mdMedia("gt-sm")
+            onComplete: function (scope, element) { element.find("input").focus(); }
         }).then(this.saveWorkspace);
     };
 
@@ -81,10 +79,28 @@ function ParlayWorkspaceManagementController($scope, $mdDialog, $mdMedia, Parlay
         this.clearCurrentWorkspace();
 
         function load() {
-            if (ParlayItemManager.loadWorkspace(workspace))
-                ParlayNotification.show({content: "Restored workspace from " + workspace.name + "."});
-            else
-                ParlayNotification.show({content: "Unable to restore workspace from " + workspace.name + ". Ensure items have been discovered."});
+
+            var result = ParlayItemManager.loadWorkspace(workspace);
+
+            if (result.failed_items.length === 0) {
+                ParlayNotification.show({content: "Restored " + result.loaded_items.length + " items from " + workspace.name + " workspace."});
+            }
+            else {
+
+                var failed_item_names = "{"+ result.failed_items.map(function (container) {
+                    return container.name;
+                }).join(',') + "}";
+
+                var loaded_item_names = "{" + result.loaded_items.map(function (container) {
+                    return container.name;
+                }).join(',') + "}";
+
+                $mdDialog.show($mdDialog.alert({
+                    title: 'Workspace load did not complete successfully',
+                    textContent: loaded_item_names + ' loaded successfully. ' + failed_item_names + ' failed to load. Ensure that all protocols are connected.',
+                    ok: 'Dismiss'
+                }));
+            }
         }
 
         if (ParlayItemManager.hasDiscovered()) load();
@@ -153,11 +169,14 @@ function ParlayWorkspaceManagementController($scope, $mdDialog, $mdMedia, Parlay
         // Instantiate FileReader object
         var fileReader = new FileReader();
 
-        // After file load pass saved discovery data to the PromenadeBroker
-        fileReader.onload = function (event) {
-            store.import(event.target.result);
-            saved_workspaces = getWorkspaces();
-        };
+        $scope.$apply(function () {
+            "use strict";
+            // After file load pass saved discovery data to the PromenadeBroker
+            fileReader.onload = function (event) {
+                store.import(event.target.result);
+                saved_workspaces = getWorkspaces();
+            };
+        });
 
         // Read file as text
         fileReader.readAsText(event.target.files[0]);
@@ -169,7 +188,7 @@ function ParlayWorkspaceManagementController($scope, $mdDialog, $mdMedia, Parlay
 
 }
 
-function ParlayWorkspaceSaveAsDialogController($scope, $mdDialog) {
+function ParlayWorkspaceSaveAsDialogController($scope, $mdDialog, $mdMedia) {
 
     /**
      * Resolves $mdDialog promise with the name entered in the input.
@@ -184,9 +203,12 @@ function ParlayWorkspaceSaveAsDialogController($scope, $mdDialog) {
 	this.cancel = function () {
 		$mdDialog.cancel();
 	};
-	
+
+    // Attach reference to $mdMedia to scope so that media queries can be done.
+    $scope.$mdMedia = $mdMedia;
+
 }
 
 angular.module("parlay.items.workspaces", ["parlay.store", "parlay.items.manager", "angularMoment", "parlay.utility"])
-	.controller("ParlayWorkspaceSaveAsDialogController", ["$scope", "$mdDialog", ParlayWorkspaceSaveAsDialogController])
+	.controller("ParlayWorkspaceSaveAsDialogController", ["$scope", "$mdDialog", "$mdMedia", ParlayWorkspaceSaveAsDialogController])
 	.controller("ParlayWorkspaceManagementController", ["$scope", "$mdDialog", "$mdMedia", "ParlayNotification", "ParlayStore", "ParlayItemManager", "PromenadeBroker", ParlayWorkspaceManagementController]);

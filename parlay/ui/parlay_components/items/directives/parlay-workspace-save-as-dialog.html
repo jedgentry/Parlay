@@ -1,11 +1,11 @@
-<md-dialog aria-label="Workspaces" flex="90" flex-gt-sm="70" flex-gt-md="50">
+<md-dialog aria-label="Workspaces" flex="90" flex-gt-md="70" ng-class="{'md-dialog-fullscreen' : $mdMedia}">
 
 	<md-toolbar>
 		<div class="md-toolbar-tools">
 			<h2>Save</h2>
 			<span flex></span>
 			<md-button class="md-icon-button" type="button" ng-click="ctrl.cancel()" aria-label="Hide dialog">
-				<md-icon><ng-md-icon icon="close" aria-label="Close dialog"></ng-md-icon></md-icon>
+				<md-icon ng-md-icon icon="close" aria-label="Close dialog"></md-icon>
 			</md-button>
 		</div>
 	</md-toolbar>

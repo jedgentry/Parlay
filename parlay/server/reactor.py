@@ -35,9 +35,9 @@ class ReactorWrapper(object):
         """
         # if we're in the reactor thread
         if self.in_reactor_thread():
-            return defer.maybeDeferred(callable, *args, **kwargs)
+            return defer.maybeDeferred(lambda: callable(*args, **kwargs))
         else:
-            return twisted_threads.blockingCallFromThread(self._reactor, callable, *args, **kwargs)
+            return twisted_threads.blockingCallFromThread(self._reactor, lambda: callable(*args, **kwargs))
 
     def maybeCallFromThread(self, callable, *args, **kwargs):
         """
@@ -46,9 +46,9 @@ class ReactorWrapper(object):
         """
 
         if self.in_reactor_thread():
-            self._reactor.callLater(0, callable, *args, **kwargs)
+            self._reactor.callLater(0, lambda: callable(*args, **kwargs))
         else:
-            self._reactor.callFromThread(callable, *args, **kwargs)
+            self._reactor.callFromThread(lambda: callable(*args, **kwargs))
 
     def maybeDeferToThread(self, callable, *args, **kwargs):
         """
@@ -56,8 +56,8 @@ class ReactorWrapper(object):
         If we're already in a different thread, then JUST CALL IT and return result
         If we're in the reactor thead, then call it in a different thread and return a deferred with the result
         """
-        if self.in_reactor_thread():
-            return twisted_threads.deferToThread(callable, *args, **kwargs)
+        if self.in_reactor_thread():             # wrap in lambda so we don't collide on kwargs with defertoThread
+            return twisted_threads.deferToThread(lambda: callable(*args, **kwargs))
         else:
             return callable(*args, **kwargs)
 

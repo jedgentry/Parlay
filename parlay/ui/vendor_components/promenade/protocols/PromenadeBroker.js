@@ -1,3 +1,10 @@
+function PromenadeBrokerRun(ParlaySettings) {
+	ParlaySettings.registerDefault("broker", {show_prompt: true, auto_discovery: true});
+	if (!ParlaySettings.has("broker")) {
+		ParlaySettings.restoreDefault("broker");
+	}
+}
+
 function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, ParlayErrorDialog, $window, $mdDialog, ParlaySettings) {
 	"use strict";
 	
@@ -146,6 +153,12 @@ function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, 
 	        this.onMessage({'type': "get_protocol_discovery"}, function() {
                 ParlaySocket.sendMessage({type: "get_protocol_discovery_response"}, {discovery: {}});
 	        });
+
+
+            // Request a fast discovery to see if there's already one there if that is the user preference.
+            if (ParlaySettings.get("broker").auto_discovery) {
+                this.requestDiscovery(false);
+            }
 	        
 	    }.bind(this));
 	    
@@ -172,11 +185,11 @@ function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, 
             });
 	    }.bind(this));
 
-        $window.addEventListener("beforeunload", function (event) {
+        var unload_listener = function (event) {
             var confirmation;
 
             // If the Broker is currently connected we want to prompt the user to shutdown the Broker.
-            if (this.isConnected() && ParlaySettings.getBrokerSettings().show_prompt) {
+            if (this.isConnected() && ParlaySettings.get("broker").show_prompt) {
                 confirmation = "Closing browser will not shut the Broker down. Are you sure you want to leave the page?";
             }
             // Otherwise we can just allow the browser windows to close.
@@ -194,14 +207,18 @@ function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, 
                     .ok('Shut Broker down and close browser tab')
                     .cancel('Dismiss');
                 $mdDialog.show(confirm).then(function() {
-                    // Will need to change this to Broker close command.
-                    this.disconnect();
-                    $window.close();
+                    // Request the Broker shutdown and close the window.
+                    this.requestShutdown().then(function () {
+                        $window.removeEventListener("beforeunload", unload_listener);
+                        $window.close();
+                    });
                 }.bind(this));
             }.bind(this), 500);
 
             return confirmation;
-        }.bind(this));
+        }.bind(this);
+
+        $window.addEventListener("beforeunload", unload_listener);
 	    
 	}
 	
@@ -212,6 +229,14 @@ function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, 
 	PromenadeBroker.prototype.connect = ParlaySocket.open;
 	PromenadeBroker.prototype.disconnect = ParlaySocket.close;
 	PromenadeBroker.prototype.isConnected = ParlaySocket.isConnected;
+
+	/**
+	 * Request the Broker shutdown.
+	 * @returns {$q.defer.promise} Resolve when response is received shutdown result.
+	 */
+	PromenadeBroker.prototype.requestShutdown = function () {
+		return this.sendMessage({request: "shutdown"}, {}, {response: "shutdown_response"});
+	};
 	
 	/**
 	 * Request the Broker for a discovery.
@@ -219,7 +244,8 @@ function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, 
 	 * @returns {$q.defer.promise} Resolve when response is received with available items.
 	 */
 	PromenadeBroker.prototype.requestDiscovery = function (is_forced) {
-	    // Check we are connected first, otherwise display ParlayNotification.
+
+		// Check we are connected first, otherwise display ParlayNotification.
 	    if (this.isConnected()) {
 
             // $q Deferred that will be resolved upon discovery response.
@@ -231,14 +257,16 @@ function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, 
                 ParlayNotification.showProgress(deferred);
             }, 500);
 
-			return this.sendMessage({request: "get_discovery"}, {"force": !!is_forced}, {response: "get_discovery_response"}).then(function (response) {
-                // Resolve deferred so that dialog can be hidden once response is received.
-                deferred.resolve(response);
+            return $q.all([this.requestAvailableProtocols(), this.requestOpenProtocols()]).then(function () {
+                return this.sendMessage({request: "get_discovery"}, {"force": !!is_forced}, {response: "get_discovery_response"}).then(function (response) {
+                    // Resolve deferred so that dialog can be hidden once response is received.
+                    deferred.resolve(response);
 
-                // Prevent the dialog from displaying if we receive a quick discovery response.
-                $timeout.cancel(registration);
-                return response;
-            });
+                    // Prevent the dialog from displaying if we receive a quick discovery response.
+                    $timeout.cancel(registration);
+                    return response;
+                });
+            }.bind(this));
 		}
 	    else {
 	        ParlayNotification.show({content: "Cannot discover while not connected to Broker."});
@@ -291,4 +319,5 @@ function PromenadeBrokerFactory(ParlaySocket, $q, $timeout, ParlayNotification, 
 }
 
 angular.module("promenade.broker", ["parlay.socket", "parlay.notification", "parlay.notification.error", "parlay.settings", "ngMaterial"])
+	.run(["ParlaySettings", PromenadeBrokerRun])
 	.factory("PromenadeBroker", ["ParlaySocket", "$q", "$timeout", "ParlayNotification", "ParlayErrorDialog", "$window", "$mdDialog", "ParlaySettings", PromenadeBrokerFactory]);

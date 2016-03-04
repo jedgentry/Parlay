@@ -31,7 +31,7 @@ c:\> pip install git+https://github.com/PromenadeSoftware/Parlay.git
 
 ## License
 
-Parlay is released under the GPLv3 License.
+This version of Parlay is released under the GPLv3 License. Contact [Promenade Software](http://promenadesoftware.com) for more information on a commercial license. 
 
 ## Copyright
 

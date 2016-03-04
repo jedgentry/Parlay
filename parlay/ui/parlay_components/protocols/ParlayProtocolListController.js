@@ -18,13 +18,20 @@ function ParlayProtocolListController($scope, $mdDialog, $mdMedia, ParlayProtoco
     this.getBrokerAddress = function () {
         return PromenadeBroker.getBrokerAddress();  
     };
-    
+
     /**
-     * Switches Broker connected and disconnected.
+     * Requests that the Broker shutdown.
      */
-    this.toggleBrokerConnection = function () {
-        if (PromenadeBroker.isConnected()) PromenadeBroker.disconnect();
-        else PromenadeBroker.connect();
+    this.shutdownBroker = function () {
+        if (PromenadeBroker.isConnected()) {
+            PromenadeBroker.requestShutdown();
+        }
+    };
+
+    this.connectBroker = function () {
+        if (!PromenadeBroker.isConnected()) {
+            PromenadeBroker.connect();
+        }
     };
     
     /**
@@ -83,10 +90,7 @@ function ParlayProtocolListController($scope, $mdDialog, $mdMedia, ParlayProtoco
             controller: "ParlayProtocolDetailController",
             controllerAs: "ctrl",
             templateUrl: "../parlay_components/protocols/directives/parlay-protocol-details.html",
-            locals: {
-                protocol: protocol
-            },
-            fullscreen: !$mdMedia("gt-sm")
+            locals: { protocol: protocol }
         });
     };
     
@@ -104,8 +108,7 @@ function ParlayProtocolListController($scope, $mdDialog, $mdMedia, ParlayProtoco
             controller: "ParlayProtocolConfigurationController",
             controllerAs: "ctrl",
             bindToController: true,
-            templateUrl: "../parlay_components/protocols/directives/parlay-protocol-configuration-dialog.html",
-            fullscreen: !$mdMedia("gt-sm")
+            templateUrl: "../parlay_components/protocols/directives/parlay-protocol-configuration-dialog.html"
         });
     };
 

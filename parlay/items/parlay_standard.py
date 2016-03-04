@@ -110,8 +110,8 @@ class ParlayStandardItem(ThreadedItem):
         discovery = BaseItem.get_discovery(self)
         discovery["TOPIC_FIELDS"] = self._topic_fields
         discovery["CONTENT_FIELDS"] = self._content_fields
-        discovery["PROPERTIES"] = [x for x in self._properties.values()]  # already formatted correctly.
-        discovery["DATASTREAMS"] = [x for x in self._datastreams.values()]  # already .formatted correctly.
+        discovery["PROPERTIES"] = sorted([x for x in self._properties.values()], key=lambda v: v['NAME'])
+        discovery["DATASTREAMS"] = sorted([x for x in self._datastreams.values()], key=lambda v: v['NAME'])
 
         if self.item_type is not None:
             discovery["TYPE"] = self.item_type
@@ -369,7 +369,7 @@ class ParlayCommandItem(ParlayStandardItem):
         """
         # clear properties
         self._datastreams = {}
-        for member_name in [x for x in dir(self.__class__) if not x.startswith("__")]:
+        for member_name in sorted([x for x in dir(self.__class__) if not x.startswith("__")]):
             member = self.__class__.__dict__.get(member_name, None)
             if isinstance(member, ParlayDatastream):
                 self.add_datastream(member_name, member_name, member.units)

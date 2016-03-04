@@ -23,6 +23,13 @@
  * @param {Function} smoothieFn - Configuration retrieval function.
  */
 
+function PromenadeSmoothieChartRun(ParlaySettings) {
+    ParlaySettings.registerDefault("graph", {label_size: 12});
+
+    if (!ParlaySettings.has("graph")) {
+        ParlaySettings.restoreDefault("graph");
+    }
+}
 
 /**
  * Controller constructor for the PromenadeSmoothieChart.
@@ -101,7 +108,7 @@ function PromenadeSmoothieChartController(scope, $interval, ParlaySettings) {
     this.updateLines = function() {
 
         // Update label size.
-        scope.smoothie.options.labels.fontSize = ParlaySettings.getGraphSettings().label_size;
+        scope.smoothie.options.labels.fontSize = ParlaySettings.get("graph").label_size;
 
         // Get an array of currently enabled streams.
         var enabled_streams = this.getEnabledStreams();
@@ -145,7 +152,7 @@ function PromenadeSmoothieChart($window, ParlaySettings) {
             canvas.style.width = "100%";
             canvas.style.height = "100%";
             canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+            canvas.height = 300;
         };
     }
 
@@ -178,7 +185,7 @@ function PromenadeSmoothieChart($window, ParlaySettings) {
             scope.smoothie = new SmoothieChart(scope.config ? scope.config : {
                 yRangeFunction: function (range) {
                     // We want the minimum and maximum range to have some padding from the actual values.
-                    var padding = (range.min * 0.75);
+                    var padding = range.min !== 0 ? (range.min * 0.75) : 10;
                     return {
                         min: isNaN(range.min) ? range.min : range.min - padding,
                         max: isNaN(range.max) ? range.min : range.max + padding
@@ -191,7 +198,7 @@ function PromenadeSmoothieChart($window, ParlaySettings) {
                 },
                 labels: {
                     fillStyle: '#000000',
-                    fontSize: ParlaySettings.getGraphSettings().label_size
+                    fontSize: ParlaySettings.get("graph").label_size
                 }
             });
 
@@ -228,5 +235,6 @@ function PromenadeSmoothieChart($window, ParlaySettings) {
 }
 
 angular.module("promenade.smoothiechart", ["parlay.settings"])
+    .run(["ParlaySettings", PromenadeSmoothieChartRun])
     .controller("PromenadeSmoothieChartController", ["$scope", "$interval", "ParlaySettings", PromenadeSmoothieChartController])
     .directive('promenadeSmoothieChart', ['$window', "ParlaySettings", PromenadeSmoothieChart]);
