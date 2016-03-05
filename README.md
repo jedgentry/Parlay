@@ -13,14 +13,9 @@ It enables:
 
 ## Full Documentation
 
-See the [wiki](https://github.com/PromenadeSoftware/Parlay/wiki) for the complete documentation. 
-
+The documentation for Parlay is hosted on [Read the Docs](http://parlay.readthedocs.org). 
 
 ## Installation
-
-#### Windows Installer
-
-An installer for 64-bit Windows is [available on our organization page](http://promenadesoftware.github.io).
 
 #### Install via Python Pip
 
