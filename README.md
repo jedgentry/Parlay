@@ -24,6 +24,10 @@ For users familiar with python, the easiest way to install Parlay is with pip:
 c:\> pip install git+https://github.com/PromenadeSoftware/Parlay.git
 ```
 
+## Examples
+
+See the [Parlay Examples](https://github.com/PromenadeSoftware/ParlayExamples) repository. 
+
 ## License
 
 This version of Parlay is released under the GPLv3 License. Contact [Promenade Software](http://promenadesoftware.com) for more information on a commercial license. 
