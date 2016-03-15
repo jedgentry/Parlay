@@ -233,36 +233,49 @@ class ParlayDatastream(object):
             self.altitude = ParlayDatastream(default=0, units="ft")
     """
 
-    def __init__(self, default=None, units=""):
+    def __init__(self, default=None, val_type=None, units="", callback=lambda _: _):
         """
         Init method for ParlayDatastream class
 
         :param default: default value for the streaming data
         :param units: optional string indicating units, to be returned during discovery
+        :param callback: a functiomn to call with the new value every time this datastream changes
         :return:
         """
         self._default_val = default
-        self.listeners = {}  # key -> (key -> value) | requester -> (instance -> repeater)
+        self.listeners = {}  # dict: item instance -> { dict: requester_id -> listener}
         self.units = units
         self.broker = Broker.get_instance()
-        self._vals = {}  # key -> value | instance -> value
+        self._vals = {}  # dict: item instance -> value
+        self._val_type = val_type
+        self._callback = callback
 
     def __get__(self, instance, objtype=None):
         return self._vals.get(instance, self._default_val)
 
     def __set__(self, instance, value):
-        self._vals[instance] = value
+        self._vals[instance] = value  # set the actual value
+        for listener in self.listeners.get(instance, {}).values():
+            listener(value)  # call any listeners
+        self._callback(value)  # call my callback
 
-    def stream(self, instance, requester_id, looper, hz):
-        current_looper = self.listeners.get(requester_id, {}).get(instance, None)
-        if current_looper is not None and current_looper.running:
-            current_looper.stop()
-        if hz > 0:
-            # setup dict if its first time
-            if requester_id not in self.listeners:
-                self.listeners[requester_id] = {}
-            self.listeners[requester_id][instance] = looper
-            looper.start(1/hz)
+    def listen(self, instance, listener, requester_id):
+        """
+        Listen to the datastream. Will call calback whenever there is a change
+        """
+        listener_dict = self.listeners.get(instance, {})
+        listener_dict[requester_id] = listener
+        self.listeners[instance] = listener_dict
+
+    def stop(self, instance, requester_id):
+        """
+        Stop listening
+        """
+        listener_dict = self.listeners.get(instance, {})
+        if requester_id in listener_dict:
+            del listener_dict[requester_id]
+
+
 
 
 class BadStatusError(Exception):
@@ -409,16 +422,22 @@ class ParlayCommandItem(ParlayStandardItem):
         if msg_type == "STREAM":
             try:
                 stream_name = str(contents["STREAM"])
-                hz = float(contents["RATE"])
+                remove = contents.get("STOP", False)
                 requester = topics["FROM"]
 
-                def sample():
-                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])
-                    self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val},
+                def sample(stream_value):
+                    self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': stream_value},
                                       extra_topics={"STREAM": stream_name})
 
-                looper = LoopingCall(sample)
-                self.__class__.__dict__[stream_name].stream(self, requester, looper, hz)
+                if remove:
+                    # if we've been asked to unsubscribe
+                    # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
+                    self.__class__.__dict__[stream_name].remove(self, requester)
+                else:
+                    #listen in if we're subscribing
+                    # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
+                    self.__class__.__dict__[stream_name].listen(self, sample, requester)
+
 
             except Exception as e:
                 self.send_response(msg, {"STREAM": contents.get("STREAM", "__UNKNOWN_STREAM__"), "ACTION": "RESPONSE",
