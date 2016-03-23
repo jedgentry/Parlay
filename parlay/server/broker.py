@@ -50,6 +50,7 @@ There are two 'special type' messages that are *not* published. The are distingu
  E.G.: (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 
 """
+import sys
 
 from twisted.internet import defer
 from parlay.server.reactor import reactor
@@ -486,13 +487,16 @@ class Broker(object):
                     # add this protocols discovery
                     def callback(disc, error=None, protocol=p):
                         protocol_discovery = disc
+
                         if error is not None:
-                            protocol_discovery['error'] = disc
+                            protocol_discovery = {'error': str(error)}
+                            sys.stderr.write(str(error))
+
                         if type(disc) is dict:
                             discovery.append(protocol_discovery)
                         else:
-                            print "ERROR: Discovery must return a dict, instead got: ", str(disc), \
-                                " from ", str(protocol)
+                            sys.stderr.write("ERROR: Discovery must return a dict, instead got: " + str(disc) +
+                                             " from " + str(protocol))
 
                     d.addCallback(callback)
                     d.addErrback(lambda err: callback({}, error=err))
