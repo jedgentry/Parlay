@@ -689,6 +689,7 @@ class ParlayStandardScriptProxy(object):
         return object.__setattr__(self, name, value)
 
 
+
 # register the proxy so it can be used in scripts
 ITEM_PROXIES['ParlayStandardItem'] = ParlayStandardScriptProxy
 ITEM_PROXIES['ParlayCommandItem'] = ParlayStandardScriptProxy

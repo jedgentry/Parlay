@@ -12,6 +12,7 @@ import functools
 class ReactorWrapper(object):
     def __init__(self, wrapped_reactor):
         self._reactor = wrapped_reactor
+        self._thread = python_thread.get_ident()
         self._thread = None
 
     def run(self, installSignalHandlers=True):
