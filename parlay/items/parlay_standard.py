@@ -140,6 +140,15 @@ class ParlayStandardItem(ThreadedItem):
 
         self._broker.publish(msg, self.on_message)
 
+    def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
+        """
+        Send a parlay command to an known ID
+        """
+        msg = self.make_msg(to, command, msg_type=MSG_TYPES.COMMAND,
+                                    direct=True, response_req=True, COMMAND=command, **kwargs)
+        self.send_parlay_message(msg, timeout=_timeout, wait=False)
+        return CommandHandle(msg, self)
+
 
 def parlay_command(async=False, auto_type_cast=True):
     """
@@ -283,9 +292,11 @@ class ParlayCommandItem(ParlayStandardItem):
     __ID_GEN = message_id_generator(2**32, 1)
 
     def __init__(self, item_id=None, name=None):
-        # call parent
         """
-
+        :param item_id : The id of the Item (Must be unique in this system)
+        :type item_id str | int
+        :param name : the human readible name of this item. (Advised to be unique, but not required)
+        :type name str
         :rtype : object
         """
         if item_id is None:
@@ -320,6 +331,8 @@ class ParlayCommandItem(ParlayStandardItem):
         # run discovery to init everything for a first time
         # call it immediately after init
         self._broker._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+
+
 
     def get_discovery(self):
         """
