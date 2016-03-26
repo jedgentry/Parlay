@@ -297,7 +297,6 @@ class ParlayCommandItem(ParlayStandardItem):
         :type item_id str | int
         :param name : the human readible name of this item. (Advised to be unique, but not required)
         :type name str
-        :param anvil_key : The link key for Anvil to hook this item up to an Anvil UI
         :rtype : object
         """
         if item_id is None:
