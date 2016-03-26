@@ -140,6 +140,15 @@ class ParlayStandardItem(ThreadedItem):
 
         self._broker.publish(msg, self.on_message)
 
+    def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
+        """
+        Send a parlay command to an known ID
+        """
+        msg = self.make_msg(to, command, msg_type=MSG_TYPES.COMMAND,
+                                    direct=True, response_req=True, COMMAND=command, **kwargs)
+        self.send_parlay_message(msg, timeout=_timeout, wait=False)
+        return CommandHandle(msg, self)
+
 
 def parlay_command(async=False, auto_type_cast=True):
     """
@@ -282,7 +291,7 @@ class ParlayCommandItem(ParlayStandardItem):
     # id generator for auto numbering class instances
     __ID_GEN = message_id_generator(2**32, 1)
 
-    def __init__(self, item_id=None, name=None, anvil_key=None):
+    def __init__(self, item_id=None, name=None):
         """
         :param item_id : The id of the Item (Must be unique in this system)
         :type item_id str | int
@@ -324,29 +333,7 @@ class ParlayCommandItem(ParlayStandardItem):
         # call it immediately after init
         self._broker._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
 
-        #hook up to anvil
-        if anvil_key is not None:
-            try:
-                import anvil.server
-                anvil.server.connect(anvil_key)
-                # wrap all commands in anvil
-                for command_name, command_fn in self._commands.iteritems():
-                    anvil_name = str(item_id) + "." + str(command_name)  # namespace it by item id
-                    anvil.server.register(command_fn, name=anvil_name)
 
-                # wrap all properties in getters and setters. TODO: See if there is easy get and set in anvil API
-                for prop_name, prop_info in self._properties.iteritems():
-                    attr_name = prop_info["ATTR_NAME"]
-                    setter = run_in_broker(lambda value, attr_name=attr_name: setattr(self, attr_name, value))
-                    getter = lambda attr_name=attr_name: getattr(self, attr_name, None)
-                    anvil_name = str(item_id) + "." + str(prop_name)
-                    anvil.server.register(setter, name=anvil_name+".set")
-                    anvil.server.register(getter, name=anvil_name+".get")
-
-            except ImportError:
-                anvil = None
-                print "Anvil library is not installed. Install with 'pip install anvil-uplink' "
-                raise
 
     def get_discovery(self):
         """
