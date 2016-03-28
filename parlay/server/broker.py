@@ -50,6 +50,7 @@ There are two 'special type' messages that are *not* published. The are distingu
  E.G.: (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 
 """
+import sys
 
 from twisted.internet import defer
 from parlay.server.reactor import reactor
@@ -66,6 +67,8 @@ import signal
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
+BROKER_VERSION = "0.0.1"
+
 
 class Broker(object):
     """
@@ -77,7 +80,8 @@ class Broker(object):
     _stopped = defer.Deferred()
 
     # discovery info for the broker
-    _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "interfaces": ['broker'],
+    _discovery = {'TEMPLATE': 'Broker', 'NAME': 'Broker', "ID": "__Broker__", "VERSION": BROKER_VERSION,
+                  "interfaces": ['broker'],
                   "CHILDREN": []}
 
     class Modes:
@@ -98,7 +102,7 @@ class Broker(object):
         assert(Broker.instance is None)
 
         # the currently connected protocols
-        self.protocols = []
+        self._protocols = []
 
         # The listeners that will be called whenever a message is received
         self._listeners = {}  # See Listener lookup document for more info
@@ -295,13 +299,22 @@ class Broker(object):
                         # call it again
                         self.unsubscribe_all(owner, root_list[k][v])
 
+    def track_protocol(self, protocol):
+        """
+        track the given protocol for discovery
+        """
+
+        self._discovery_cache = None  # reset the cache
+        self._protocols.append(protocol)
+
     def untrack_protocol(self, protocol):
         """
         Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
         """
         self.unsubscribe_all(protocol)
+        self._discovery_cache = None  # reset the discovery cache
         try:
-            self.protocols.remove(protocol)
+            self._protocols.remove(protocol)
         except ValueError:
             pass
 
@@ -347,7 +360,7 @@ class Broker(object):
 
             # append to list on success
             def ok(p):
-                self.protocols.append(p)
+                self.track_protocol(p)
                 return p
 
             d.addCallback(ok)
@@ -422,7 +435,7 @@ class Broker(object):
             try:
                 reply['CONTENTS']['protocols'] = [{"name": str(x),
                                                    "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
-                                                  for x in self.protocols]
+                                                  for x in self._protocols]
                 reply['CONTENTS']['status'] = 'ok'
             except Exception as e:
                 reply['CONTENTS']['status'] = 'Error while listing protocols: ' + str(e)
@@ -431,7 +444,7 @@ class Broker(object):
 
         elif request == 'close_protocol':
             # close the protocol with the string repr given
-            open_protocols = [str(x) for x in self.protocols]
+            open_protocols = [str(x) for x in self._protocols]
             reply['CONTENTS']['protocols'] = open_protocols
 
             to_close = msg['CONTENTS']['protocol']
@@ -443,15 +456,15 @@ class Broker(object):
 
             new_protocol_list = []
             try:
-                for x in self.protocols:
+                for x in self._protocols:
                     if str(x) == to_close:
                         x.close()
                     else:
                         new_protocol_list.append(x)
 
-                self.protocols = new_protocol_list
+                self._protocols = new_protocol_list
                 # recalc list
-                reply['CONTENTS']['protocols'] = [str(x) for x in self.protocols]
+                reply['CONTENTS']['protocols'] = [str(x) for x in self._protocols]
                 reply['CONTENTS']['STATUS'] = "ok"
                 message_callback(reply)
 
@@ -468,19 +481,22 @@ class Broker(object):
             if msg['CONTENTS'].get('force', False) or self._discovery_cache is None:
                 d_list = []
                 discovery = []
-                for p in self.protocols:
+                for p in self._protocols:
                     d = defer.maybeDeferred(p.get_discovery)
 
                     # add this protocols discovery
                     def callback(disc, error=None, protocol=p):
                         protocol_discovery = disc
+
                         if error is not None:
-                            protocol_discovery['error'] = disc
+                            protocol_discovery = {'error': str(error)}
+                            sys.stderr.write(str(error))
+
                         if type(disc) is dict:
                             discovery.append(protocol_discovery)
                         else:
-                            print "ERROR: Discovery must return a dict, instead got: ", str(disc), \
-                                " from ", str(protocol)
+                            sys.stderr.write("ERROR: Discovery must return a dict, instead got: " + str(disc) +
+                                             " from " + str(protocol))
 
                     d.addCallback(callback)
                     d.addErrback(lambda err: callback({}, error=err))
@@ -523,24 +539,12 @@ class Broker(object):
                 reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
                 self.publish(reply, lambda _: _)
 
-        elif request == "eval_statement":
-            # This feature is very powerful and *very* dangerous in a production environment.
-            # Let's turn it off in production for safety
-            if self._run_mode != Broker.Modes.DEVELOPMENT:
-                reply['CONTENTS']['status'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
-                reply['CONTENTS']['result'] = 'ERROR. Remote Evaluation not allowed unless in DEVELOPMENT MODE'
-                message_callback(reply)
-                return
+        elif request == "shutdown":
+            reply["CONTENTS"]['status'] = "ok"
+            message_callback(reply)
+            #give some time for the message to propagate, and the even queue to clean
+            self._reactor.callLater(0.1, self.cleanup)
 
-            result = self._reactor.maybeDeferToThread(eval, msg['CONTENTS']['statement'])
-
-            def eval_done(r):
-                reply['CONTENTS']['status'] = 'ok'
-                reply['CONTENTS']['result'] = str(r)
-                message_callback(reply)
-
-            result.addCallback(eval_done)
-            result.addErrback(eval_done)
 
     def handle_subscribe_message(self, msg, message_callback):
         self.subscribe(message_callback, **(msg['CONTENTS']['TOPICS']))

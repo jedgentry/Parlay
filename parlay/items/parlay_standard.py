@@ -110,8 +110,8 @@ class ParlayStandardItem(ThreadedItem):
         discovery = BaseItem.get_discovery(self)
         discovery["TOPIC_FIELDS"] = self._topic_fields
         discovery["CONTENT_FIELDS"] = self._content_fields
-        discovery["PROPERTIES"] = [x for x in self._properties.values()]  # already formatted correctly.
-        discovery["DATASTREAMS"] = [x for x in self._datastreams.values()]  # already .formatted correctly.
+        discovery["PROPERTIES"] = sorted([x for x in self._properties.values()], key=lambda v: v['NAME'])
+        discovery["DATASTREAMS"] = sorted([x for x in self._datastreams.values()], key=lambda v: v['NAME'])
 
         if self.item_type is not None:
             discovery["TYPE"] = self.item_type
@@ -139,6 +139,15 @@ class ParlayStandardItem(ThreadedItem):
             msg["TOPICS"].update(extra_topics)
 
         self._broker.publish(msg, self.on_message)
+
+    def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
+        """
+        Send a parlay command to an known ID
+        """
+        msg = self.make_msg(to, command, msg_type=MSG_TYPES.COMMAND,
+                                    direct=True, response_req=True, COMMAND=command, **kwargs)
+        self.send_parlay_message(msg, timeout=_timeout, wait=False)
+        return CommandHandle(msg, self)
 
 
 def parlay_command(async=False, auto_type_cast=True):
@@ -283,9 +292,11 @@ class ParlayCommandItem(ParlayStandardItem):
     __ID_GEN = message_id_generator(2**32, 1)
 
     def __init__(self, item_id=None, name=None):
-        # call parent
         """
-
+        :param item_id : The id of the Item (Must be unique in this system)
+        :type item_id str | int
+        :param name : the human readible name of this item. (Advised to be unique, but not required)
+        :type name str
         :rtype : object
         """
         if item_id is None:
@@ -320,6 +331,8 @@ class ParlayCommandItem(ParlayStandardItem):
         # run discovery to init everything for a first time
         # call it immediately after init
         self._broker._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+
+
 
     def get_discovery(self):
         """
@@ -369,7 +382,7 @@ class ParlayCommandItem(ParlayStandardItem):
         """
         # clear properties
         self._datastreams = {}
-        for member_name in [x for x in dir(self.__class__) if not x.startswith("__")]:
+        for member_name in sorted([x for x in dir(self.__class__) if not x.startswith("__")]):
             member = self.__class__.__dict__.get(member_name, None)
             if isinstance(member, ParlayDatastream):
                 self.add_datastream(member_name, member_name, member.units)
