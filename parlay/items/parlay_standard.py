@@ -445,7 +445,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 if remove:
                     # if we've been asked to unsubscribe
                     # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
-                    self.__class__.__dict__[stream_name].remove(self, requester)
+                    self.__class__.__dict__[stream_name].stop(self, requester)
                 else:
                     #listen in if we're subscribing
                     # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
