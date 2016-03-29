@@ -100,6 +100,9 @@ class ParlayScript(ThreadedItem, WebSocketClientProtocol):
             # for s in exc_strings:
             #     print s
 
+    def shutdown_broker(self):
+        self.send_parlay_message({"TOPICS": {"type": "broker", 'request': 'shutdown'}, "CONTENTS": {}})
+
     def run_script(self):
         """
         This should be overridden by the script class
