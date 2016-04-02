@@ -77,6 +77,7 @@ class BaseProtocol(object):
         """
         return {}
 
+
     def get_discovery(self):
         """
         This will get called when a discovery message is sent out. Return a deferred that will be called back with
@@ -91,9 +92,9 @@ class BaseProtocol(object):
     @run_in_broker
     def wait_for_data(self, timeout_secs=None):
         """
-        Call this to wait until there is data from the serial line.
+        Call this to wait until there is data from the protocol.
         If threaded: Will block. Return value is serial line data
-        If Async   : Will not blocl. Return value is Deferred that will be called back with serial line data
+        If Async   : Will not blocl. Return value is Deferred that will be called back with  data
         :param timeout_secs : Timeout if you don't get data in time. None if no timeout
         :type timeout_secs : int|None
         """
@@ -110,3 +111,33 @@ class BaseProtocol(object):
         # setup the new data in case it causes a callback to fire
         self._new_data = defer.Deferred()
         old_new_data.callback(data)
+
+
+class Adapter(object):
+    """
+    Am Adapter is different from a normal parlay protocol. It is not meant to connect Parlay to an external system.
+    It is only meant to connect an item to the broker and can not instantiated dynamically
+    from the UI or scripts. It is tightly coupled to the item/broker and only supports publish/subscribe
+    """
+
+    def __init__(self):
+        pass
+
+
+    def publish(self, msg):
+        """
+        :type msg dict
+        """
+        pass
+
+    def subscribe(self, **kwargs):
+        """
+        :kwargs The topics and their values to subscribe to
+        """
+        pass
+
+    def register_item(self, item):
+        """
+        Register an item
+        """
+        pass

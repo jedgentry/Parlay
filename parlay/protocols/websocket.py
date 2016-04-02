@@ -1,8 +1,9 @@
-from parlay.protocols.base_protocol import BaseProtocol
-from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
+from parlay.protocols.base_protocol import BaseProtocol, BrokerProtocol
+from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol, WebSocketClientProtocol
 from parlay.server.broker import Broker
 import json
 from twisted.internet import defer
+from collections import deque
 
 
 class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
@@ -60,8 +61,7 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
         self.broker.track_protocol(self)
 
     def get_discovery(self):
-
-        # already in the middle of discvoery
+        # already in the middle of discovery
         if self._discovery_response_defer is not None:
             return self._discovery_response_defer
 
@@ -80,3 +80,59 @@ class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
 
     def __str__(self):
         return "Websocket at " + str(self.peer)
+
+
+class WebsocketAdapter(Adapter, WebSocketClientProtocol):
+    """
+    Connect a Python item to the Broker over a Websocket
+    """
+
+    def __init__(self):
+        WebSocketServerProtocol.__init__(self)
+        BrokerProtocol.__init__(self)
+        self._subscribe_q = []
+        self._listener_list = []  # no way to unsubscribe. Subsciptions last
+
+    def onConnect(self, request):
+        WebSocketClientProtocol.onConnect(self, request)
+        #flush our subscription requests
+        for _fn, topics in self._subscribe_q:
+            self.subscribe(_fn, **topics)
+        self._subscribe_q = []  # empty the list
+
+    def onMessage(self, packet, isBinary):
+        """
+        We got a message.  See who wants to process it.
+        """
+        if isBinary:
+            print "WebsocketBrokerProtocol doesn't understand binary messages"
+            return
+
+        msg = json.loads(packet)
+        # run it through the listeners for processing
+        for fn in self._listener_list:
+            fn(msg)
+
+    def subscribe(self, _fn=None, **topics):
+        """
+        Subscribe to messages the topics in **kwargs
+        """
+        #wait until we're connected to subscribe
+        if not self.connected:
+            self._subscribe_q.append((_fn, topics))
+            return
+
+        self.publish({"TOPICS": {'type': 'subscribe'}, "CONTENTS": {'TOPICS': topics}})
+        if _fn is not None:
+            def listener(msg):
+                topics = msg["TOPICS"]
+                if all(k in topics and v == topics[k] for k, v in topics):
+                    _fn(msg)
+
+            self._listener_list.append(listener)
+
+    def publish(self, msg, callback):
+        if not self.connected:
+            raise RuntimeError("Not Connected to Broker yet")
+        self.sendMessage(json.dumps(msg))
+

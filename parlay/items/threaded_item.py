@@ -29,9 +29,16 @@ def cleanup():
 Broker.call_on_stop(cleanup)
 
 
+class ListenerStatus(object):
+    """
+    Enum object for keeping or removing listeners
+    """
+    KEEP_LISTENER = False
+    REMOVE_LISTENER = True
+
+
 class ThreadedItem(BaseItem):
     """Base object for all Parlay scripts"""
-
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
 
@@ -61,6 +68,8 @@ class ThreadedItem(BaseItem):
         if self._auto_update_discovery and msg['CONTENTS'].get("status", "") == "ok":
             self.discovery = msg['CONTENTS'].get('discovery', self.discovery)
 
+        return ListenerStatus.KEEP_LISTENER
+
     def _system_listener(self, msg):
         """
         This should be the first listener in the list. It will store any non-response errors and events
@@ -75,7 +84,7 @@ class ThreadedItem(BaseItem):
                 self._system_errors.append(msg)
             elif status == 'WARNING' or status == 'INFO':
                 self._system_events.append(msg)
-        return False
+        return ListenerStatus.KEEP_LISTENER
 
     def _discovery_request_listener(self, msg):
         """
@@ -86,8 +95,8 @@ class ThreadedItem(BaseItem):
         if msg['TOPICS'].get('type', "") == 'get_protocol_discovery':
             msg = {'TOPICS': {'type': 'get_protocol_discovery_response'},
                    'CONTENTS': {"CHILDREN": [self.get_discovery()]}}
-            self._send_parlay_message(msg)
-        return False
+            self.publish(msg, lambda _:_)
+        return ListenerStatus.KEEP_LISTENER
 
     def open(self, protocol, **params):
         """
@@ -97,7 +106,7 @@ class ThreadedItem(BaseItem):
         """
         msg = {"TOPICS": {'type': 'broker', 'request': 'open_protocol'},
                "CONTENTS": {'protocol_name': protocol, 'params': params}}
-        self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
+        self.reactor.maybeCallFromThread(self.publish, msg, lambda _:_)
 
         def wait_for_response():
             result = defer.Deferred()
@@ -161,7 +170,7 @@ class ThreadedItem(BaseItem):
                                                             msg=msg, timeout=timeout)
         else:
             # send this to the reactor without waiting for a response
-            self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
+            self.reactor.maybeCallFromThread(self.publish, msg, lambda _:_)
             return None  # nothing to wait on, no response
 
     def discover(self, force=True):
@@ -348,15 +357,11 @@ class ThreadedItem(BaseItem):
             self.add_listener(listener)
 
             # send the message
-            self._send_parlay_message(msg)
+            self.publish(msg, lambda _:_)
 
         return response
 
-    def _send_parlay_message(self, msg):
-        """
-        Send a dictionary msg.  Must be filled in by subclass with protocol specific implementation
-        """
-        raise NotImplementedError()
+
 
     def _in_reactor_discover(self, force):
         """
@@ -380,8 +385,8 @@ class ThreadedItem(BaseItem):
 
         self.add_listener(discovery_listener)
 
-        self._send_parlay_message({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
-                                   "CONTENTS": {'force': force}})
+        self.publish({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
+                                   "CONTENTS": {'force': force}}, lambda _: _)
 
         return result
 

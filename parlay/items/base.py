@@ -70,9 +70,16 @@ class BaseItem(object):
         self.children = []  # child items
 
         # subscribe on_message to be called whenever we get a message *to* us
-        self._broker.subscribe(self.on_message, TO=item_id)
-        self._broker.subscribe(self.on_sent_message, FROM=item_id)
+        self.subscribe(self.on_message, TO=item_id)
+        self.subscribe(self.on_sent_message, FROM=item_id)
         self._interfaces = []  # list of interfaces we support
+
+    def subscribe(self, _fn, **kwargs):
+        raise NotImplementedError("You must implement a subscribe function for a BaseItem child class")
+
+    def publish(self, msg, callback):
+        raise NotImplementedError("You must implement a subscribe function for a BaseItem child class")
+
 
     def on_message(self, msg):
         """
@@ -81,11 +88,6 @@ class BaseItem(object):
         """
         pass
 
-    def on_sent_message(self, msg):
-        """
-        Any time there is a message SENT by us, this method will be called with it.
-        """
-        pass
 
     def get_discovery(self):
         """

@@ -1,6 +1,7 @@
 import functools
 from base import BaseItem
 from parlay.protocols.utils import message_id_generator
+from parlay.protocols.local_item import LocalItemProtocol
 from twisted.internet import defer, threads
 from twisted.python import failure
 from parlay.server.broker import Broker, run_in_broker, run_in_thread
@@ -18,7 +19,7 @@ class ParlayStandardItem(ThreadedItem):
     discovery. Inherit from it and use the parlay decorators to get UI functionality
     """
 
-    def __init__(self, item_id, name):
+    def __init__(self, item_id, name, broker_protocol=None):
         # call parent
         ThreadedItem.__init__(self, item_id, name)
         self._content_fields = []
@@ -27,8 +28,19 @@ class ParlayStandardItem(ThreadedItem):
         self._datastreams = {}
         self.item_type = None
 
+        # if no protocol given, then assume we're local
+        if broker_protocol is None:
+            broker_protocol = LocalItemProtocol.open_for_obj(self)
+
+        self._broker_protocol = broker_protocol
         # default msg ids are 32 bit ints between 100 and 65535
         self._msg_id_generator = message_id_generator(65535, 100)
+
+    def subscribe(self, _fn, **kwargs):
+        return self._broker.subscribe(_fn, **kwargs)
+
+    def publish(self, msg, callback):
+        return self._broker_protocol.transport.write.publish(msg, callback)
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
@@ -138,7 +150,7 @@ class ParlayStandardItem(ThreadedItem):
         if extra_topics is not None:
             msg["TOPICS"].update(extra_topics)
 
-        self._broker.publish(msg, self.on_message)
+        self.publish(msg, self.on_message)
 
     def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
         """
@@ -312,8 +324,8 @@ class ParlayCommandItem(ParlayStandardItem):
         self._wait_for_next_sent_message = defer.Deferred()
         self._wait_for_next_recv_message = defer.Deferred()
 
-        self._broker.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.item_id)
-        self._broker.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.item_id)
+        self.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.item_id)
+        self.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.item_id)
 
         # add any function that have been decorated
         for member_name in [x for x in dir(self) if not x.startswith("__")]:
@@ -388,7 +400,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 self.add_datastream(member_name, member_name, member.units)
 
     def _send_parlay_message(self, msg):
-        self._broker.publish(msg, self.on_message)
+        self.publish(msg, self.on_message)
 
     def on_message(self, msg):
         """

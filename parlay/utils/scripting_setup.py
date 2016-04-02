@@ -1,4 +1,4 @@
-from parlay.server.reactor import reactor
+from parlay.server.reactor import reactor, run_in_reactor
 from parlay_script import WebSocketClientFactory, ParlayScript, DEFAULT_ENGINE_WEBSOCKET_PORT
 from threading import Thread
 import inspect
@@ -71,3 +71,9 @@ def setup(ip='localhost', port=DEFAULT_ENGINE_WEBSOCKET_PORT, timeout=3):
             time.sleep(0.001)
             if (datetime.datetime.now() - start).total_seconds() > timeout:
                 raise RuntimeError("Could not connect to parlay. Is the parlay system running?")
+
+def run_in_threaded_reactor(fn):
+    """
+    Decorator to run the decorated function in the threaded reactor.
+    """
+    return run_in_reactor(THREADED_REACTOR)(fn)

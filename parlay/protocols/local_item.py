@@ -2,7 +2,7 @@
 The Local Item protocol lets you open arbitrary items that have been registered as local
 """
 
-from base_protocol import BaseProtocol
+from base_protocol import BaseProtocol, BrokerProtocol
 from parlay.server.broker import Broker
 from functools import wraps
 
@@ -40,14 +40,31 @@ def local_item(auto_connect=False):
     return decorator
 
 
-class LocalItemProtocol(BaseProtocol):
+class LocalItemProtocol(BaseProtocol, BrokerProtocol):
     ID = 0  # id counter for uniqueness
 
+    class TransportStub(object):
+        """
+        Fake transport that will allow the protocol to think its writing to a transport
+        """
+        def __init__(self):
+            self._broker = Broker.get_instance()
+
+        def write(self, payload):
+            self._broker.publish(payload)
+
     @classmethod
-    def open(cls, broker, item):
-        item_class = LOCAL_ITEM_CLASSES[item]
+    def open(cls, broker, item_name):
+        item_class = LOCAL_ITEM_CLASSES[item_name]
         obj = item_class()
         return LocalItemProtocol(obj)
+
+    @classmethod
+    def open_for_obj(cls, item_obj):
+        broker = Broker.get_instance()
+        protocol_obj = LocalItemProtocol(item_obj)
+        broker.track_protocol(protocol_obj)
+        return protocol_obj
 
     @classmethod
     def get_open_params_defaults(cls):
@@ -61,7 +78,14 @@ class LocalItemProtocol(BaseProtocol):
         BaseProtocol.__init__(self)
         self.items = [item]  # only 1
         self._unique_id = LocalItemProtocol.ID
+        self._broker = Broker.get_instance()
         LocalItemProtocol.ID += 1
+
+    def publish(self, msg):
+        self._broker.publish(msg)
+
+    def subscribe(self, fn, **kwargs):
+        self._broker.subscribe(fn=fn, **kwargs)
 
     def __str__(self):
         return "Local:" + str(self.items[0].__class__) + " # " + str(self._unique_id)

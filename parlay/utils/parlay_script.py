@@ -1,23 +1,23 @@
 """
 Define a base class for creating a client script
 """
+from bonobo._bonobo import Listener
 from twisted.internet import threads, reactor, defer
 from twisted.python.failure import Failure
-from autobahn.twisted.websocket import  WebSocketClientProtocol, WebSocketClientFactory
 import json
 import sys
 import traceback
 from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES
 from parlay.protocols.utils import message_id_generator
 import traceback
-from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES
+from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES, ListenerStatus
 from parlay.items.parlay_standard import ParlayStandardItem
 
 
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
 
-class ParlayScript(ThreadedItem, WebSocketClientProtocol):
+class ParlayScript(ThreadedItem):
 
     def __init__(self, item_id=None, name=None, _reactor=None):
         if item_id is None:
@@ -29,32 +29,27 @@ class ParlayScript(ThreadedItem, WebSocketClientProtocol):
         _reactor = reactor if _reactor is None else _reactor
         # default script name and id to the name of this class
         ThreadedItem.__init__(self, item_id, name, _reactor)
-        WebSocketClientProtocol.__init__(self)
+        
 
-    def _send_parlay_message(self, msg):
-        self.sendMessage(json.dumps(msg))
-
-    def onConnect(self, response):
-        """
-        Overridden from WebSocketClientProtocol. Called when Protocol is opened.
-        """
-        WebSocketClientProtocol.onConnect(self, response)
-        # schedule calling the script entry
-        self.reactor.callLater(0, lambda: self._send_parlay_message({"TOPICS": {'type': 'subscribe'},
-                                                                     "CONTENTS": {'TOPICS': {'TO': self.item_id}}}))
-        self.reactor.callLater(0, self._start_script)
-
-    def onMessage(self, packet, isBinary):
-        """
-        We got a message.  See who wants to process it.
-        """
-        if isBinary:
-            print "Scripts don't understand binary messages"
-            return
-
-        msg = json.loads(packet)
-        # run it through the listeners for processing
+    def on_message(self, msg):
         self._runListeners(msg)
+
+    def subscribe(self, _fn=None, **topics):
+        """
+        Subscribe to messages the topics in **kwargs
+        """
+        self.publish({"TOPICS": {'type': 'subscribe'}, "CONTENTS": {'TOPICS': topics}})
+        if _fn is not None:
+            def listener(msg):
+                topics = msg["TOPICS"]
+                if all(k in topics and v == topics[k] for k, v in topics):
+                    _fn(msg)
+                return ListenerStatus.KEEP_LISTENER
+
+            self.add_listener(listener)
+
+    def publish(self, msg, callback):
+        self.sendMessage(json.dumps(msg))
 
     def kill(self):
         """ Kill the current script """
