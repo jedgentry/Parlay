@@ -55,6 +55,7 @@ import sys
 from twisted.internet import defer
 from parlay.server.reactor import reactor
 from parlay.protocols.meta_protocol import ProtocolMeta
+from adapter import Adapter
 
 from autobahn.twisted.websocket import WebSocketServerFactory, listenWS
 from twisted.web import static, server
@@ -67,10 +68,10 @@ import signal
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
-BROKER_VERSION = "0.0.1"
+BROKER_VERSION = "0.1.0"
 
 
-class Broker(object):
+class Broker(Adapter):
     """
     The Dispatcher is the sole holder of global state. There should be only one.
     It also coordinates all communication between protcols
@@ -101,6 +102,8 @@ class Broker(object):
     def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
         assert(Broker.instance is None)
 
+        Adapter.__init__(self)
+
         # the currently connected protocols
         self._protocols = []
 
@@ -119,6 +122,9 @@ class Broker(object):
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
         self._discovery_cache = None
+
+        # we're always connected to ourselves
+        self._connected.callback(True)
 
     @staticmethod
     def get_instance():
@@ -144,12 +150,15 @@ class Broker(object):
         broker.secure_websocket_port = secure_websocket_port
         return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser)
 
-    def publish(self, msg, write_method):
+    def publish(self, msg, write_method=None):
         """
         Publish a message to the Parlay system
         :param msg : The message to publish
         :param write_method : the protocol's method to callback if the broker needs to send a response
         """
+        if write_method is None:
+            write_method = lambda _: _
+
         topic_type = msg['TOPICS'].get('type', None)
         # handle broker and subscribe messages special
         if topic_type == 'broker':

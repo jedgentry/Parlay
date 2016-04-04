@@ -1,9 +1,10 @@
-from parlay.protocols.base_protocol import BaseProtocol, BrokerProtocol
-from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol, WebSocketClientProtocol
+from parlay.protocols.base_protocol import BaseProtocol
+from parlay.server.adapter import Adapter
+from autobahn.twisted.websocket import WebSocketClientFactory, WebSocketServerProtocol, WebSocketClientProtocol
 from parlay.server.broker import Broker
 import json
 from twisted.internet import defer
-from collections import deque
+from twisted.internet.protocol import Factory
 
 
 class ParlayWebSocketProtocol(WebSocketServerProtocol, BaseProtocol):
@@ -88,17 +89,19 @@ class WebsocketAdapter(Adapter, WebSocketClientProtocol):
     """
 
     def __init__(self):
-        WebSocketServerProtocol.__init__(self)
-        BrokerProtocol.__init__(self)
+        WebSocketClientProtocol.__init__(self)
+        Adapter.__init__(self)
         self._subscribe_q = []
         self._listener_list = []  # no way to unsubscribe. Subsciptions last
 
     def onConnect(self, request):
         WebSocketClientProtocol.onConnect(self, request)
+        self._connected.callback(True)
         #flush our subscription requests
         for _fn, topics in self._subscribe_q:
             self.subscribe(_fn, **topics)
         self._subscribe_q = []  # empty the list
+
 
     def onMessage(self, packet, isBinary):
         """
@@ -126,13 +129,25 @@ class WebsocketAdapter(Adapter, WebSocketClientProtocol):
         if _fn is not None:
             def listener(msg):
                 topics = msg["TOPICS"]
-                if all(k in topics and v == topics[k] for k, v in topics):
+                if all(k in topics and v == topics[k] for k, v in topics.iteritems()):
                     _fn(msg)
 
             self._listener_list.append(listener)
 
-    def publish(self, msg, callback):
+    def publish(self, msg):
         if not self.connected:
             raise RuntimeError("Not Connected to Broker yet")
         self.sendMessage(json.dumps(msg))
+
+
+class WebsocketAdapterFactory(WebSocketClientFactory):
+    def __init__(self, *args, **kwargs):
+        self.adapter = WebsocketAdapter()  # this is the adapter singleton
+        WebSocketClientFactory.__init__(self, *args, **kwargs)
+
+    def buildProtocol(self, addr):
+        adapter = self.adapter
+        adapter.factory = self
+
+        return adapter
 

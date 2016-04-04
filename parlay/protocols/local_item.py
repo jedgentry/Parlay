@@ -2,7 +2,7 @@
 The Local Item protocol lets you open arbitrary items that have been registered as local
 """
 
-from base_protocol import BaseProtocol, BrokerProtocol
+from base_protocol import BaseProtocol
 from parlay.server.broker import Broker
 from functools import wraps
 
@@ -40,7 +40,7 @@ def local_item(auto_connect=False):
     return decorator
 
 
-class LocalItemProtocol(BaseProtocol, BrokerProtocol):
+class LocalItemProtocol(BaseProtocol):
     ID = 0  # id counter for uniqueness
 
     class TransportStub(object):
@@ -80,12 +80,6 @@ class LocalItemProtocol(BaseProtocol, BrokerProtocol):
         self._unique_id = LocalItemProtocol.ID
         self._broker = Broker.get_instance()
         LocalItemProtocol.ID += 1
-
-    def publish(self, msg):
-        self._broker.publish(msg)
-
-    def subscribe(self, fn, **kwargs):
-        self._broker.subscribe(fn=fn, **kwargs)
 
     def __str__(self):
         return "Local:" + str(self.items[0].__class__) + " # " + str(self._unique_id)

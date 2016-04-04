@@ -113,31 +113,3 @@ class BaseProtocol(object):
         old_new_data.callback(data)
 
 
-class Adapter(object):
-    """
-    Am Adapter is different from a normal parlay protocol. It is not meant to connect Parlay to an external system.
-    It is only meant to connect an item to the broker and can not instantiated dynamically
-    from the UI or scripts. It is tightly coupled to the item/broker and only supports publish/subscribe
-    """
-
-    def __init__(self):
-        pass
-
-
-    def publish(self, msg):
-        """
-        :type msg dict
-        """
-        pass
-
-    def subscribe(self, **kwargs):
-        """
-        :kwargs The topics and their values to subscribe to
-        """
-        pass
-
-    def register_item(self, item):
-        """
-        Register an item
-        """
-        pass

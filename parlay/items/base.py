@@ -62,23 +62,22 @@ class BaseItem(object):
     The Base Item that all other Items should inherit from
     """
 
-    def __init__(self, item_id, name):
+    def __init__(self, item_id, name, adapter=None):
         self.item_id = item_id
         self.item_name = name
-        """:type Broker"""
-        self._broker = Broker.get_instance()
+        """:type Adapter"""
+        self._adapter = adapter if adapter is not None else Broker.get_instance()
         self.children = []  # child items
 
         # subscribe on_message to be called whenever we get a message *to* us
         self.subscribe(self.on_message, TO=item_id)
-        self.subscribe(self.on_sent_message, FROM=item_id)
         self._interfaces = []  # list of interfaces we support
 
     def subscribe(self, _fn, **kwargs):
-        raise NotImplementedError("You must implement a subscribe function for a BaseItem child class")
+        self._adapter.subscribe(_fn, **kwargs)
 
-    def publish(self, msg, callback):
-        raise NotImplementedError("You must implement a subscribe function for a BaseItem child class")
+    def publish(self, msg):
+        self._adapter.publish(msg)
 
 
     def on_message(self, msg):
@@ -87,7 +86,6 @@ class BaseItem(object):
         Be sure to override this.
         """
         pass
-
 
     def get_discovery(self):
         """

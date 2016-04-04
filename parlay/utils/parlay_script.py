@@ -1,55 +1,35 @@
 """
 Define a base class for creating a client script
 """
-from bonobo._bonobo import Listener
-from twisted.internet import threads, reactor, defer
+from twisted.internet import reactor as default_reactor
 from twisted.python.failure import Failure
-import json
+from twisted.internet.protocol import Factory
 import sys
 import traceback
-from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES
-from parlay.protocols.utils import message_id_generator
-import traceback
 from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES, ListenerStatus
-from parlay.items.parlay_standard import ParlayStandardItem
-
+from autobahn.twisted.websocket import WebSocketClientFactory
+from parlay.protocols.websocket import WebsocketAdapter, WebsocketAdapterFactory
 
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
 
 class ParlayScript(ThreadedItem):
 
-    def __init__(self, item_id=None, name=None, _reactor=None):
+    def __init__(self, item_id=None, name=None, _reactor=None, adapter=None):
         if item_id is None:
             item_id = self.__class__.__name__ + ".py"
         if name is None:
             name = self.__class__.__name__ + ".py"
-
-        # default to default reactor
-        _reactor = reactor if _reactor is None else _reactor
         # default script name and id to the name of this class
-        ThreadedItem.__init__(self, item_id, name, _reactor)
-        
+        ThreadedItem.__init__(self, item_id, name, _reactor, adapter=adapter)
+        if adapter._connected.called:
+            self._reactor.callLater(0, self._start_script)
+        else:
+            adapter._connected.addCallback(lambda _: self._start_script())
+
 
     def on_message(self, msg):
         self._runListeners(msg)
-
-    def subscribe(self, _fn=None, **topics):
-        """
-        Subscribe to messages the topics in **kwargs
-        """
-        self.publish({"TOPICS": {'type': 'subscribe'}, "CONTENTS": {'TOPICS': topics}})
-        if _fn is not None:
-            def listener(msg):
-                topics = msg["TOPICS"]
-                if all(k in topics and v == topics[k] for k, v in topics):
-                    _fn(msg)
-                return ListenerStatus.KEEP_LISTENER
-
-            self.add_listener(listener)
-
-    def publish(self, msg, callback):
-        self.sendMessage(json.dumps(msg))
 
     def kill(self):
         """ Kill the current script """
@@ -63,13 +43,13 @@ class ParlayScript(ThreadedItem):
         """
 
         def internal_cleanup():
-            self.transport.loseConnection()
+            self._adapter.transport.loseConnection()
             # should we stop the reactor on close?
             if self.__class__.stop_reactor_on_close:
-                reactor.stop()
+                self._reactor.stop()
 
-        self.sendClose()
-        reactor.callLater(1, internal_cleanup)
+        self._adapter.sendClose()
+        self._reactor.callLater(1, internal_cleanup)
 
     def _start_script(self):
         """ Init and run the script """
@@ -106,7 +86,7 @@ class ParlayScript(ThreadedItem):
 
 
 def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE_WEBSOCKET_PORT,
-                 stop_reactor_on_close=None, skip_checks=False):
+                 stop_reactor_on_close=None, skip_checks=False, reactor=None):
     """
     Construct a new script from the script class and start it
 
@@ -122,12 +102,15 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
             raise TypeError("start_script called with: "+str(script_class)+" \n" +
                             "Can only call start_script on an instance of a subclass of ParlayScript")
 
-    # et whether to stop the reactor or not (default to the opposite of reactor running)
+    if reactor is None:
+        reactor = default_reactor
+    # get whether to stop the reactor or not (default to the opposite of reactor running)
     script_class.stop_reactor_on_close = stop_reactor_on_close if stop_reactor_on_close is not None else not reactor.running
 
     # connect it up
-    factory = WebSocketClientFactory("ws://" + engine_ip + ":" + str(engine_port))
-    factory.protocol = script_class
+    factory = WebsocketAdapterFactory("ws://" + engine_ip + ":" + str(engine_port), reactor=reactor)
+    adapter = factory.adapter
+    script_item = script_class(_reactor=reactor, adapter=adapter)
     reactor.connectTCP(engine_ip, engine_port, factory)
 
     if not reactor.running:

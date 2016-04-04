@@ -19,7 +19,7 @@ class ParlayStandardItem(ThreadedItem):
     discovery. Inherit from it and use the parlay decorators to get UI functionality
     """
 
-    def __init__(self, item_id, name, broker_protocol=None):
+    def __init__(self, item_id, name):
         # call parent
         ThreadedItem.__init__(self, item_id, name)
         self._content_fields = []
@@ -28,19 +28,14 @@ class ParlayStandardItem(ThreadedItem):
         self._datastreams = {}
         self.item_type = None
 
-        # if no protocol given, then assume we're local
-        if broker_protocol is None:
-            broker_protocol = LocalItemProtocol.open_for_obj(self)
-
-        self._broker_protocol = broker_protocol
         # default msg ids are 32 bit ints between 100 and 65535
         self._msg_id_generator = message_id_generator(65535, 100)
 
     def subscribe(self, _fn, **kwargs):
-        return self._broker.subscribe(_fn, **kwargs)
+        return self._adapter.subscribe(_fn, **kwargs)
 
-    def publish(self, msg, callback):
-        return self._broker_protocol.transport.write.publish(msg, callback)
+    def publish(self, msg):
+        return self._adapter.publish(msg)
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
@@ -150,7 +145,7 @@ class ParlayStandardItem(ThreadedItem):
         if extra_topics is not None:
             msg["TOPICS"].update(extra_topics)
 
-        self.publish(msg, self.on_message)
+        self.publish(msg)
 
     def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
         """
@@ -342,7 +337,7 @@ class ParlayCommandItem(ParlayStandardItem):
 
         # run discovery to init everything for a first time
         # call it immediately after init
-        self._broker._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+        self._adapter._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
 
 
 
@@ -400,7 +395,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 self.add_datastream(member_name, member_name, member.units)
 
     def _send_parlay_message(self, msg):
-        self.publish(msg, self.on_message)
+        self.publish(msg)
 
     def on_message(self, msg):
         """
