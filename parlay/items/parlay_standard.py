@@ -628,6 +628,9 @@ class ParlayStandardScriptProxy(object):
                 def _closure_wrapper(f_name=func_name, f_id=func_id, _arg_names=arg_names, _self=self):
 
                     def func(*args, **kwargs):
+                        if len(args) + len(kwargs) > len(_arg_names):
+                            raise KeyError("Too many Arguments. Expected arguments are: " +
+                                           str([str(x[0]) for x in _arg_names]))
                         # add positional args with name lookup
                         for j in range(len(args)):
                             kwargs[_arg_names[j][0]] = args[j]
