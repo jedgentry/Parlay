@@ -13,72 +13,24 @@ function pushChipBuffer (chipElements) {
 	}
 }
 
-/**
- * Collects and formats the fields available on the given message object.
- * @param {Object} message - message container from the scope.
- * @returns {Object} - parsed and formatted StandardItem data.
- */    
-function collectMessage(message, for_statement) {
-
-	if (!Object.keys(message).length) return undefined;
-	
-	// Find root most field.
-	// TODO: Should rethink this so that we don't have to hard code these values.
-	var root_field = Object.keys(message).find(function (field) {
-		return field.indexOf("COMMAND") > -1 || field.indexOf("FUNC") > -1;
-	});
-	
-	// Build Array of relevant fields, relevant meaning a sub field of the root field.
-	var relevant_fields = [root_field];
-	
-	if (message[root_field].sub_fields) {
-		relevant_fields = relevant_fields.concat(message[root_field].sub_fields.map(function (field) {
-			return field.msg_key + "_" + field.input;
-		}));
-	}
-	
-	// Reduce these fields and their data to a Object.
-	return relevant_fields.reduce(function(accumulator, field) {
-		var param_name, field_type;
-        
-        if (field.indexOf('_') > -1) {
-	        var split_field = field.split('_');
-
-            field_type = split_field[split_field.length - 1];
-
-            param_name = split_field.slice(0, split_field.length - 1).join('_');
-	    }
-	    else {
-		    param_name = field;
-	    }	    
-	    
-	    // If type is Object or Array then turn the JSON string into an actual Object.
-	    if (field_type === "ARRAY") accumulator[param_name] = message[field].map(function (chip) {
-		    return !Number.isNaN(chip.value) ? parseInt(chip.value) : chip.value;
-		});
-	    else if (field_type === "NUMBERS") accumulator[param_name] = message[field].map(function(field) { return parseFloat(field.value); });
-	    else if (angular.isObject(message[field])) accumulator[param_name] = for_statement ? message[field].name : message[field].value;
-        else accumulator[param_name] = message[field];
-        
-        return accumulator;
-	}, {});
-
+function PromenadeStandardCommandMessage(item_name) {
+    this.item_name = item_name;
 }
 
 /**
- * Constructs Python statement from the given message.
- * @param {String} item_id - name of the item
- * @param {Object} message - message we're converting to a Python statement
- * @returns {String} - Python statement
+ * Transforms the fields available into an equivalent Python statement.
+ * @returns {String} - Python statement.
  */
-function buildPythonCommand(item_name, message) {
+PromenadeStandardCommandMessage.prototype.toPythonStatement = function () {
 
-	// Replace all spaces in the item name with underscores.
-    var var_name = "e_" + item_name.replace(/\s+/g, "_");
-    var setup = var_name + " = get_item_by_name('" + item_name + "')";
+    var message = this.collect(true);
 
-    // If we are given an empty message return only the setup
-    if (!message) {
+    // Replace all spaces in the item name with underscores.
+    var var_name = "e_" + this.item_name.replace(/\s+/g, "_");
+    var setup = var_name + " = get_item_by_name('" + this.item_name + "')";
+
+    // If we are given an empty message return only the setup.
+    if (Object.getOwnPropertyNames(message).length === 0) {
         return setup;
     }
 
@@ -94,109 +46,169 @@ function buildPythonCommand(item_name, message) {
         if (value === undefined) value = "None";
         return key + "=" + value;
     }).join(", ") + ")";
-}
+};
+
+/**
+ * Collects and formats the fields available on the given message object.
+ * @param {Boolean} for_statement - If true we should collect the message for a Python statement, otherwise collect
+ * if for a message.
+ * @returns {Object} - parsed and formatted StandardItem data.
+ */
+PromenadeStandardCommandMessage.prototype.collect = function (for_statement) {
+    if (Object.keys(this).length < 1) {
+        return undefined;
+    }
+
+    // Find root most field.
+    // TODO: Should rethink this so that we don't have to hard code these values.
+    var root_field = Object.keys(this).find(function (field) {
+        return field.indexOf("COMMAND") > -1 || field.indexOf("FUNC") > -1;
+    });
+
+    // Build Array of relevant fields, relevant meaning a sub field of the root field.
+    var relevant_fields = [root_field];
+
+    if (this[root_field].sub_fields) {
+        relevant_fields = relevant_fields.concat(this[root_field].sub_fields.map(function (field) {
+            return field.msg_key + "_" + field.input;
+        }));
+    }
+
+    // Reduce these fields and their data to a Object.
+    return relevant_fields.reduce(function(accumulator, field) {
+        var param_name, field_type;
+
+        if (field.indexOf('_') > -1) {
+            var split_field = field.split('_');
+
+            field_type = split_field[split_field.length - 1];
+
+            param_name = split_field.slice(0, split_field.length - 1).join('_');
+        }
+        else {
+            param_name = field;
+        }
+
+        // If type is Object or Array then turn the JSON string into an actual Object.
+        if (field_type === "ARRAY") {
+            accumulator[param_name] = this[field].map(function (chip) {
+                return !Number.isNaN(chip.value) ? parseInt(chip.value) : chip.value;
+            });
+        }
+        else if (field_type === "NUMBERS") {
+            accumulator[param_name] = this[field].map(function(field) {
+                return parseFloat(field.value);
+            });
+        }
+        else if (angular.isObject(this[field])) {
+            accumulator[param_name] = for_statement ? this[field].name : this[field].value;
+        }
+        else {
+            accumulator[param_name] = this[field];
+        }
+
+        return accumulator;
+    }.bind(this), {});
+};
 
 /**
  * Controller constructor for the command tab.
  * @constructor
  * @param {AngularJS $scope} $scope - A AngularJS $scope Object.
- * @param {AngularJS Service} $timeout - AngularJS timeout service.
- * @param {Parlay Service} ParlayUtility - Parlay Utlity Service.
+ * @param {AngularJS Service} $timeout - AngularJS timeout Service.
+ * @param {Parlay Service} ParlayNotification - ParlayNotification Service.
  */
-function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayNotification) {
+function PromenadeStandardItemCardCommandTabController($scope, ParlayNotification) {
 
 	// Due to the way JavaScript prototypical inheritance works and AngularJS scoping we want to enclose the message Object within another object.
 	// Reference AngularJS "dot rule": http://jimhoskins.com/2012/12/14/nested-scopes-in-angularjs.html
 	$scope.wrapper = {
-		message: {}
+		message: new PromenadeStandardCommandMessage(this.item.name)
 	};
 
     // If there is only one field we should automatically assign it's default.
     if (this.item.content_fields && Object.keys(this.item.content_fields).length === 1) {
         Object.keys(this.item.content_fields).forEach(function (key) {
-            $scope.wrapper.message[this.item.content_fields[key].msg_key + '_' + this.item.content_fields[key].input] = this.item.content_fields[key].options.find(function (option) { return option.name === this.item.content_fields[key].default; }.bind(this));
+            $scope.wrapper.message[this.item.content_fields[key].msg_key + '_' + this.item.content_fields[key].input] = this.item.content_fields[key].options.find(function (option) {
+                return option.name === this.item.content_fields[key].default;
+            }.bind(this));
         }.bind(this));
     }
 
-    this.command_builder_collapsed = false;
-    this.script_builder_collapsed = false;
-    this.response_contents_collapsed = false;
+    // Hold state of command section collapsibles.
+    this.collapsible_state = {
+        command_builder: false,
+        script_builder: false,
+        response_contents: false
+    };
 
-    // Controller attributes that reflect the state of the command form.
-	this.sending = false;
-
+    // Container for pending responses.
     this.responses = [];
 
-	// Reference to a $timeout deregistration function.
-	var sending_timeout = null;
-	
+    /**
+     * Add received response information to the pending response item.
+     * @param {Object} response - Response message topics and contents.
+     * @param {Boolean} success - True if the message was resolved, false otherwise.
+     */
+    function markResponse(response, success) {
+        var pending_response = this.responses.find(function (pending_response) {
+            return pending_response.MSG_ID === response.TOPICS.MSG_ID;
+        });
+
+        if (pending_response) {
+            pending_response.received = true;
+            pending_response.message = response;
+            pending_response.success = success;
+        }
+    }
+
 	/**
 	 * Collects and sends the command from the form. During this process it will update controller attributes to inform the user the current status.
 	 * @param {Event} $event - This event's target is used to reference the md-chips element so that we can clear the buffer if available.
 	 */
 	this.send = function ($event) {
 		// Push the buffer into the md-chips ng-model
-		if ($event) pushChipBuffer($event.target.querySelectorAll('md-chips'));
-			    
-	    this.sending = true;
+		if ($event) {
+            pushChipBuffer($event.target.querySelectorAll('md-chips'));
+        }
 
+        // Add a pending response Object.
         this.responses.push({
             received: false,
             MSG_ID: this.item.getMessageId() + 1,
-            message: undefined
+            message: undefined,
+            success: undefined
         });
 
+        // Remove all responses that have been received.
         this.responses = this.responses.filter(function (pending_response) {
             return !pending_response.received;
         });
 
-	    try {
-	    	this.item.sendMessage(collectMessage($scope.wrapper.message, false)).then(function (response) {
-
-                var pending_response = this.responses.find(function (pending_response) {
-                    return pending_response.MSG_ID === response.TOPICS.MSG_ID;
-                });
-
-                if (pending_response) {
-                    pending_response.received = true;
-                    pending_response.message = response;
-                }
-
-                // If we still have an outstanding timeout we should cancel it to prevent the send button from flickering.
-	            if (sending_timeout !== null) $timeout.cancel(sending_timeout);
-
-	            // Setup a timeout to reset the button to it's default state after a brief period of time.
-	        	sending_timeout = $timeout(function () {
-                    sending_timeout = null;
-	                this.sending = false;
-	            }.bind(this), 500);
-	            
-	        }.bind(this)).catch(function (response) {
-		        this.sending = false;
-		    }.bind(this));
-	    }
-	    catch (e) {
-		    this.sending = false;
-	    }
+        // Request that the item send the collected message.
+        // When a response is received mark it as a success or failure.
+        this.item.sendMessage($scope.wrapper.message.collect(false))
+            .then(function (response) {
+                markResponse.call(this, response, true);
+            }.bind(this))
+            .catch(function (response) {
+                markResponse.call(this, response, false);
+            }.bind(this));
 	};
-	
-	/**
-	 * Generate the Python statements from the command form.
-	 * @returns {String} - equivalent Python statements
-	 */
-	this.generatePythonCommand = function() {
-        return buildPythonCommand(this.item.name, collectMessage($scope.wrapper.message, true));
-	};
-	
+
 	/**
 	 * Copy the Python command generated by the form to the clipboard.
 	 */
 	this.copyCommand = function() {
-        var command = this.generatePythonCommand();
+        var command = $scope.wrapper.message.toPythonStatement();
 
-        if (command) ParlayNotification.show({content: command.copyToClipboard() ?
-			"Command copied to clipboard." : "Copy failed. Check browser compatibility."});
-        else ParlayNotification.show({content: "Cannot copy empty command."});
+        if (command) {
+            ParlayNotification.show({content: command.copyToClipboard() ?
+                "Command copied to clipboard." : "Copy failed. Check browser compatibility."});
+        }
+        else {
+            ParlayNotification.show({content: "Cannot copy empty command."});
+        }
 
 	};
 
@@ -205,15 +217,15 @@ function PromenadeStandardItemCardCommandTabController($scope, $timeout, ParlayN
     };
 
     this.toggleCommandBuilder = function () {
-		this.command_builder_collapsed = !this.command_builder_collapsed;
+        this.collapsible_state.command_builder = !this.collapsible_state.command_builder;
 	};
 
     this.toggleScriptBuilder = function () {
-        this.script_builder_collapsed = !this.script_builder_collapsed;
+        this.collapsible_state.script_builder = !this.collapsible_state.script_builder;
     };
 
     this.toggleResponseContents = function () {
-        this.response_contents_collapsed = !this.response_contents_collapsed ;
+        this.collapsible_state.response_contents = !this.collapsible_state.response_contents;
     };
 	
 	// Watch for new fields to fill with defaults.
@@ -288,7 +300,16 @@ function PromenadeStandardItemCardCommandContainer(RecursionHelper, ParlayPersis
 		    var uuid = 0; // unique index for chip objects so that even chips with the same value will be 'unique'
             var max_safe_int = 9007199254740990; // per the ECMAScript2015 spec
 
-		    ParlayPersistence.monitor(directive_name, "wrapper.message", $scope);
+		    ParlayPersistence.monitor(directive_name, "wrapper.message", $scope, function (value) {
+
+                var message = $scope.wrapper.message;
+
+                Object.keys(value).forEach(function (key) {
+                    message[key] = value[key];
+                });
+                
+                return message;
+            }.bind($scope));
 
 	        /**
 		     * Packages $mdChip object for insertion into message.
@@ -324,6 +345,6 @@ function PromenadeStandardItemCardCommandContainer(RecursionHelper, ParlayPersis
 }
 
 angular.module('promenade.items.standarditem.commands', ['ngMaterial', 'RecursionHelper', 'parlay.store', 'parlay.utility', 'parlay.notification'])
-	.controller('PromenadeStandardItemCardCommandTabController', ['$scope', '$timeout', 'ParlayNotification', PromenadeStandardItemCardCommandTabController])
+	.controller('PromenadeStandardItemCardCommandTabController', ['$scope', 'ParlayNotification', PromenadeStandardItemCardCommandTabController])
 	.directive("promenadeStandardItemCardCommands", PromenadeStandardItemCardCommands)
 	.directive("promenadeStandardItemCardCommandContainer", ['RecursionHelper', 'ParlayPersistence', 'ParlayUtility', PromenadeStandardItemCardCommandContainer]);

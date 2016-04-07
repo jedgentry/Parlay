@@ -122,6 +122,15 @@ module.exports = function (grunt) {
 			}
 		},
 
+		'bower_concat': {
+			'dist': {
+				'dest': {
+					'js': '<%= meta.tmp_destination %>/lib.js',
+                    'css': '<%= meta.tmp_destination %>/lib.css'
+				}
+			}
+		},
+
 		'wiredep': {
 			'dist': {
 				'src': '<%= meta.dist_destination %>/index.html'
@@ -191,7 +200,7 @@ module.exports = function (grunt) {
 
 		'karma': {
 			'options': {
-				'configFile': 'karma.conf.js',
+				'configFile': 'karma.conf.js'
 			},
 			'dev': {
 				'options': {
@@ -203,7 +212,7 @@ module.exports = function (grunt) {
 			            '<%= meta.mocks %>',
 			            '<%= meta.vendorComponents %>',
 			            '<%= meta.tests %>'
-					],
+					]
 				}
 			},
 			'dist': {
@@ -214,7 +223,7 @@ module.exports = function (grunt) {
 			            '<%= meta.dist_destination %>/<%= pkg.namelower %>.min.js',
 			            '<%= meta.mocks %>',
 			            '<%= meta.tests %>'
-					],
+					]
 				}
 			},
 			'coverage': {
@@ -236,7 +245,7 @@ module.exports = function (grunt) {
 			            '<%= meta.mocks %>',
 			            '<%= meta.vendorComponents %>',
 			            '<%= meta.tests %>'
-					],
+					]
 				}
 			}
 		},
@@ -266,9 +275,12 @@ module.exports = function (grunt) {
 				'src': '<%= meta.stylesheets %>',
 				'options': {
 					'important': false,
-					'adjoining-classes': false,
 					'known-properties': false
-				},
+				}
+			},
+			'options': {
+				'adjoining-classes': false,
+				'outline-none': false
 			}
 		},
 		
@@ -306,12 +318,13 @@ module.exports = function (grunt) {
 			'options': {
 				'mangle': false,
 				'compress': true,
-				'sourceMap': true,
-				'preserveComments': false,
+				'sourceMap': false,
+				'preserveComments': false
 			},
 			'dist': {
 				'files': {
-					'<%= meta.dist_destination %>/<%= pkg.namelower %>.min.js': ['<%= meta.source %>', '<%= meta.vendorComponents %>', '<%= meta.compiledHtml %>']
+					'<%= meta.dist_destination %>/<%= pkg.namelower %>.min.js': ['<%= meta.source %>', '<%= meta.vendorComponents %>', '<%= meta.compiledHtml %>'],
+                    '<%= meta.dist_destination %>/lib.min.js': '<%= meta.tmp_destination %>/lib.js'
 				}
 			}
 		},
@@ -322,7 +335,10 @@ module.exports = function (grunt) {
 				'roundingPrecision': -1
 			},
 			'dist': {
-				'files': {'<%= meta.dist_destination %>/<%= pkg.namelower %>.min.css': '<%= meta.stylesheets %>'}
+				'files': {
+                    '<%= meta.dist_destination %>/<%= pkg.namelower %>.min.css': '<%= meta.stylesheets %>',
+                    '<%= meta.dist_destination %>/lib.min.css': '<%= meta.tmp_destination %>/lib.css'
+                }
 			},
 			'dev': {
 				'files': {'<%= meta.dev_destination %>/<%= pkg.namelower %>.min.css': '<%= meta.stylesheets %>'}
@@ -368,14 +384,14 @@ module.exports = function (grunt) {
 
 	grunt.registerTask('test', 'Lints and tests JavaScript files.', ['jshint', 'html2js', 'karma:dev']);
 	
-	grunt.registerTask('coverage', 'Generates and opens test coverage.', ['karma:coverage', 'open:coverage'])
+	grunt.registerTask('coverage', 'Generates and opens test coverage.', ['karma:coverage', 'open:coverage']);
 
 	grunt.registerTask('dist', 'Generates tested and linted minified JavaScript and CSS files with HTML templates included in JavaScript.', [
 	    'jshint:dist',
 	    'csslint:dist',
 	    'clean:dist',
 	    'bower-install-simple:dist',
-	    'bower:dist',
+        'bower_concat:dist',
 	    'html2js',
 	    'karma:dev',
 	    'uglify:dist',

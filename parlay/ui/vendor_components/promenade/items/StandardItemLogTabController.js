@@ -5,6 +5,9 @@ function PromenadeStandardItemCardLogTabController($scope, ParlayPersistence, Pa
 
 	// Initially we don't want to filter logged messages by anything.
 	this.filter_text = null;
+    
+    // Initially we want an ascending list.
+    this.descending = false;
 
 	var container = ParlayUtility.relevantScope($scope, 'container').container;
 	var directive_name = 'parlayItemCard.' + container.ref.name.replace(' ', '_') + '_' + container.uid;
@@ -13,10 +16,11 @@ function PromenadeStandardItemCardLogTabController($scope, ParlayPersistence, Pa
 
 /**
  * Applies a filter to the item log and returns the messages that pass.
- * @param {String} query - text to filter the log by.
+ * @param {String} query - Query to filter the log by.
+ * @param {Boolean} reverse - Reverse the filter log if true, otherwise return in original order.
  * @returns {Array} - If query is undefined return the full item log, otherwise return the messages that pass the filter.
  */
-PromenadeStandardItemCardLogTabController.prototype.getFilteredLog = function(query) {
+PromenadeStandardItemCardLogTabController.prototype.getFilteredLog = function(query, reverse) {
 
 	function messageFilterFn(message) {
 		// Look through message topics and contents for a match on the query.
@@ -27,8 +31,10 @@ PromenadeStandardItemCardLogTabController.prototype.getFilteredLog = function(qu
 		}, this);
 	}
 
-	// If the filter_text isn't null or undefined return the messages that match the query.
-    return query ? this.getLog().filter(messageFilterFn, angular.lowercase(query)) : this.getLog();
+    // If the filter_text isn't null or undefined return the messages that match the query.
+    var log = query ? this.getLog().filter(messageFilterFn, angular.lowercase(query)) : this.getLog();
+
+    return !!reverse ? log.reverse() : log;
 };
 
 /**

@@ -150,6 +150,20 @@ class Broker(Adapter):
         broker.secure_websocket_port = secure_websocket_port
         return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser)
 
+
+    @staticmethod
+    def start_for_test():
+        broker = Broker.get_instance()
+        broker._reactor.callWhenRunning(broker._started.callback, None)
+
+    @staticmethod
+    def stop():
+        Broker.get_instance().cleanup()
+
+    @staticmethod
+    def stop_for_test():
+        Broker.get_instance().cleanup(stop_reactor=False)
+
     def publish(self, msg, write_method=None):
         """
         Publish a message to the Parlay system
@@ -579,13 +593,14 @@ class Broker(Adapter):
         # send the reply
         message_callback(resp_msg)
 
-    def cleanup(self):
+    def cleanup(self, stop_reactor=True):
         """
         called on exit to clean up the parlay environment
         """
         print "Cleaning Up"
         self._stopped.callback(None)
-        self._reactor.stop()
+        if stop_reactor:
+            self._reactor.stop()
         print "Exiting..."
 
     def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True):
@@ -649,6 +664,8 @@ class Broker(Adapter):
 
         self._reactor.callWhenRunning(self._started.callback, None)
         self._reactor.run()
+
+
 
 try:
     from twisted.internet import ssl

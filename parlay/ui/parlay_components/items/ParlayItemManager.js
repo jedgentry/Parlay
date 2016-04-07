@@ -41,7 +41,7 @@ function ParlayItemManagerFactory(PromenadeBroker, ParlayProtocolManager, Parlay
     
     /**
 	 * Returns the available items from all connected protocols.
-	 * @returns {Array} - Items available on all protocols
+	 * @returns {Array} - Items available on all protocols.
 	 */
     ParlayItemManager.prototype.getAvailableItems = function () {
         return ParlayProtocolManager.getOpenProtocols().reduce(function (previous, current) {
@@ -67,11 +67,19 @@ function ParlayItemManagerFactory(PromenadeBroker, ParlayProtocolManager, Parlay
 	    active_items[index + distance] = active_items[index];
 	    active_items[index] = temp;
     };
+
+	ParlayItemManager.prototype.swap = function (indexA, indexB) {
+		var temp = active_items[parseInt(indexA, 10)];
+		active_items[parseInt(indexA, 10)] = active_items[parseInt(indexB, 10)];
+		active_items[parseInt(indexB, 10)] = temp;
+	};
     
     /**
 	 * Activates item. 
 	 * @param {ParlayItem} item - Reference to the item object we want to activate.
-	 * @param {Number} uid[optional] - If given a uid we will use the provided one. Otherwise we will randomly generate one.
+	 * @param {Number} uid[optional] - If given a uid we will use the provided one. Otherwise randomly generate one.
+     * @param {Object} stored_values - Values that may have been stored from a origin card or previous session.
+     * @param {Number} index - Position in active_items Array.
 	 */
     ParlayItemManager.prototype.activateItem = function (item, uid, stored_values, index) {
 
@@ -82,6 +90,9 @@ function ParlayItemManagerFactory(PromenadeBroker, ParlayProtocolManager, Parlay
         };
 
         if (index !== undefined) {
+            // Ensure the $index matches the items index in the active items container.
+            container.stored_values.$index = index;
+            
             active_items.splice(index, 0, container);
         }
         else {
@@ -120,7 +131,7 @@ function ParlayItemManagerFactory(PromenadeBroker, ParlayProtocolManager, Parlay
     
     /**
 	 * Loads items from the specified workspace.
-	 * @param {Workspace} workspace - Saved workspace to be loaded.
+	 * @param {Object} workspace - Saved workspace to be loaded.
 	 */
 	ParlayItemManager.prototype.loadWorkspace = function (workspace) {
 

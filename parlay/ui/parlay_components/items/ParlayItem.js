@@ -91,9 +91,8 @@ function ParlayItemFactory() {
 
     /**
      * Abstract method that should be overwritten by those that prototypically inherit from ParlayItem.
-     * @param {String} query - Given query that would be matched to the item's properties.
      */
-    ParlayItem.prototype.matchesQuery = function (query) {
+    ParlayItem.prototype.matchesQuery = function () {
 	    console.warn("matchesQuery is not implemented for " + this.name);
     };
     
@@ -112,7 +111,10 @@ function ParlayItemFactory() {
 function ParlayItemCard($compile, ParlayPersistence) {
     return {
         templateUrl: "../parlay_components/items/directives/parlay-item-card.html",
-        link: function (scope, element, attributes) {
+        link: function (scope, element) {
+
+            // Setup drag handlers for ParlayItemCard drag and drop rearrange functionality.
+            setupDragHandlers(element);
 
 	        // Grab the item reference from the container for convenience of using scope.item.
 	        scope.item = scope.container.ref;
@@ -156,6 +158,47 @@ function ParlayItemCard($compile, ParlayPersistence) {
             ParlayPersistence.monitor(directive_name, "active_directives", scope);
 
             /**
+             * Setup drag event handlers to allow cards to by rearranged by dragging.
+             * @param {HTML Element} element - ParlayItemCard HTML element.
+             */
+            function setupDragHandlers(element) {
+
+                // Fired when drag event begins on a ParlayItemCard.
+                element.on('dragstart', function (event) {
+                    // Set the card index in the event.
+                    event.dataTransfer.setData("text/plain", angular.element(element).scope().$index);
+
+                    // Specify the type of drop zone that can accept the event.
+                    event.dataTransfer.effectAllowed = "link";
+                });
+
+                // Fired as a ParlayItemCard is dragged over a ParlayItemCard.
+                element.on('dragover', function (event) {
+                    // Specify the type of draggable this element can accept.
+                    event.dataTransfer.dropEffect = "link";
+                    
+                    // Indicates the element is a valid drop zone.
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                });
+
+                // Fired when a ParlayItemCard is dropped on a ParlayItemCard.
+                element.on('drop', function (event) {
+                    // Indices of the source and destination ParlayItemCard of the drag event.
+                    var thisIndex = angular.element(element).scope().$index;
+                    var thatIndex = event.dataTransfer.getData("text/plain");
+
+                    // Swap the ParlayItemCards.
+                    scope.$apply(function () {
+                        scope.itemCtrl.swap(thisIndex, thatIndex);
+                    });
+
+                });
+
+            }
+
+            /**
 	         * Compiles the toolbar set on the item.
 	         * @param {Array} directives - Array of directive name strings.
 	         */
@@ -164,7 +207,7 @@ function ParlayItemCard($compile, ParlayPersistence) {
 	            var toolbar = element[0].querySelector("div.md-toolbar-tools");
 
 	            directives.map(function (directive) {
-                    return "<" + directive.snakeCase() + " item='item' layout-fill layout='row' layout-align='space-between center'></" + directive.snakeCase() + ">";
+                    return "<" + directive.snakeCase() + " flex item='item' layout-fill layout='row' layout-align='space-between center'></" + directive.snakeCase() + ">";
                 }).forEach(function (directive_string) {
 					toolbar.insertBefore($compile(directive_string)(scope)[0], toolbar.firstChild);
 	            });

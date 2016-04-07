@@ -134,8 +134,9 @@ function ParlayProtocolManagerFactory($injector, $q, PromenadeBroker, ParlayStor
          * @returns {Object} - Returns Protocol object.
          */
         function getOpenProtocol(name) {
-            return open_protocols
-                .find(function (protocol) { return name === protocol.getName(); });
+            return open_protocols.find(function (protocol) {
+                return name === protocol.getName();
+            });
         }
 
         /**
@@ -159,7 +160,7 @@ function ParlayProtocolManagerFactory($injector, $q, PromenadeBroker, ParlayStor
 
         /**
          * Instantiates and opens the given Array of protocol configurations.
-         * @param {Array} protocols - Array of open protocols.
+         * @param {Object} response - Contains Array of open protocols.
          */
         function setOpenProtocols(response) {
 
