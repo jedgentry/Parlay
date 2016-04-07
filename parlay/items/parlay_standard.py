@@ -11,6 +11,7 @@ from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPU
     INPUT_TYPE_CONVERTER_LOOKUP
 import re
 import inspect
+import Queue
 
 
 class ParlayStandardItem(ThreadedItem):
@@ -485,6 +486,9 @@ class ParlayCommandItem(ParlayStandardItem):
                 def run_command():
                     return method(**kws)
 
+                self.send_response(msg, msg_status=MSG_STATUS.ACK)
+                self.send_response(msg, msg_status=MSG_STATUS.ACK)
+
                 result = defer.maybeDeferred(run_command)
                 result.addCallback(lambda r: self.send_response(msg, {"RESULT": r}))
 
@@ -688,8 +692,10 @@ class ParlayStandardScriptProxy(object):
         # send the message and block for response
         msg = self._script.make_msg(self.item_id, self._command_id_lookup[command], msg_type=MSG_TYPES.COMMAND,
                                     direct=True, response_req=True, COMMAND=command, **kwargs)
+        # make the handle that sets up the listeners
+        handle = CommandHandle(msg, self._script)
         self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
-        return CommandHandle(msg, self._script)
+        return handle
 
     # Some re-implementation so our instance-bound descriptors will work instead of having to be class-bound.
     # Thanks: http://blog.brianbeck.com/post/74086029/instance-descriptors
@@ -737,12 +743,11 @@ class CommandHandle(object):
         self._script = script
         self.msg_list = []  # list of al messages with the same message id but swapped TO and FROM
         self._done = False  # True when we're done listening (So we can clean up)
-
-        self._complete_deferred = defer.Deferred()
-        self._ack_deferred = defer.Deferred()
+        self._queue = Queue.Queue()
 
         # add our listener
         self._script.add_listener(self._generic_on_message)
+
 
     def _generic_on_message(self, msg):
         """
@@ -755,34 +760,43 @@ class CommandHandle(object):
                 and topics.get("TO", None) == self._msg_topics["FROM"] \
                 and topics.get("FROM", None) == self._msg_topics['TO']:
 
-            # add it to the list if the msg ids match but to and from are swapped
+            # add it to the list if the msg ids match but to and from are swapped (this is for inspection later)
             self.msg_list.append(msg)
+            # add it to the message queue for messages that we have not looked at yet
+            self._queue.put_nowait(msg)
 
             status = topics.get("MSG_STATUS", None)
             msg_type = topics.get("MSG_TYPE", None)
             if msg_type == MSG_TYPES.RESPONSE and status != MSG_STATUS.ACK:
                 #  if it's a response but not an ack, then we're done
                 self._done = True
-                if status == MSG_STATUS.ERROR:  # errback on error
-                    self._complete_deferred.errback(failure.Failure(BadStatusError(msg)))
-                else:
-                    self._complete_deferred.callback(msg)
-            elif msg_type == MSG_TYPES.RESPONSE and status == MSG_STATUS.ACK:
-                # new deferred because we could get more than one ACK
-                old_ack, self._ack_deferred = self._ack_deferred, defer.Deferred()
-                old_ack.callback(msg)
 
         # remove this function from the listeners list
         return self._done
+
+    def wait_for(self, fn, timeout=None):
+        """
+        Block and wait for a message in our queue where fn returns true. Return that message
+        """
+        msg = self._queue.get(timeout=timeout, block=True)
+        while not fn(msg):
+            msg = self._queue.get(timeout=timeout, block=True)
+
+        return msg
 
     def wait_for_complete(self):
         """
         Called from a scripts thread. Blocks until the message is complete.
         """
-        return threads.blockingCallFromThread(self._script.reactor, lambda: self._complete_deferred)
+
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.ACK and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
+
+        return msg["CONTENT"]["RESULT"]
 
     def wait_for_ack(self):
         """
         Called from a scripts thread. Blocks until the message is ackd
         """
-        return threads.blockingCallFromThread(self._script.reactor, lambda: self._ack_deferred)
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.ACK and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
