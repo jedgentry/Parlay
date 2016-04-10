@@ -129,7 +129,7 @@ class ThreadedItem(BaseItem):
         """
         Add  functions to the listener list
         """
-        self._reactor.maybeblockingCallFromThread(self._msg_listeners.append, listener_function)
+        self._msg_listeners.append(listener_function)
 
     ###############################################################################################
     ###################  The functions below are used by the script ###############################
