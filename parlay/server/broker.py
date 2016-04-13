@@ -132,7 +132,7 @@ class Broker(object):
 
     @staticmethod
     def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
-              websocket_port=8085, secure_websocket_port=8086):
+              websocket_port=8085, secure_websocket_port=8086, ui_path=None):
         """
         Run the default Broker implementation.
         This call will not return
@@ -142,7 +142,7 @@ class Broker(object):
         broker.https_port = https_port
         broker.websocket_port = websocket_port
         broker.secure_websocket_port = secure_websocket_port
-        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser)
+        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
 
     @staticmethod
     def start_for_test():
@@ -593,7 +593,7 @@ class Broker(object):
             self._reactor.stop()
         print "Exiting..."
 
-    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, ui_path=None):
         """
         Start up and run the broker. This method call with not return
         """
@@ -614,6 +614,13 @@ class Broker(object):
         # in production mode, only listen on localhost
         interface = '127.0.0.1' if mode == Broker.Modes.PRODUCTION else ""
 
+        # UI path
+        if ui_path is not None:
+            root = static.File(ui_path)
+        else:
+            root = static.File(PARLAY_PATH + "/ui/dist")
+            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
+
         # ssl websocket
         try:
             from OpenSSL.SSL import Context
@@ -623,10 +630,6 @@ class Broker(object):
             factory.protocol = ParlayWebSocketProtocol
             factory.setProtocolOptions(allowHixie76=True)
             listenWS(factory, ssl_context_factory, interface=interface)
-
-            root = static.File(PARLAY_PATH + "/ui/dist")
-            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
-
             root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
             self._reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
 
@@ -644,8 +647,6 @@ class Broker(object):
             self._reactor.listenTCP(self.websocket_port, factory, interface=interface)
 
             # http server
-            root = static.File(PARLAY_PATH + "/ui/dist")
-            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
             site = server.Site(root)
             self._reactor.listenTCP(self.http_port, site, interface=interface)
             if open_browser:
