@@ -13,14 +13,9 @@ It enables:
 
 ## Full Documentation
 
-See the [wiki](https://github.com/PromenadeSoftware/Parlay/wiki) for the complete documentation. 
-
+The documentation for Parlay is hosted on [Read the Docs](http://parlay.readthedocs.org). 
 
 ## Installation
-
-#### Windows Installer
-
-An installer for 64-bit Windows is [available on our organization page](http://promenadesoftware.github.io).
 
 #### Install via Python Pip
 
@@ -28,6 +23,14 @@ For users familiar with python, the easiest way to install Parlay is with pip:
 ```
 c:\> pip install git+https://github.com/PromenadeSoftware/Parlay.git
 ```
+
+## Examples
+
+See the [Parlay Examples](https://github.com/PromenadeSoftware/ParlayExamples) repository. 
+
+## Help
+
+Check out the #parlay channel on freenode IRC for help
 
 ## License
 
