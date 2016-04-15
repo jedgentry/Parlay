@@ -617,6 +617,7 @@ class Broker(object):
         # UI path
         if ui_path is not None:
             root = static.File(ui_path)
+            root.putChild("parlay", static.File(PARLAY_PATH + "/ui"))
         else:
             root = static.File(PARLAY_PATH + "/ui/dist")
             root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
