@@ -430,9 +430,9 @@ class Broker(object):
                     try:
                         _e.printTraceback()
                     except Exception as _:
-                        print(str(e))
+                        print(str(_e))
 
-                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(e)}
+                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(_e)}
                     message_callback(reply)
 
                 d.addErrback(error_opening)
@@ -617,6 +617,7 @@ class Broker(object):
         # UI path
         if ui_path is not None:
             root = static.File(ui_path)
+            root.putChild("parlay", static.File(PARLAY_PATH + "/ui"))
         else:
             root = static.File(PARLAY_PATH + "/ui/dist")
             root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
