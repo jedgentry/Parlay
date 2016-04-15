@@ -430,9 +430,9 @@ class Broker(object):
                     try:
                         _e.printTraceback()
                     except Exception as _:
-                        print(str(e))
+                        print(str(_e))
 
-                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(e)}
+                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(_e)}
                     message_callback(reply)
 
                 d.addErrback(error_opening)
