@@ -1,6 +1,7 @@
 import functools
 from base import BaseItem
 from parlay.protocols.utils import message_id_generator
+from parlay.protocols.local_item import LocalItemProtocol
 from twisted.internet import defer, threads
 from twisted.python import failure
 from parlay.server.broker import Broker, run_in_broker, run_in_thread
@@ -10,6 +11,7 @@ from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPU
     INPUT_TYPE_CONVERTER_LOOKUP
 import re
 import inspect
+import Queue
 
 
 class ParlayStandardItem(ThreadedItem):
@@ -29,6 +31,12 @@ class ParlayStandardItem(ThreadedItem):
 
         # default msg ids are 32 bit ints between 100 and 65535
         self._msg_id_generator = message_id_generator(65535, 100)
+
+    def subscribe(self, _fn, **kwargs):
+        return self._adapter.subscribe(_fn, **kwargs)
+
+    def publish(self, msg):
+        return self._adapter.publish(msg)
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
@@ -138,7 +146,7 @@ class ParlayStandardItem(ThreadedItem):
         if extra_topics is not None:
             msg["TOPICS"].update(extra_topics)
 
-        self._broker.publish(msg, self.on_message)
+        self.publish(msg)
 
     def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
         """
@@ -325,8 +333,8 @@ class ParlayCommandItem(ParlayStandardItem):
         self._wait_for_next_sent_message = defer.Deferred()
         self._wait_for_next_recv_message = defer.Deferred()
 
-        self._broker.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.item_id)
-        self._broker.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.item_id)
+        self.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.item_id)
+        self.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.item_id)
 
         # add any function that have been decorated
         for member_name in [x for x in dir(self) if not x.startswith("__")]:
@@ -343,7 +351,7 @@ class ParlayCommandItem(ParlayStandardItem):
 
         # run discovery to init everything for a first time
         # call it immediately after init
-        self._broker._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+        self._adapter._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
 
 
 
@@ -401,7 +409,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 self.add_datastream(member_name, member_name, member.units)
 
     def _send_parlay_message(self, msg):
-        self._broker.publish(msg, self.on_message)
+        self.publish(msg)
 
     def on_message(self, msg):
         """
@@ -477,6 +485,9 @@ class ParlayCommandItem(ParlayStandardItem):
                 # try to run the method, return the data and say status ok
                 def run_command():
                     return method(**kws)
+
+                self.send_response(msg, msg_status=MSG_STATUS.ACK)
+                self.send_response(msg, msg_status=MSG_STATUS.ACK)
 
                 result = defer.maybeDeferred(run_command)
                 result.addCallback(lambda r: self.send_response(msg, {"RESULT": r}))
@@ -640,6 +651,9 @@ class ParlayStandardScriptProxy(object):
                 def _closure_wrapper(f_name=func_name, f_id=func_id, _arg_names=arg_names, _self=self):
 
                     def func(*args, **kwargs):
+                        if len(args) + len(kwargs) > len(_arg_names):
+                            raise KeyError("Too many Arguments. Expected arguments are: " +
+                                           str([str(x[0]) for x in _arg_names]))
                         # add positional args with name lookup
                         for j in range(len(args)):
                             kwargs[_arg_names[j][0]] = args[j]
@@ -678,8 +692,10 @@ class ParlayStandardScriptProxy(object):
         # send the message and block for response
         msg = self._script.make_msg(self.item_id, self._command_id_lookup[command], msg_type=MSG_TYPES.COMMAND,
                                     direct=True, response_req=True, COMMAND=command, **kwargs)
+        # make the handle that sets up the listeners
+        handle = CommandHandle(msg, self._script)
         self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
-        return CommandHandle(msg, self._script)
+        return handle
 
     # Some re-implementation so our instance-bound descriptors will work instead of having to be class-bound.
     # Thanks: http://blog.brianbeck.com/post/74086029/instance-descriptors
@@ -727,12 +743,11 @@ class CommandHandle(object):
         self._script = script
         self.msg_list = []  # list of al messages with the same message id but swapped TO and FROM
         self._done = False  # True when we're done listening (So we can clean up)
-
-        self._complete_deferred = defer.Deferred()
-        self._ack_deferred = defer.Deferred()
+        self._queue = Queue.Queue()
 
         # add our listener
         self._script.add_listener(self._generic_on_message)
+
 
     def _generic_on_message(self, msg):
         """
@@ -745,34 +760,43 @@ class CommandHandle(object):
                 and topics.get("TO", None) == self._msg_topics["FROM"] \
                 and topics.get("FROM", None) == self._msg_topics['TO']:
 
-            # add it to the list if the msg ids match but to and from are swapped
+            # add it to the list if the msg ids match but to and from are swapped (this is for inspection later)
             self.msg_list.append(msg)
+            # add it to the message queue for messages that we have not looked at yet
+            self._queue.put_nowait(msg)
 
             status = topics.get("MSG_STATUS", None)
             msg_type = topics.get("MSG_TYPE", None)
             if msg_type == MSG_TYPES.RESPONSE and status != MSG_STATUS.ACK:
                 #  if it's a response but not an ack, then we're done
                 self._done = True
-                if status == MSG_STATUS.ERROR:  # errback on error
-                    self._complete_deferred.errback(failure.Failure(BadStatusError(msg)))
-                else:
-                    self._complete_deferred.callback(msg)
-            elif msg_type == MSG_TYPES.RESPONSE and status == MSG_STATUS.ACK:
-                # new deferred because we could get more than one ACK
-                old_ack, self._ack_deferred = self._ack_deferred, defer.Deferred()
-                old_ack.callback(msg)
 
         # remove this function from the listeners list
         return self._done
+
+    def wait_for(self, fn, timeout=None):
+        """
+        Block and wait for a message in our queue where fn returns true. Return that message
+        """
+        msg = self._queue.get(timeout=timeout, block=True)
+        while not fn(msg):
+            msg = self._queue.get(timeout=timeout, block=True)
+
+        return msg
 
     def wait_for_complete(self):
         """
         Called from a scripts thread. Blocks until the message is complete.
         """
-        return threads.blockingCallFromThread(self._script.reactor, lambda: self._complete_deferred)
+
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.ACK and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
+
+        return msg["CONTENT"]["RESULT"]
 
     def wait_for_ack(self):
         """
         Called from a scripts thread. Blocks until the message is ackd
         """
-        return threads.blockingCallFromThread(self._script.reactor, lambda: self._ack_deferred)
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.ACK and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)

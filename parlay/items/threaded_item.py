@@ -29,15 +29,22 @@ def cleanup():
 Broker.call_on_stop(cleanup)
 
 
+class ListenerStatus(object):
+    """
+    Enum object for keeping or removing listeners
+    """
+    KEEP_LISTENER = False
+    REMOVE_LISTENER = True
+
+
 class ThreadedItem(BaseItem):
     """Base object for all Parlay scripts"""
-
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
 
-    def __init__(self, item_id, name, reactor=None):
-        BaseItem.__init__(self, item_id, name)
-        self.reactor = self._broker._reactor if reactor is None else reactor
+    def __init__(self, item_id, name, reactor=None, adapter=None):
+        BaseItem.__init__(self, item_id, name, adapter=adapter)
+        self._reactor = self._adapter._reactor if reactor is None else reactor
         self._msg_listeners = []
         self._system_errors = []
         self._system_events = []
@@ -52,7 +59,7 @@ class ThreadedItem(BaseItem):
         self.add_listener(self._system_listener)
         self.add_listener(self._discovery_request_listener)
 
-        self._broker.subscribe(self._discovery_broadcast_listener, type='DISCOVERY_BROADCAST')
+        self._adapter.subscribe(self._discovery_broadcast_listener, type='DISCOVERY_BROADCAST')
 
     def _discovery_broadcast_listener(self, msg):
         """
@@ -60,6 +67,8 @@ class ThreadedItem(BaseItem):
         """
         if self._auto_update_discovery and msg['CONTENTS'].get("status", "") == "ok":
             self.discovery = msg['CONTENTS'].get('discovery', self.discovery)
+
+        return ListenerStatus.KEEP_LISTENER
 
     def _system_listener(self, msg):
         """
@@ -75,7 +84,7 @@ class ThreadedItem(BaseItem):
                 self._system_errors.append(msg)
             elif status == 'WARNING' or status == 'INFO':
                 self._system_events.append(msg)
-        return False
+        return ListenerStatus.KEEP_LISTENER
 
     def _discovery_request_listener(self, msg):
         """
@@ -86,8 +95,8 @@ class ThreadedItem(BaseItem):
         if msg['TOPICS'].get('type', "") == 'get_protocol_discovery':
             msg = {'TOPICS': {'type': 'get_protocol_discovery_response'},
                    'CONTENTS': {"CHILDREN": [self.get_discovery()]}}
-            self._send_parlay_message(msg)
-        return False
+            self.publish(msg)
+        return ListenerStatus.KEEP_LISTENER
 
     def open(self, protocol, **params):
         """
@@ -97,7 +106,7 @@ class ThreadedItem(BaseItem):
         """
         msg = {"TOPICS": {'type': 'broker', 'request': 'open_protocol'},
                "CONTENTS": {'protocol_name': protocol, 'params': params}}
-        self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
+        self._reactor.maybeCallFromThread(self.publish, msg)
 
         def wait_for_response():
             result = defer.Deferred()
@@ -114,7 +123,7 @@ class ThreadedItem(BaseItem):
             self.add_listener(listener)
             return result
 
-        return self.reactor.maybeblockingCallFromThread(wait_for_response)
+        return self._reactor.maybeblockingCallFromThread(wait_for_response)
 
     def add_listener(self, listener_function):
         """
@@ -157,11 +166,11 @@ class ThreadedItem(BaseItem):
 
         if wait:
             # block the thread until we get a response or timeout
-            return self.reactor.maybeblockingCallFromThread(self._send_parlay_message_from_thread,
+            return self._reactor.maybeblockingCallFromThread(self._send_parlay_message_from_thread,
                                                             msg=msg, timeout=timeout)
         else:
             # send this to the reactor without waiting for a response
-            self.reactor.maybeCallFromThread(self._send_parlay_message, msg)
+            self._reactor.maybeCallFromThread(self.publish, msg)
             return None  # nothing to wait on, no response
 
     def discover(self, force=True):
@@ -170,12 +179,12 @@ class ThreadedItem(BaseItem):
 
         :param force: If True, will force a rediscovery, if False will take the last cached discovery
         """
-        if not self.reactor.running:
+        if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
         print "Running discovery..."
         # block the thread until we get a discovery or error
-        return self.reactor.maybeblockingCallFromThread(self._in_reactor_discover, force)
+        return self._reactor.maybeblockingCallFromThread(self._in_reactor_discover, force)
 
     def save_discovery(self, path):
         """
@@ -204,7 +213,7 @@ class ThreadedItem(BaseItem):
         :return: a proxy object for the item
         """
 
-        if not self.reactor.running:
+        if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
         item_disc = self._find_item_info(self.discovery, item_id, "ID")
@@ -221,7 +230,7 @@ class ThreadedItem(BaseItem):
         :return: a proxy object for the item
         """
 
-        if not self.reactor.running:
+        if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
         item_disc = self._find_item_info(self.discovery, item_name, "NAME")
@@ -278,10 +287,10 @@ class ThreadedItem(BaseItem):
         :param timeout: number of seconds to sleep
         """
 
-        if not self.reactor.running:
+        if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        return self.reactor.maybeblockingCallFromThread(self._sleep, timeout)
+        return self._reactor.maybeblockingCallFromThread(self._sleep, timeout)
 
     ####################### THe following  must be run from the reactor thread ###################
     #############################   Do not call directly from script thread #####################
@@ -337,26 +346,22 @@ class ThreadedItem(BaseItem):
 
         # If we already have a system error, fail
         if len(self._system_errors) > 0:
-            self._timer = self.reactor.callLater(0, cb, self._system_errors.pop(0))
+            self._timer = self._reactor.callLater(0, cb, self._system_errors.pop(0))
 
         else:
             # set a timeout, if requested
             if timeout > 0:
-                timer = self.reactor.callLater(timeout, cb, timeout_msg)
+                timer = self._reactor.callLater(timeout, cb, timeout_msg)
 
             # add our listener to the listener ist
             self.add_listener(listener)
 
             # send the message
-            self._send_parlay_message(msg)
+            self.publish(msg)
 
         return response
 
-    def _send_parlay_message(self, msg):
-        """
-        Send a dictionary msg.  Must be filled in by subclass with protocol specific implementation
-        """
-        raise NotImplementedError()
+
 
     def _in_reactor_discover(self, force):
         """
@@ -380,7 +385,7 @@ class ThreadedItem(BaseItem):
 
         self.add_listener(discovery_listener)
 
-        self._send_parlay_message({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
+        self.publish({"TOPICS": {'type': 'broker', 'request': 'get_discovery'},
                                    "CONTENTS": {'force': force}})
 
         return result
@@ -423,9 +428,9 @@ class ThreadedItem(BaseItem):
 
         # check we don't already have an error
         if len(self._system_errors) > 0:
-            self._timer = self.reactor.callLater(0, cb, self._system_errors.pop(0))
+            self._timer = self._reactor.callLater(0, cb, self._system_errors.pop(0))
         else:
-            timer = self.reactor.callLater(timeout, cb, {'TOPICS': {'MSG_TYPE': 'TIMEOUT'}})
+            timer = self._reactor.callLater(timeout, cb, {'TOPICS': {'MSG_TYPE': 'TIMEOUT'}})
             self.add_listener(listener)
         return response
 
