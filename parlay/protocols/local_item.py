@@ -68,7 +68,7 @@ class LocalItemProtocol(BaseProtocol):
 
     @classmethod
     def get_open_params_defaults(cls):
-        return {"item": LOCAL_ITEM_CLASSES.keys()}
+        return {"item_name": LOCAL_ITEM_CLASSES.keys()}
 
     @classmethod
     def close(cls):
