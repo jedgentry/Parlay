@@ -3,7 +3,7 @@ module.exports = function (grunt) {
 	
 	/**
 	 * Loads each vendor configuration file available in vendor_components
-	 * @returns {Object} - key (vendor name) -> Object of vendor configurations.
+	 * @returns {Array} - Array of vendor configuration Objects.
 	 */
 	function getVendors () {
 		return grunt.file.expand('vendor_components/**/vendor.json').map(function (vendor) {
@@ -11,12 +11,38 @@ module.exports = function (grunt) {
 	    });
 	}
 
+    /**
+     * Returns vendor that has the primary flag set, defaults to "promenade" vendor if no other primary is found.
+     * @param {Array} vendors - Array of vendor configuration Objects.
+     * @returns {Object} - Primary vendor configuration Object.
+     */
     function getPrimaryVendor (vendors) {
-        return vendors.find(function (vendor) {
+
+        var primary = vendors.filter(function (vendor) {
             return vendor.primary;
         });
+
+        if (primary.length === 1) {
+            // Only one vendor has primary flag set, select that vendor.
+            return primary[0];
+        }
+        else if (primary.length === 0) {
+            // No vendor has primary flag set, select "promenade" as primary vendor by default.
+            return vendors.find(function (vendor) {
+                return vendor.name == "promenade";
+            });
+        }
+        else {
+            // More than one vendor has primary flag set.
+            throw new Error("Only one vendor can be primary. Multiple vendor.json configurations have the primary flag set.");
+        }
     }
 
+    /**
+     * Returns the options properties of all the given vendors.
+     * @param {Array} vendors - Array of vendor configuration Objects.
+     * @returns {Object} - Object of key (vendor name) -> value (vendor options property).
+     */
     function getVendorOptions (vendors) {
         return vendors.reduce(function (accumulator, vendor) {
             accumulator[vendor.name] = vendor.options;
@@ -24,6 +50,11 @@ module.exports = function (grunt) {
         }, {});
     }
 
+    /**
+     * Returns the paths properties of all the given vendors.
+     * @param {Array} vendors - Array of vendor configuration Objects.
+     * @returns {Object} - Object of key (vendor name) -> value (vendor paths property).
+     */
     function getVendorPaths (vendors) {
         return vendors.reduce(function (accumulator, vendor) {
             accumulator[vendor.name] = vendor.paths;
@@ -31,6 +62,11 @@ module.exports = function (grunt) {
         }, {});
     }
 
+    /**
+     * Takes a filepath and returns a Base64 String encoding of the file at the given filepath.
+     * @param {String} filepath - file system path to a file.
+     * @returns {String} - Base64 encoded String of the file at the given filepath.
+     */
     function getBase64 (filepath) {
         var split_path = filepath.split(".");
         var extension = split_path[split_path.length - 1];
@@ -39,18 +75,43 @@ module.exports = function (grunt) {
 
 	/**
 	 * Process vendor items and return an Array of Strings that Grunt can use.
-	 * @param {Array} items - Component items we are searching for.
-	 * @param {Array} initial - Any component we want to include explicitly.
+     * @param {Array} vendors - Array of vendor configuration Objects.
+	 * @param {Array} target_component - Component items we are searching for.
+	 * @param {Array} initial_paths - Any component we want to include explicitly.
 	 * @returns {Array} - Array of all components we extracted from the vendor Object and explicitly included components.
 	 */
-	function getVendorPathGlobs (vendors, items, initial) {
+	function getVendorPathGlobs (vendors, target_component, initial_paths) {
 
+        // Object { vendor name -> Object { component name -> component path } }
         var vendors_paths = getVendorPaths(vendors);
 
-		return (initial || []).concat(Object.keys(vendors_paths).reduce(function (accumulator, vendor)  {
-			return accumulator.concat(Object.keys(vendors_paths[vendor]).filter(function (key) {
-				return items.some(function (item) { return key.indexOf(item) > -1; });
-	        }).map(function (key) { return '<%= vendor_paths.' + vendor + '.' + key + ' %>'; }));
+        // Array [ vendor name ]
+		var vendor_names = Object.keys(vendors_paths);
+
+        // Array [ all vendor components in Grunt file path glob pattern ]
+		return (initial_paths || []).concat(vendor_names.reduce(function (accumulator, vendor_name)  {
+            // Don't attempt to process a vendors component paths if they don't define any.
+			if (vendors_paths[vendor_name] === undefined) {
+				return accumulator;
+			}
+			else {
+                // Array [ all of a vendor's component paths ]
+				var potential_paths = Object.keys(vendors_paths[vendor_name]);
+
+                // Array [ vendor's component paths that match the target component ]
+				var matched_paths = potential_paths.filter(function (path) {
+                    // Boolean ( True if a match is found, False otherwise )
+					return target_component.some(function (item) {
+                        // Boolean ( True if path contains a target component, False otherwise )
+						return path.indexOf(item) > -1;
+					});
+				});
+
+                // Array [  ]
+				return accumulator.concat(matched_paths.map(function (key) {
+					return '<%= vendor_paths.' + vendor_name + '.' + key + ' %>';
+				}));
+			}
 	    }, []));
 	}
 
@@ -107,6 +168,70 @@ module.exports = function (grunt) {
             }
 		},
 
+        // Run tasks whenever the watched files change.
+        // https://github.com/gruntjs/grunt-contrib-watch
+        'watch': {
+            'scripts': {
+                'options': {
+                    'livereload': true,
+                    'interrupt': true
+                },
+                'files': ['vendorDefaults.js', '<%= meta.source %>', '<%= meta.vendorComponents %>'],
+                'tasks': ['newer:replace:dev', 'newer:jshint:dev', 'karma:dev', 'newer:copy:dev']
+            },
+            'stylesheets': {
+                'options': {
+                    'debounceDelay': 0,
+                    'livereload': true,
+                    'spawn': false
+                },
+                'files': '<%= meta.stylesheets %>',
+                'tasks': ['newer:csslint:dev', 'cssmin:dev']
+            },
+            'html': {
+                'options': {
+                    'debounceDelay': 0,
+                    'livereload': true,
+                    'spawn': false
+                },
+                'files': ['<%= meta.htmlDirectives %>', '<%= meta.htmlViews %>'],
+                'tasks': ['newer:html2js', 'newer:copy']
+            },
+            'index': {
+                'options': {
+                    'debounceDelay': 0,
+                    'livereload': true,
+                    'spawn': false
+                },
+                'files': ['index.html'],
+                'tasks': ['processhtml:dev', 'wiredep:dev']
+            },
+            'tests': {
+                'options': {
+                    'interrupt': true
+                },
+                'files': '<%= meta.tests %>',
+                'tasks': 'karma:dev'
+            },
+            'mocks': {
+                'files': '<%= meta.mocks %>',
+                'tasks': 'karma:dev'
+            },
+            'Gruntfile': {
+                'files': 'Gruntfile.js',
+                'options': {
+                    'reload': true
+                }
+            },
+            'vendor_config': {
+                'files': 'vendor_components/**/vendor.json',
+                'options': {
+                    'reload': true
+                },
+                'tasks': ['replace:dev']
+            }
+        },
+
         // Installs Bower components listed in bower.json.
         // https://github.com/rse/grunt-bower-install-simple
 		'bower-install-simple': {
@@ -160,63 +285,6 @@ module.exports = function (grunt) {
 			'dev': {
 				'src': '<%= meta.dev_destination %>/index.html'
 			}
-		},
-
-        // Run tasks whenever the watched files change.
-        // https://github.com/gruntjs/grunt-contrib-watch
-	    'watch': {
-		    'scripts': {
-			    'options': {
-				    'livereload': true,
-                    'interrupt': true
-				},
-				'files': ['vendorDefaults.js', '<%= meta.source %>', '<%= meta.vendorComponents %>'],
-				'tasks': ['newer:replace:dev', 'newer:jshint:dev', 'karma:dev', 'newer:copy:dev']
-			},
-			'stylesheets': {
-	        	'options': {
-					'debounceDelay': 0,
-					'livereload': true,
-                    'spawn': false
-				},
-				'files': '<%= meta.stylesheets %>',
-				'tasks': ['newer:csslint:dev', 'cssmin:dev']
-			},
-			'html': {
-	        	'options': {
-					'debounceDelay': 0,
-					'livereload': true,
-                    'spawn': false
-				},
-				'files': ['<%= meta.htmlDirectives %>', '<%= meta.htmlViews %>'],
-				'tasks': ['newer:html2js', 'newer:copy']
-			},
-            'index': {
-                'options': {
-                    'debounceDelay': 0,
-                    'livereload': true,
-                    'spawn': false
-                },
-                'files': ['index.html'],
-                'tasks': ['processhtml:dev', 'wiredep:dev']
-            },
-			'tests': {
-                'options': {
-                    'interrupt': true
-                },
-	        	'files': '<%= meta.tests %>',
-				'tasks': 'karma:dev'
-			},
-			'mocks': {
-				'files': '<%= meta.mocks %>',
-				'tasks': 'karma:dev'
-			},
-            'config': {
-                'files': ['Gruntfile.js', 'vendor_components/**/vendor.json'],
-                'options': {
-                    'reload': true
-                }
-            }
 		},
 
         // Automatically opens the default web browser pointed at the express web server.
