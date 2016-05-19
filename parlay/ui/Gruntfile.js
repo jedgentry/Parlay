@@ -18,36 +18,32 @@ module.exports = function (grunt) {
      */
     function getPrimaryVendor (vendors) {
 
+        // Select all vendors that have the primary flag set.
         var primary = vendors.filter(function (vendor) {
             return vendor.primary;
         });
+
+        // Select the "promenade" vendor.
+		var promenade = vendors.find(function (vendor) {
+			return vendor.name == "promenade";
+		});
 
         if (primary.length === 1) {
             // Only one vendor has primary flag set, select that vendor.
             return primary[0];
         }
-        else if (primary.length === 0) {
+        else if (primary.length === 0 && !!promenade) {
             // No vendor has primary flag set, select "promenade" as primary vendor by default.
-            return vendors.find(function (vendor) {
-                return vendor.name == "promenade";
-            });
+            return promenade;
         }
+		else if (primary.length === 0 && !promenade) {
+			// No vendor has primary flag set and "promenade" vendor is not available to set by default.
+			throw new Error("Either one vendor must be primary or promenade vendor files must be included.");
+		}
         else {
             // More than one vendor has primary flag set.
             throw new Error("Only one vendor can be primary. Multiple vendor.json configurations have the primary flag set.");
         }
-    }
-
-    /**
-     * Returns the options properties of all the given vendors.
-     * @param {Array} vendors - Array of vendor configuration Objects.
-     * @returns {Object} - Object of key (vendor name) -> value (vendor options property).
-     */
-    function getVendorOptions (vendors) {
-        return vendors.reduce(function (accumulator, vendor) {
-            accumulator[vendor.name] = vendor.options;
-            return accumulator;
-        }, {});
     }
 
     /**
@@ -70,7 +66,10 @@ module.exports = function (grunt) {
     function getBase64 (filepath) {
         var split_path = filepath.split(".");
         var extension = split_path[split_path.length - 1];
-        return "data:image/" + extension + ";base64," + grunt.file.read(filepath, {encoding: null}).toString("base64");
+        var file = grunt.file.read(filepath, {encoding: null});
+        var headers = "data:image/" + extension + ";base64,";
+        var base64_file = file.toString("base64");
+        return headers + base64_file;
     }
 
 	/**
@@ -109,46 +108,40 @@ module.exports = function (grunt) {
 
                 // Array [  ]
 				return accumulator.concat(matched_paths.map(function (key) {
-					return '<%= vendor_paths.' + vendor_name + '.' + key + ' %>';
+					return '<%= meta.vendor_paths.' + vendor_name + '.' + key + ' %>';
 				}));
 			}
 	    }, []));
 	}
 
-	// Read the dependencies in package.json and load Grunt tasks that match the "grunt-*".
+	// Read the dependencies in package.json and load Grunt tasks that match "grunt-*".
 	require('load-grunt-tasks')(grunt);
 
 	// Load this Grunt task individually since it doesn't match the "grunt-*" pattern.
     grunt.loadNpmTasks('main-bower-files');
 
-	// Array of bower main JS files.
-	var mainBowerFiles = require('main-bower-files');
-
 	grunt.initConfig({
 
         'pkg': grunt.file.readJSON('package.json'),
 
-		'vendor_paths': getVendorPaths(getVendors()),
-
-        'vendor_options': getVendorOptions(getVendors()),
-
 		'meta': {
 			'source': ['app.js', 'parlay_components/*/*.js'],
-			'vendorComponents': getVendorPathGlobs(getVendors(), ['protocols', 'items'], []),
-            'vendorOptions': getVendorOptions(getVendors()),
+			'vendor_components': getVendorPathGlobs(getVendors(), ['protocols', 'items'], []),
+            'vendor_paths': getVendorPaths(getVendors()),
+            'bower_files': require('main-bower-files')(),
 			'dist_destination': 'dist',
 			'dev_destination': 'dev',
 			'tmp_destination': 'tmp',
 			'coverage_destination': 'coverage',
 			'mocks': getVendorPathGlobs(getVendors(), ['mocks'], ['parlay_components/*/mocks/*.js']),
 			'tests': getVendorPathGlobs(getVendors(), ['test'], ['parlay_components/*/test/*.spec.js']),
-			'compiledHtml': '<%= meta.tmp_destination %>/templates.js',
-			'htmlDirectives': getVendorPathGlobs(getVendors(), ['directives'], ['parlay_components/**/directives/*.html']),
-			'htmlViews': 'parlay_components/**/views/*.html',
+			'compiled_html': '<%= meta.tmp_destination %>/templates.js',
+			'html_directives': getVendorPathGlobs(getVendors(), ['directives'], ['parlay_components/**/directives/*.html']),
+			'html_views': 'parlay_components/**/views/*.html',
 			'stylesheets': getVendorPathGlobs(getVendors(), ['stylesheets'], ['css/*.css'])
 		},
 
-        // Minimal web server used for development.
+        // Minimal web server. Used for development.
         // https://github.com/blai/grunt-express
 		'express': {
 			'options': {
@@ -168,7 +161,7 @@ module.exports = function (grunt) {
             }
 		},
 
-        // Run tasks whenever the watched files change.
+        // Run tasks whenever the watched files change. Used for development.
         // https://github.com/gruntjs/grunt-contrib-watch
         'watch': {
             'scripts': {
@@ -176,8 +169,8 @@ module.exports = function (grunt) {
                     'livereload': true,
                     'interrupt': true
                 },
-                'files': ['vendorDefaults.js', '<%= meta.source %>', '<%= meta.vendorComponents %>'],
-                'tasks': ['newer:replace:dev', 'newer:jshint:dev', 'karma:dev', 'newer:copy:dev']
+                'files': ['vendorDefaults.js', '<%= meta.source %>', '<%= meta.vendor_components %>'],
+                'tasks': ['newer:replace:dev', 'newer:jshint:dev', 'karma:dev', 'newer:copy:dev', 'includeSource:dev', 'wiredep:dev']
             },
             'stylesheets': {
                 'options': {
@@ -186,7 +179,7 @@ module.exports = function (grunt) {
                     'spawn': false
                 },
                 'files': '<%= meta.stylesheets %>',
-                'tasks': ['newer:csslint:dev', 'cssmin:dev']
+                'tasks': ['newer:csslint:dev', 'newer:copy:dev', 'includeSource:dev', 'wiredep:dev']
             },
             'html': {
                 'options': {
@@ -194,8 +187,8 @@ module.exports = function (grunt) {
                     'livereload': true,
                     'spawn': false
                 },
-                'files': ['<%= meta.htmlDirectives %>', '<%= meta.htmlViews %>'],
-                'tasks': ['newer:html2js', 'newer:copy']
+                'files': ['<%= meta.html_directives %>', '<%= meta.html_views %>'],
+                'tasks': ['newer:html2js', 'newer:copy', 'includeSource:dev', 'wiredep:dev']
             },
             'index': {
                 'options': {
@@ -204,7 +197,7 @@ module.exports = function (grunt) {
                     'spawn': false
                 },
                 'files': ['index.html'],
-                'tasks': ['processhtml:dev', 'wiredep:dev']
+                'tasks': ['includeSource:dev', 'wiredep:dev']
             },
             'tests': {
                 'options': {
@@ -216,12 +209,6 @@ module.exports = function (grunt) {
             'mocks': {
                 'files': '<%= meta.mocks %>',
                 'tasks': 'karma:dev'
-            },
-            'Gruntfile': {
-                'files': 'Gruntfile.js',
-                'options': {
-                    'reload': true
-                }
             },
             'vendor_config': {
                 'files': 'vendor_components/**/vendor.json',
@@ -250,7 +237,7 @@ module.exports = function (grunt) {
 			}
 		},
 
-        // Copies packages from bower_components during development.
+        // Copies packages from bower_components. Used for development.
         // https://github.com/curist/grunt-bower
 		'bower': {
 			'dev': {
@@ -268,7 +255,8 @@ module.exports = function (grunt) {
 			}
 		},
 
-        // Concatenates Bower components in the correct order based on dependencies.
+        // Concatenates Bower components in the correct order based on dependencies. Used for distribution.
+        // See bower + wiredep tasks as functional equivalent for development.
         // https://github.com/sapegin/grunt-bower-concat
 		'bower_concat': {
 			'dist': {
@@ -279,7 +267,8 @@ module.exports = function (grunt) {
 			}
 		},
 
-        // Wires Bower dependencies into index.html during development.
+        // Wires Bower dependencies into index.html. Depends on bower task. Used for development.
+        // See bower_concat task as functional equivalent for distribution.
         // https://github.com/taptapship/wiredep
 		'wiredep': {
 			'dev': {
@@ -311,11 +300,11 @@ module.exports = function (grunt) {
 				'options': {
 					'reporters': ['progress'],
 					'files': [
-                        mainBowerFiles(),
-			            '<%= meta.compiledHtml %>',
+                        '<%= meta.bower_files %>',
+			            '<%= meta.compiled_html %>',
 			            '<%= meta.source %>',
 			            '<%= meta.mocks %>',
-			            '<%= meta.vendorComponents %>',
+			            '<%= meta.vendor_components %>',
 			            '<%= meta.tests %>'
 					]
 				}
@@ -324,7 +313,7 @@ module.exports = function (grunt) {
 				'options': {
 					'reporters': ['progress'],					
 					'files': [
-                        mainBowerFiles(),
+                        '<%= meta.bower_files %>',
 			            '<%= meta.tmp_destination %>/<%= pkg.namelower %>.min.js',
 			            '<%= meta.mocks %>',
 			            '<%= meta.tests %>'
@@ -344,11 +333,11 @@ module.exports = function (grunt) {
 			            'dir': '<%= meta.coverage_destination %>'
 					},
 					'files': [
-                        mainBowerFiles(),
-			            '<%= meta.compiledHtml %>',
+                        '<%= meta.bower_files %>',
+			            '<%= meta.compiled_html %>',
 			            '<%= meta.source %>',
 			            '<%= meta.mocks %>',
-			            '<%= meta.vendorComponents %>',
+			            '<%= meta.vendor_components %>',
 			            '<%= meta.tests %>'
 					]
 				}
@@ -363,14 +352,14 @@ module.exports = function (grunt) {
 					'esnext': true,
 					'debug': true
 				},
-				'src': ['<%= meta.source %>', '<%= meta.vendorComponents %>', '<%= meta.tests %>'],
+				'src': ['<%= meta.source %>', '<%= meta.vendor_components %>', '<%= meta.tests %>'],
 				'gruntfile': 'Gruntfile.js'
 			},
 			'dist': {
 				'options': {
 					'esnext': true
 				},
-				'src': ['<%= meta.source %>', '<%= meta.vendorComponents %>']
+				'src': ['<%= meta.source %>', '<%= meta.vendor_components %>']
 			}
 		},
 
@@ -412,8 +401,9 @@ module.exports = function (grunt) {
                         'expand': true,
                         'src': [
                             '<%= meta.source %>',
-                            '<%= meta.vendorComponents %>',
-                            '<%= meta.compiledHtml %>'
+                            '<%= meta.vendor_components %>',
+                            '<%= meta.compiled_html %>',
+                            '<%= meta.stylesheets %>'
                         ],
                         'dest': '<%= meta.dev_destination %>'
                     }
@@ -432,7 +422,7 @@ module.exports = function (grunt) {
         // https://github.com/gruntjs/grunt-contrib-uglify
 		'uglify': {
 			'options': {
-				'mangle': false,
+				'mangle': true,
 				'compress': true,
 				'sourceMap': false,
 				'preserveComments': false,
@@ -440,7 +430,7 @@ module.exports = function (grunt) {
 			},
 			'dist': {
 				'files': {
-					'<%= meta.tmp_destination %>/<%= pkg.namelower %>.min.js': ['<%= meta.tmp_destination %>/vendorDefaults.js', '<%= meta.source %>', '<%= meta.vendorComponents %>', '<%= meta.compiledHtml %>'],
+					'<%= meta.tmp_destination %>/<%= pkg.namelower %>.min.js': ['<%= meta.tmp_destination %>/vendorDefaults.js', '<%= meta.source %>', '<%= meta.vendor_components %>', '<%= meta.compiled_html %>'],
                     '<%= meta.tmp_destination %>/lib.min.js': '<%= meta.tmp_destination %>/lib.js'
 				}
 			}
@@ -468,39 +458,58 @@ module.exports = function (grunt) {
         // https://github.com/karlgoldstein/grunt-html2js
 		'html2js': {
 			'main': {
-				'src': ['<%= meta.htmlViews %>', '<%= meta.htmlDirectives %>'],
-				'dest': '<%= meta.compiledHtml %>'
+				'src': ['<%= meta.html_views %>', '<%= meta.html_directives %>'],
+				'dest': '<%= meta.compiled_html %>'
 			}
 		},
 
+        // Replace the matching patterns in the given files with the specified replacement.
+        // https://github.com/outaTiME/grunt-replace
         'replace': {
             'dev': {
-                'options': {'patterns': [
-                    {'match': 'vendorName', 'replacement': getPrimaryVendor(getVendors()).name},
-                    {'match': 'vendorLogo', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.logo)},
-                    {'match': 'vendorIcon', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.icon)},
-                    {'match': 'primaryPalette', 'replacement': getPrimaryVendor(getVendors()).options.primaryPalette},
-                    {'match': 'accentPalette', 'replacement': getPrimaryVendor(getVendors()).options.accentPalette},
-                    {'match': 'debugEnabled', 'replacement': true}
-                ]},
+                'options': {
+                    'patterns': [
+                        {'match': 'vendorName', 'replacement': getPrimaryVendor(getVendors()).name},
+                        {'match': 'vendorLogo', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.logo)},
+                        {'match': 'vendorIcon', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.icon)},
+                        {'match': 'primaryPalette', 'replacement': getPrimaryVendor(getVendors()).options.primaryPalette},
+                        {'match': 'accentPalette', 'replacement': getPrimaryVendor(getVendors()).options.accentPalette},
+                        {'match': 'debugEnabled', 'replacement': true}
+                    ]
+                },
                 'files': [
                     {'expand': true, 'flatten': true, 'src': 'vendorDefaults.js', 'dest': '<%= meta.dev_destination %>'}
                 ]
             },
             'dist': {
-                'options': {'patterns': [
-                    {'match': 'vendorName', 'replacement': getPrimaryVendor(getVendors()).name},
-                    {'match': 'vendorLogo', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.logo)},
-                    {'match': 'vendorIcon', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.icon)},
-                    {'match': 'primaryPalette', 'replacement': getPrimaryVendor(getVendors()).options.primaryPalette},
-                    {'match': 'accentPalette', 'replacement': getPrimaryVendor(getVendors()).options.accentPalette},
-                    {'match': 'debugEnabled', 'replacement': false}
-                ]},
+                'options': {
+                    'patterns': [
+                        {'match': 'vendorName', 'replacement': getPrimaryVendor(getVendors()).name},
+                        {'match': 'vendorLogo', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.logo)},
+                        {'match': 'vendorIcon', 'replacement': getBase64(getPrimaryVendor(getVendors()).options.icon)},
+                        {'match': 'primaryPalette', 'replacement': getPrimaryVendor(getVendors()).options.primaryPalette},
+                        {'match': 'accentPalette', 'replacement': getPrimaryVendor(getVendors()).options.accentPalette},
+                        {'match': 'debugEnabled', 'replacement': false}
+                    ]
+                },
                 'files': [
                     {'expand': true, 'flatten': true, 'src': 'vendorDefaults.js', 'dest': '<%= meta.tmp_destination %>'}
                 ]
             }
-        }
+        },
+
+        // Automatically include JavaScript and CSS references in index.html during development.
+        // https://github.com/jwvdiermen/grunt-include-source
+		'includeSource': {
+			'options': {
+				'baseUrl': ""
+			},
+            'dev': {
+                'files': {
+                    'dev/index.html': 'index.html'
+                }
+            }
+		}
 
 	});
 	
@@ -508,6 +517,8 @@ module.exports = function (grunt) {
         'develop'
     ]);
 
+    // Generates dev directory containing files needed for development. Launches an express HTTP server and a watch
+    // task that monitors the source files for changes.
 	grunt.registerTask('develop', 'Lints and tests JavaScript files, processes HTML and finally starts HTTP server which autoreloads on file changes.', [
 	    'jshint:dev',
 	    'csslint:dev',
@@ -517,15 +528,15 @@ module.exports = function (grunt) {
 	    'bower:dev',
 	    'html2js',
 	    'copy:dev',
-	    'cssmin:dev',
 	    'karma:dev',
-	    'processhtml:dev',
-	    'wiredep:dev',
+        'includeSource:dev',
+        'wiredep:dev',
 	    'express:dev',
 	    'open:server',
 	    'watch'
 	]);
 
+    // Generates dist/index.html with all Parlay, vendor and library source inlined.
 	grunt.registerTask('dist', 'Generates tested and linted minified JavaScript and CSS files with HTML templates included in JavaScript.', [
 	    'jshint:dist',
 	    'csslint:dist',
