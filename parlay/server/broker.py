@@ -599,6 +599,22 @@ class Broker(Adapter):
             self._reactor.stop()
         print "Exiting..."
 
+    @staticmethod
+    def get_local_ip():
+        try:
+            import socket
+            hosts_ip = [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]
+                        if not ip.startswith("127.")][:1]
+            if len(hosts_ip) > 0:
+                return str(hosts_ip[0])
+
+            dns_ip = [(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close())for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]
+            if len(dns_ip) > 0:
+                return dns_ip
+            return "UNKNOWN"
+        except:
+            return "UNKNOWN"
+
     def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, ui_path=None):
         """
         Start up and run the broker. This method call with not return
@@ -613,6 +629,9 @@ class Broker(Adapter):
             print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
             print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
                   "broker.run(mode=Broker.Modes.PRODUCTION)"
+            # print out the local ip to access this broker from
+            print "This device is remotely accessible at http://" + self.get_local_ip() + ":" + str(self.http_port)
+
 
         self._run_mode = mode
 
