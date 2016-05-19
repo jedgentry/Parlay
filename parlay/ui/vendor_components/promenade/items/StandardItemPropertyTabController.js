@@ -1,71 +1,71 @@
-/**
- * Controller constructor for the property tab.
- * @constructor
- * @param {AngularJS $scope} $scope - A AngularJS $scope Object.
- */
-function PromenadeStandardItemCardPropertyTabController($scope) {
+(function () {
+    "use strict";
 
-	// Controller state attribute, true if a request has been sent but the response has not been received. 
-	this.waiting = false;
-}
+    var module_name = "promenade.items.standarditem.property";
+    var module_dependencies = [];
 
-PromenadeStandardItemCardPropertyTabController.prototype.hasProperties = function () {
-	"use strict";
-	return Object.keys(this.item.properties).length > 0;
-};
+    // Register this module as a StandardItem dependency.
+    standard_item_dependencies.push(module_name);
 
-/**
- * Gets all property values from an item.
- */
-PromenadeStandardItemCardPropertyTabController.prototype.getAllProperties = function () {
-	Object.keys(this.item.properties).map(function(key) {
-		return this.item.properties[key];
-	}, this).forEach(this.getProperty.bind(this));
-};
+    angular
+        .module(module_name, module_dependencies)
+        .controller("PromenadeStandardItemCardPropertyTabController", PromenadeStandardItemCardPropertyTabController)
+        .directive("promenadeStandardItemCardProperty", PromenadeStandardItemCardProperty);
 
-/**
- * Sets all property values from an item.
- */
-PromenadeStandardItemCardPropertyTabController.prototype.setAllProperties = function () {
-	Object.keys(this.item.properties).map(function(key) {
-		return this.item.properties[key];
-	}, this).forEach(this.setProperty.bind(this));
-};
+    /**
+     * Controller constructor for the property tab.
+     * @constructor
+     * @param {AngularJS Service} $q - AngularJS $q Service.
+     */
+    PromenadeStandardItemCardPropertyTabController.$inject = ["$q"];
+    function PromenadeStandardItemCardPropertyTabController($q) {
+        // Controller state attribute, true if a request has been sent but the response has not been received.
+        this.waiting = false;
 
-/**
- * Gets the given property from the item.
- * @param {Object} property - Property object we want to get from an item.
- */
-PromenadeStandardItemCardPropertyTabController.prototype.getProperty = function (property) {
-	this.waiting = true;
-	this.item.getProperty(property).then(function () { this.waiting = false; }.bind(this));
-};
+        this.hasProperties = function () {
+            return Object.keys(this.item.properties).length > 0;
+        };
 
-/**
- * Sets the given property on the item.
- * @param {Object} property - Property object we want to set on an item.
- */
-PromenadeStandardItemCardPropertyTabController.prototype.setProperty = function (property) {
-	this.waiting = true;
-	this.item.setProperty(property).then(function () { this.waiting = false; }.bind(this));
-};
+        /**
+         * Gets all property values from an item.
+         */
+        this.getAllProperties = function () {
+            this.waiting = true;
+            return $q.all(Object.keys(this.item.properties).map(function (key) {
+                return this.item.properties[key].get();
+            }, this)).then(function () {
+                this.waiting = false;
+            }.bind(this));
+        };
 
-/**
- * Directive constructor for PromenadeStandardItemCardProperty.
- * @returns {Object} - Directive configuration.
- */
-function PromenadeStandardItemCardProperty() {
-	return {
-        scope: {
-            item: "="
-        },
-        templateUrl: "../vendor_components/promenade/items/directives/promenade-standard-item-card-property.html",
-        controller: "PromenadeStandardItemCardPropertyTabController",
-        controllerAs: "ctrl",
-        bindToController: true
-    };
-}
+        /**
+         * Sets all property values from an item.
+         */
+        this.setAllProperties = function () {
+            this.waiting = true;
+            return $q.all(Object.keys(this.item.properties).map(function (key) {
+                return this.item.properties[key].set();
+            }, this)).then(function () {
+                this.waiting = false;
+            }.bind(this));
+        };
+    }
 
-angular.module("promenade.items.standarditem.property", [])
-	.controller("PromenadeStandardItemCardPropertyTabController", ["$scope", PromenadeStandardItemCardPropertyTabController])
-	.directive("promenadeStandardItemCardProperty", PromenadeStandardItemCardProperty);
+    /**
+     * Directive constructor for PromenadeStandardItemCardProperty.
+     * @returns {Object} - Directive configuration.
+     */
+    /* istanbul ignore next */
+    function PromenadeStandardItemCardProperty() {
+        return {
+            scope: {
+                item: "="
+            },
+            templateUrl: "../vendor_components/promenade/items/directives/promenade-standard-item-card-property.html",
+            controller: "PromenadeStandardItemCardPropertyTabController",
+            controllerAs: "ctrl",
+            bindToController: true
+        };
+    }
+
+}());

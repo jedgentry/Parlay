@@ -49,11 +49,11 @@ class MessageQueue(object):
                                Make sure that your callback function returns a deferred and calls it back properly""")
 
     def _done_with_msg(self, msg_result):
+
         if isinstance(msg_result, failure.Failure):
             print "Error encoding packet -- moving on to next packet"
-            msg_result.printTraceback()
+            print msg_result.getTraceback()
 
-        # reactor.callLater(0, self._active_sent.callback, msg_result)
         # send the next one (if there is one)
         if len(self._q) > 0:
             next_msg, self._active_sent = self._q.popleft()

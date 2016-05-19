@@ -1,6 +1,7 @@
-<md-card class="md-whiteframe-2dp parlay-item-card">
-    <md-toolbar class="md-primary">
-        <div class="md-toolbar-tools">
+<md-card class="md-whiteframe-2dp parlay-item-card moveable-parlay-item-card">
+    <md-toolbar class="md-primary" draggable="true">
+        <div class="md-toolbar-tools" layout="row">
+			<!-- Vendor specific item toolbar-tools directives are automatically inserted here -->
 			<md-menu>
 				<md-button aria-label="Open overflow menu" class="md-icon-button" ng-click="$mdOpenMenu($event)">
                     <md-tooltip>Card menu</md-tooltip>
@@ -16,16 +17,16 @@
 					<md-menu-item ng-hide="$first">
 						<md-button md-menu-align-target ng-click="itemCtrl.reorder($index, -1)">
 							<md-icon ng-md-icon hide-gt-sm icon="keyboard_arrow_up"></md-icon>
-							<md-icon ng-md-icon hide-sm icon="keyboard_arrow_left"></md-icon>
-							<span hide-sm>Move left</span>
+							<md-icon ng-md-icon hide-xs hide-sm icon="keyboard_arrow_left"></md-icon>
+							<span hide-xs hide-sm>Move left</span>
                             <span hide-gt-sm>Move up</span>
 						</md-button>
 					</md-menu-item>
 					<md-menu-item ng-hide="$last">
 						<md-button md-menu-align-target ng-click="itemCtrl.reorder($index, 1)">
 							<md-icon ng-md-icon hide-gt-sm icon="keyboard_arrow_down"></md-icon>
-							<md-icon ng-md-icon hide-sm icon="keyboard_arrow_right"></md-icon>
-                            <span hide-sm>Move right</span>
+							<md-icon ng-md-icon hide-xs hide-sm icon="keyboard_arrow_right"></md-icon>
+                            <span hide-xs hide-sm>Move right</span>
                             <span hide-gt-sm>Move down</span>
 						</md-button>
 					</md-menu-item>
@@ -33,9 +34,8 @@
 			</md-menu>
 			<md-button aria-label="Close card" class="md-icon-button" ng-click="itemCtrl.deactivate($index)">
                 <md-tooltip>Close card</md-tooltip>
-				<md-icon class="white" ng-md-icon icon="clear"></md-icon>
+				<md-icon ng-md-icon icon="clear"></md-icon>
 			</md-button>
-            <!-- Vendor specific item toolbar-tools directives are automatically inserted here -->
         </div>
     </md-toolbar>
     

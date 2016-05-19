@@ -77,6 +77,7 @@ class BaseProtocol(object):
         """
         return {}
 
+
     def get_discovery(self):
         """
         This will get called when a discovery message is sent out. Return a deferred that will be called back with
@@ -91,9 +92,9 @@ class BaseProtocol(object):
     @run_in_broker
     def wait_for_data(self, timeout_secs=None):
         """
-        Call this to wait until there is data from the serial line.
+        Call this to wait until there is data from the protocol.
         If threaded: Will block. Return value is serial line data
-        If Async   : Will not blocl. Return value is Deferred that will be called back with serial line data
+        If Async   : Will not blocl. Return value is Deferred that will be called back with  data
         :param timeout_secs : Timeout if you don't get data in time. None if no timeout
         :type timeout_secs : int|None
         """
@@ -110,3 +111,5 @@ class BaseProtocol(object):
         # setup the new data in case it causes a callback to fire
         self._new_data = defer.Deferred()
         old_new_data.callback(data)
+
+

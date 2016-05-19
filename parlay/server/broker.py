@@ -50,10 +50,12 @@ There are two 'special type' messages that are *not* published. The are distingu
  E.G.: (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
 
 """
+import sys
 
 from twisted.internet import defer
 from parlay.server.reactor import reactor
 from parlay.protocols.meta_protocol import ProtocolMeta
+from adapter import Adapter
 
 from autobahn.twisted.websocket import WebSocketServerFactory, listenWS
 from twisted.web import static, server
@@ -66,10 +68,10 @@ import signal
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
-BROKER_VERSION = "0.0.1"
+BROKER_VERSION = "0.1.0"
 
 
-class Broker(object):
+class Broker(Adapter):
     """
     The Dispatcher is the sole holder of global state. There should be only one.
     It also coordinates all communication between protcols
@@ -100,6 +102,8 @@ class Broker(object):
     def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
         assert(Broker.instance is None)
 
+        Adapter.__init__(self)
+
         # the currently connected protocols
         self._protocols = []
 
@@ -117,7 +121,10 @@ class Broker(object):
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
-        self._discovery_cache = None
+        self._discovery_cache = {}  # dict: K->V = Protocol -> discovery
+
+        # we're always connected to ourselves
+        self._connected.callback(True)
 
     @staticmethod
     def get_instance():
@@ -131,7 +138,7 @@ class Broker(object):
 
     @staticmethod
     def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
-              websocket_port=8085, secure_websocket_port=8086):
+              websocket_port=8085, secure_websocket_port=8086, ui_path=None):
         """
         Run the default Broker implementation.
         This call will not return
@@ -141,14 +148,31 @@ class Broker(object):
         broker.https_port = https_port
         broker.websocket_port = websocket_port
         broker.secure_websocket_port = secure_websocket_port
-        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser)
+        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
 
-    def publish(self, msg, write_method):
+
+    @staticmethod
+    def start_for_test():
+        broker = Broker.get_instance()
+        broker._reactor.callWhenRunning(broker._started.callback, None)
+
+    @staticmethod
+    def stop():
+        Broker.get_instance().cleanup()
+
+    @staticmethod
+    def stop_for_test():
+        Broker.get_instance().cleanup(stop_reactor=False)
+
+    def publish(self, msg, write_method=None):
         """
         Publish a message to the Parlay system
         :param msg : The message to publish
         :param write_method : the protocol's method to callback if the broker needs to send a response
         """
+        if write_method is None:
+            write_method = lambda _: _
+
         topic_type = msg['TOPICS'].get('type', None)
         # handle broker and subscribe messages special
         if topic_type == 'broker':
@@ -302,8 +326,6 @@ class Broker(object):
         """
         track the given protocol for discovery
         """
-
-        self._discovery_cache = None  # reset the cache
         self._protocols.append(protocol)
 
     def untrack_protocol(self, protocol):
@@ -311,7 +333,8 @@ class Broker(object):
         Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
         """
         self.unsubscribe_all(protocol)
-        self._discovery_cache = None  # reset the discovery cache
+        if protocol in self._discovery_cache:
+            del self._discovery_cache[protocol]  # remove from discovery cache
         try:
             self._protocols.remove(protocol)
         except ValueError:
@@ -416,9 +439,9 @@ class Broker(object):
                     try:
                         _e.printTraceback()
                     except Exception as _:
-                        print(str(e))
+                        print(str(_e))
 
-                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(e)}
+                    reply['CONTENTS'] = {'STATUS': "Error while opening: " + str(_e)}
                     message_callback(reply)
 
                 d.addErrback(error_opening)
@@ -476,64 +499,64 @@ class Broker(object):
                 message_callback(reply)
 
         elif request == "get_discovery":
-            # if we're forcing a refresh, or have no cache
-            if msg['CONTENTS'].get('force', False) or self._discovery_cache is None:
-                d_list = []
-                discovery = []
-                for p in self._protocols:
+            # if we're forcing a refresh, clear our whole cache
+            if msg['CONTENTS'].get('force', False):
+                self._discovery_cache = {}
+
+            d_list = []
+            discovery = []
+            for p in self._protocols:
+                # if it's already in the cache, then just return it, otherwise, get it from the protocol
+                if p in self._discovery_cache:
+                    d = defer.Deferred()
+                    d.callback(self._discovery_cache[p])
+                else:
                     d = defer.maybeDeferred(p.get_discovery)
 
-                    # add this protocols discovery
-                    def callback(disc, error=None, protocol=p):
-                        protocol_discovery = disc
-                        if error is not None:
-                            protocol_discovery['error'] = disc
-                        if type(disc) is dict:
-                            discovery.append(protocol_discovery)
-                        else:
-                            print "ERROR: Discovery must return a dict, instead got: ", str(disc), \
-                                " from ", str(protocol)
+                # add this protocols discovery
+                def callback(disc, error=None, protocol=p):
+                    protocol_discovery = disc
 
-                    d.addCallback(callback)
-                    d.addErrback(lambda err: callback({}, error=err))
+                    if error is not None:
+                        protocol_discovery = {'error': str(error)}
+                        sys.stderr.write(str(error))
 
-                    d_list.append(d)
+                    if type(disc) is dict:
+                        discovery.append(protocol_discovery)
+                        # add it to the cache
+                        self._discovery_cache[protocol] = protocol_discovery
+                    else:
+                        sys.stderr.write("ERROR: Discovery must return a dict, instead got: " + str(disc) +
+                                         " from " + str(protocol))
 
-                # wait for all to be finished
-                all_d = defer.gatherResults(d_list, consumeErrors=False)
+                d.addCallback(callback)
+                d.addErrback(lambda err: callback({}, error=err))
 
-                def discovery_done(*_):
-                    self._discovery_cache = discovery
+                d_list.append(d)
 
-                    # append the discovery for the broker
-                    discovery.append(Broker._discovery)
-                    reply['CONTENTS']['status'] = 'ok'
-                    reply['CONTENTS']['discovery'] = discovery
-                    message_callback(reply)
+            # wait for all to be finished
+            all_d = defer.gatherResults(d_list, consumeErrors=False)
 
-                    # announce it to the world
-                    reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
-                    self.publish(reply, lambda _: _)
-
-                def discovery_error(*args):
-                    # append the discovery for the broker
-                    discovery.append(Broker._discovery)
-                    reply['CONTENTS']['status'] = str(args)
-                    reply['CONTENTS']['discovery'] = discovery
-                    message_callback(reply)
-
-                all_d.addCallback(discovery_done)
-                all_d.addErrback(discovery_error)
-
-            else:
-                d = self._discovery_cache
+            def discovery_done(*_):
+                # append the discovery for the broker
+                discovery.append(Broker._discovery)
                 reply['CONTENTS']['status'] = 'ok'
-                reply['CONTENTS']['discovery'] = d
+                reply['CONTENTS']['discovery'] = discovery
                 message_callback(reply)
 
                 # announce it to the world
                 reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
                 self.publish(reply, lambda _: _)
+
+            def discovery_error(*args):
+                # append the discovery for the broker
+                discovery.append(Broker._discovery)
+                reply['CONTENTS']['status'] = str(args)
+                reply['CONTENTS']['discovery'] = discovery
+                message_callback(reply)
+
+            all_d.addCallback(discovery_done)
+            all_d.addErrback(discovery_error)
 
         elif request == "shutdown":
             reply["CONTENTS"]['status'] = "ok"
@@ -566,16 +589,17 @@ class Broker(object):
         # send the reply
         message_callback(resp_msg)
 
-    def cleanup(self):
+    def cleanup(self, stop_reactor=True):
         """
         called on exit to clean up the parlay environment
         """
         print "Cleaning Up"
         self._stopped.callback(None)
-        self._reactor.stop()
+        if stop_reactor:
+            self._reactor.stop()
         print "Exiting..."
 
-    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, ui_path=None):
         """
         Start up and run the broker. This method call with not return
         """
@@ -596,6 +620,14 @@ class Broker(object):
         # in production mode, only listen on localhost
         interface = '127.0.0.1' if mode == Broker.Modes.PRODUCTION else ""
 
+        # UI path
+        if ui_path is not None:
+            root = static.File(ui_path)
+            root.putChild("parlay", static.File(PARLAY_PATH + "/ui"))
+        else:
+            root = static.File(PARLAY_PATH + "/ui/dist")
+            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
+
         # ssl websocket
         try:
             from OpenSSL.SSL import Context
@@ -605,10 +637,6 @@ class Broker(object):
             factory.protocol = ParlayWebSocketProtocol
             factory.setProtocolOptions(allowHixie76=True)
             listenWS(factory, ssl_context_factory, interface=interface)
-
-            root = static.File(PARLAY_PATH + "/ui/dist")
-            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
-
             root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
             self._reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
 
@@ -626,8 +654,6 @@ class Broker(object):
             self._reactor.listenTCP(self.websocket_port, factory, interface=interface)
 
             # http server
-            root = static.File(PARLAY_PATH + "/ui/dist")
-            root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
             site = server.Site(root)
             self._reactor.listenTCP(self.http_port, site, interface=interface)
             if open_browser:
@@ -636,6 +662,8 @@ class Broker(object):
 
         self._reactor.callWhenRunning(self._started.callback, None)
         self._reactor.run()
+
+
 
 try:
     from twisted.internet import ssl
