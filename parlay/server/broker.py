@@ -121,7 +121,7 @@ class Broker(Adapter):
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
-        self._discovery_cache = None
+        self._discovery_cache = {}  # dict: K->V = Protocol -> discovery
 
         # we're always connected to ourselves
         self._connected.callback(True)
@@ -326,8 +326,6 @@ class Broker(Adapter):
         """
         track the given protocol for discovery
         """
-
-        self._discovery_cache = None  # reset the cache
         self._protocols.append(protocol)
 
     def untrack_protocol(self, protocol):
@@ -335,7 +333,8 @@ class Broker(Adapter):
         Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
         """
         self.unsubscribe_all(protocol)
-        self._discovery_cache = None  # reset the discovery cache
+        if protocol in self._discovery_cache:
+            del self._discovery_cache[protocol]  # remove from discovery cache
         try:
             self._protocols.remove(protocol)
         except ValueError:
@@ -500,67 +499,64 @@ class Broker(Adapter):
                 message_callback(reply)
 
         elif request == "get_discovery":
-            # if we're forcing a refresh, or have no cache
-            if msg['CONTENTS'].get('force', False) or self._discovery_cache is None:
-                d_list = []
-                discovery = []
-                for p in self._protocols:
+            # if we're forcing a refresh, clear our whole cache
+            if msg['CONTENTS'].get('force', False):
+                self._discovery_cache = {}
+
+            d_list = []
+            discovery = []
+            for p in self._protocols:
+                # if it's already in the cache, then just return it, otherwise, get it from the protocol
+                if p in self._discovery_cache:
+                    d = defer.Deferred()
+                    d.callback(self._discovery_cache[p])
+                else:
                     d = defer.maybeDeferred(p.get_discovery)
 
-                    # add this protocols discovery
-                    def callback(disc, error=None, protocol=p):
-                        protocol_discovery = disc
+                # add this protocols discovery
+                def callback(disc, error=None, protocol=p):
+                    protocol_discovery = disc
 
-                        if error is not None:
-                            protocol_discovery = {'error': str(error)}
-                            sys.stderr.write(str(error))
+                    if error is not None:
+                        protocol_discovery = {'error': str(error)}
+                        sys.stderr.write(str(error))
 
-                        if type(disc) is dict:
-                            discovery.append(protocol_discovery)
-                        else:
-                            sys.stderr.write("ERROR: Discovery must return a dict, instead got: " + str(disc) +
-                                             " from " + str(protocol))
+                    if type(disc) is dict:
+                        discovery.append(protocol_discovery)
+                        # add it to the cache
+                        self._discovery_cache[protocol] = protocol_discovery
+                    else:
+                        sys.stderr.write("ERROR: Discovery must return a dict, instead got: " + str(disc) +
+                                         " from " + str(protocol))
 
-                    d.addCallback(callback)
-                    d.addErrback(lambda err: callback({}, error=err))
+                d.addCallback(callback)
+                d.addErrback(lambda err: callback({}, error=err))
 
-                    d_list.append(d)
+                d_list.append(d)
 
-                # wait for all to be finished
-                all_d = defer.gatherResults(d_list, consumeErrors=False)
+            # wait for all to be finished
+            all_d = defer.gatherResults(d_list, consumeErrors=False)
 
-                def discovery_done(*_):
-                    self._discovery_cache = discovery
-
-                    # append the discovery for the broker
-                    discovery.append(Broker._discovery)
-                    reply['CONTENTS']['status'] = 'ok'
-                    reply['CONTENTS']['discovery'] = discovery
-                    message_callback(reply)
-
-                    # announce it to the world
-                    reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
-                    self.publish(reply, lambda _: _)
-
-                def discovery_error(*args):
-                    # append the discovery for the broker
-                    discovery.append(Broker._discovery)
-                    reply['CONTENTS']['status'] = str(args)
-                    reply['CONTENTS']['discovery'] = discovery
-                    message_callback(reply)
-
-                all_d.addCallback(discovery_done)
-                all_d.addErrback(discovery_error)
-
-            else:
-                d = self._discovery_cache
+            def discovery_done(*_):
+                # append the discovery for the broker
+                discovery.append(Broker._discovery)
                 reply['CONTENTS']['status'] = 'ok'
-                reply['CONTENTS']['discovery'] = d
+                reply['CONTENTS']['discovery'] = discovery
                 message_callback(reply)
 
                 # announce it to the world
                 reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
                 self.publish(reply, lambda _: _)
+
+            def discovery_error(*args):
+                # append the discovery for the broker
+                discovery.append(Broker._discovery)
+                reply['CONTENTS']['status'] = str(args)
+                reply['CONTENTS']['discovery'] = discovery
+                message_callback(reply)
+
+            all_d.addCallback(discovery_done)
+            all_d.addErrback(discovery_error)
 
         elif request == "shutdown":
             reply["CONTENTS"]['status'] = "ok"
