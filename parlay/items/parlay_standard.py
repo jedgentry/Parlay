@@ -596,12 +596,31 @@ class ParlayStandardScriptProxy(object):
             self._item_proxy = item_proxy
             self._val = None
             self._rate = rate
+            self._listener = lambda _: _
+            self._new_value = defer.Deferred()
+            self._reactor = self._item_proxy._script._reactor
 
             item_proxy._script.add_listener(self._update_val_listener)
 
             msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
                                             direct=True, response_req=False, STREAM=self._name, RATE=rate)
             item_proxy._script.send_parlay_message(msg)
+
+        def attach_listener(self, listener):
+            self._listener = listener
+
+
+        def wait_for_value(self):
+            """
+            If in thread:
+                Will block until datastream is updated
+            If in Broker:
+                Will return deferred that is called back with the datastream value when updated
+            """
+            return self._reactor.maybeblockingCallFromThread(lambda: self._new_value)
+
+        def get(self):
+            return self.__get__(None, None)
 
         def _update_val_listener(self, msg):
             """
@@ -610,7 +629,12 @@ class ParlayStandardScriptProxy(object):
             topics, contents = msg["TOPICS"], msg['CONTENTS']
             if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._name \
                     and 'VALUE' in contents:
-                self._val = contents["VALUE"]
+                new_val = contents["VALUE"]
+                self._listener(new_val)
+                self._val = new_val
+                temp = self._new_value
+                self._new_value = defer.Deferred() # set up a new one
+                temp.callback(new_val)
             return False  # never eat me!
 
         def __get__(self, instance, owner):
@@ -696,6 +720,9 @@ class ParlayStandardScriptProxy(object):
         handle = CommandHandle(msg, self._script)
         self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
         return handle
+
+    def get_datastream_handle(self, name):
+        return object.__getattribute__(self, name)
 
     # Some re-implementation so our instance-bound descriptors will work instead of having to be class-bound.
     # Thanks: http://blog.brianbeck.com/post/74086029/instance-descriptors
