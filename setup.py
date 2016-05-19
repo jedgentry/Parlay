@@ -33,7 +33,7 @@ files.extend([os.path.relpath(filename, "parlay")
                              for module_name, filename in find_files("parlay/docs/_build", "*")])
 setup(
     name="parlay",
-    version='0.0.1',
+    version='0.0.2',
     description="A framework for developing and testing software for embedded devices",
     ext_modules=extensions,
     packages=find_packages(),

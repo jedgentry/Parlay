@@ -1,84 +1,121 @@
-/**
- * Controller constructor for PromenadeStandardItemCardLogTabController.
- */
-function PromenadeStandardItemCardLogTabController($scope, ParlayPersistence, ParlayUtility) {
+(function () {
+    "use strict";
 
-	// Initially we don't want to filter logged messages by anything.
-	this.filter_text = null;
+    var module_name = "promenade.items.standarditem.log";
+    var module_dependencies = ['parlay.utility', 'parlay.notification', 'parlay.item.persistence', 'luegg.directives'];
 
-	var container = ParlayUtility.relevantScope($scope, 'container').container;
-	var directive_name = 'parlayItemCard.' + container.ref.name.replace(' ', '_') + '_' + container.uid;
-	ParlayPersistence.monitor(directive_name, "filter_text", $scope);
-}
+    // Register this module as a StandardItem dependency.
+    standard_item_dependencies.push(module_name);
 
-/**
- * Applies a filter to the item log and returns the messages that pass.
- * @param {String} query - text to filter the log by.
- * @returns {Array} - If query is undefined return the full item log, otherwise return the messages that pass the filter.
- */
-PromenadeStandardItemCardLogTabController.prototype.getFilteredLog = function(query) {
+    angular
+        .module(module_name, module_dependencies)
+        .controller('PromenadeStandardItemCardLogTabController', PromenadeStandardItemCardLogTabController)
+        .controller('PromenadeStandardItemCardLogItemController', PromenadeStandardItemCardLogItemController)
+        .directive('promenadeStandardItemCardLog', PromenadeStandardItemCardLog)
+        .directive('promenadeStandardItemCardLogItem', PromenadeStandardItemCardLogItem);
 
-	function messageFilterFn(message) {
-		// Look through message topics and contents for a match on the query.
-		return Object.keys(message.TOPICS).some(function (key) {
-			return message.TOPICS[key] !== null && angular.lowercase(message.TOPICS[key].toString()).indexOf(this) > -1;
-		}, this) || Object.keys(message.CONTENTS).some(function (key) {
-			return message.CONTENTS[key] !== null && angular.lowercase(message.CONTENTS[key].toString()).indexOf(this) > -1;
-		}, this);
-	}
+    /**
+     * Controller constructor for PromenadeStandardItemCardLogTabController.
+     */
+    PromenadeStandardItemCardLogTabController.$inject = ['$scope', 'ParlayItemPersistence', 'ParlayUtility'];
+    function PromenadeStandardItemCardLogTabController($scope, ParlayItemPersistence, ParlayUtility) {
 
-	// If the filter_text isn't null or undefined return the messages that match the query.
-    return query ? this.getLog().filter(messageFilterFn, angular.lowercase(query)) : this.getLog();
-};
+        // Initially we don't want to filter logged messages by anything.
+        this.filter_text = null;
 
-/**
- * Returns the log stored on the item Object.
- * @returns {Array} - All messages captured by the item.
- */
-PromenadeStandardItemCardLogTabController.prototype.getLog = function () {
-	return this.item.log;
-};
+        // Initially we want an ascending list.
+        this.descending = false;
 
-/**
- * Directive constructor for PromenadeStandardItemCardLog.
- * @returns {Object} - Directive configuration.
- */
-function PromenadeStandardItemCardLog() {
-	return {
-        scope: {
-            item: "="
-        },
-        templateUrl: '../vendor_components/promenade/items/directives/promenade-standard-item-card-log.html',
-        controller: 'PromenadeStandardItemCardLogTabController',
-        controllerAs: "ctrl",
-        bindToController: true
-    };
-}
+        var container = ParlayUtility.relevantScope($scope, 'container').container;
+        var directive_name = 'parlayItemCard.' + container.ref.name.replace(' ', '_') + '_' + container.uid;
+        ParlayItemPersistence.monitor(directive_name, "filter_text", $scope);
+    }
 
-function PromenadeStandardItemCardLogItem(ParlayNotification) {
-    return {
-        scope: {
-            message: "="
-        },
-        controller: function () {
+    /**
+     * Applies a filter to the item log and returns the messages that pass.
+     * @param {String} query - Query to filter the log by.
+     * @param {Boolean} reverse - Reverse the filter log if true, otherwise return in original order.
+     * @returns {Array} - If query is undefined return the full item log, otherwise return the messages that pass the filter.
+     */
+    PromenadeStandardItemCardLogTabController.prototype.getFilteredLog = function(query, reverse) {
 
-            this.copy = function () {
-                ParlayNotification.show({content: JSON.stringify(angular.copy(this.message)).copyToClipboard() ?
-                    "Message copied to clipboard" : "Copy failed. Check browser compatibility."});
+        function buildFilterOn(query) {
+            var lowercase_query = angular.lowercase(query);
+
+            return function (message) {
+
+                var matches_topics = Object.keys(message.TOPICS).some(function (key) {
+                    return !!message.TOPICS[key] && angular.lowercase(message.TOPICS[key].toString()).indexOf(lowercase_query) > -1;
+                });
+
+                var matches_contents = Object.keys(message.CONTENTS).some(function (key) {
+                    return !!message.CONTENTS[key] && angular.lowercase(message.CONTENTS[key].toString()).indexOf(lowercase_query) > -1;
+                });
+
+                return matches_topics || matches_contents;
+
             };
+        }
 
-            this.hasLargeContents = function () {
-                return Object.keys(this.message.CONTENTS).length > 1;
-            };
+        // If the filter_text isn't null or undefined return the messages that match the query.
+        var log = query ? this.getLog().filter(buildFilterOn(query)) : this.getLog();
 
-        },
-        controllerAs: "ctrl",
-        bindToController: true,
-        templateUrl: '../vendor_components/promenade/items/directives/promenade-standard-item-card-log-item.html'
+        return !!reverse ? log.reverse() : log;
     };
-}
 
-angular.module('promenade.items.standarditem.log', ['parlay.utility', 'parlay.store.persistence', 'luegg.directives'])
-	.controller('PromenadeStandardItemCardLogTabController', ['$scope', 'ParlayPersistence', 'ParlayUtility', PromenadeStandardItemCardLogTabController])
-	.directive('promenadeStandardItemCardLog', PromenadeStandardItemCardLog)
-	.directive('promenadeStandardItemCardLogItem', ["ParlayNotification", PromenadeStandardItemCardLogItem]);
+    /**
+     * Returns the log stored on the item Object.
+     * @returns {Array} - All messages captured by the item.
+     */
+    PromenadeStandardItemCardLogTabController.prototype.getLog = function () {
+        return this.item.log;
+    };
+
+    /**
+     * Controller for Parlay Card Log Item.
+     * @param {Parlay Service} ParlayNotification - Displays notifications to user.
+     * @constructor
+     */
+    PromenadeStandardItemCardLogItemController.$inject = ['ParlayNotification'];
+    function PromenadeStandardItemCardLogItemController (ParlayNotification) {
+        this.copy = function () {
+            ParlayNotification.show({content: JSON.stringify(angular.copy(this.message)).copyToClipboard() ?
+                "Message copied to clipboard" : "Copy failed. Check browser compatibility."});
+        };
+    }
+
+    /**
+     * Directive constructor for PromenadeStandardItemCardLog.
+     * @returns {Object} - Directive configuration.
+     */
+    /* istanbul ignore next */
+    function PromenadeStandardItemCardLog() {
+        return {
+            scope: {
+                item: "="
+            },
+            templateUrl: '../vendor_components/promenade/items/directives/promenade-standard-item-card-log.html',
+            controller: 'PromenadeStandardItemCardLogTabController',
+            controllerAs: "ctrl",
+            bindToController: true
+        };
+    }
+
+    /**
+     * Parlay Card Log Item directive.
+     * @returns {AngularJS directive factory}
+     * @constructor
+     */
+    /* istanbul ignore next */
+    PromenadeStandardItemCardLogItem.$inject = ["ParlayNotification"];
+    function PromenadeStandardItemCardLogItem() {
+        return {
+            scope: { message: "=" },
+            controller: 'PromenadeStandardItemCardLogItemController',
+            controllerAs: "ctrl",
+            bindToController: true,
+            templateUrl: '../vendor_components/promenade/items/directives/promenade-standard-item-card-log-item.html'
+        };
+    }
+
+}());

@@ -1,6 +1,7 @@
 import functools
 from base import BaseItem
 from parlay.protocols.utils import message_id_generator
+from parlay.protocols.local_item import LocalItemProtocol
 from twisted.internet import defer, threads
 from twisted.python import failure
 from parlay.server.broker import Broker, run_in_broker, run_in_thread
@@ -10,6 +11,7 @@ from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPU
     INPUT_TYPE_CONVERTER_LOOKUP
 import re
 import inspect
+import Queue
 
 
 class ParlayStandardItem(ThreadedItem):
@@ -29,6 +31,12 @@ class ParlayStandardItem(ThreadedItem):
 
         # default msg ids are 32 bit ints between 100 and 65535
         self._msg_id_generator = message_id_generator(65535, 100)
+
+    def subscribe(self, _fn, **kwargs):
+        return self._adapter.subscribe(_fn, **kwargs)
+
+    def publish(self, msg):
+        return self._adapter.publish(msg)
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
@@ -138,7 +146,16 @@ class ParlayStandardItem(ThreadedItem):
         if extra_topics is not None:
             msg["TOPICS"].update(extra_topics)
 
-        self._broker.publish(msg, self.on_message)
+        self.publish(msg)
+
+    def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
+        """
+        Send a parlay command to an known ID
+        """
+        msg = self.make_msg(to, command, msg_type=MSG_TYPES.COMMAND,
+                                    direct=True, response_req=True, COMMAND=command, **kwargs)
+        self.send_parlay_message(msg, timeout=_timeout, wait=False)
+        return CommandHandle(msg, self)
 
 
 def parlay_command(async=False, auto_type_cast=True):
@@ -233,36 +250,49 @@ class ParlayDatastream(object):
             self.altitude = ParlayDatastream(default=0, units="ft")
     """
 
-    def __init__(self, default=None, units=""):
+    def __init__(self, default=None, val_type=None, units="", callback=lambda _: _):
         """
         Init method for ParlayDatastream class
 
         :param default: default value for the streaming data
         :param units: optional string indicating units, to be returned during discovery
+        :param callback: a functiomn to call with the new value every time this datastream changes
         :return:
         """
         self._default_val = default
-        self.listeners = {}  # key -> (key -> value) | requester -> (instance -> repeater)
+        self.listeners = {}  # dict: item instance -> { dict: requester_id -> listener}
         self.units = units
         self.broker = Broker.get_instance()
-        self._vals = {}  # key -> value | instance -> value
+        self._vals = {}  # dict: item instance -> value
+        self._val_type = val_type
+        self._callback = callback
 
     def __get__(self, instance, objtype=None):
         return self._vals.get(instance, self._default_val)
 
     def __set__(self, instance, value):
-        self._vals[instance] = value
+        self._vals[instance] = value  # set the actual value
+        for listener in self.listeners.get(instance, {}).values():
+            listener(value)  # call any listeners
+        self._callback(value)  # call my callback
 
-    def stream(self, instance, requester_id, looper, hz):
-        current_looper = self.listeners.get(requester_id, {}).get(instance, None)
-        if current_looper is not None and current_looper.running:
-            current_looper.stop()
-        if hz > 0:
-            # setup dict if its first time
-            if requester_id not in self.listeners:
-                self.listeners[requester_id] = {}
-            self.listeners[requester_id][instance] = looper
-            looper.start(1/hz)
+    def listen(self, instance, listener, requester_id):
+        """
+        Listen to the datastream. Will call calback whenever there is a change
+        """
+        listener_dict = self.listeners.get(instance, {})
+        listener_dict[requester_id] = listener
+        self.listeners[instance] = listener_dict
+
+    def stop(self, instance, requester_id):
+        """
+        Stop listening
+        """
+        listener_dict = self.listeners.get(instance, {})
+        if requester_id in listener_dict:
+            del listener_dict[requester_id]
+
+
 
 
 class BadStatusError(Exception):
@@ -283,9 +313,11 @@ class ParlayCommandItem(ParlayStandardItem):
     __ID_GEN = message_id_generator(2**32, 1)
 
     def __init__(self, item_id=None, name=None):
-        # call parent
         """
-
+        :param item_id : The id of the Item (Must be unique in this system)
+        :type item_id str | int
+        :param name : the human readible name of this item. (Advised to be unique, but not required)
+        :type name str
         :rtype : object
         """
         if item_id is None:
@@ -301,8 +333,8 @@ class ParlayCommandItem(ParlayStandardItem):
         self._wait_for_next_sent_message = defer.Deferred()
         self._wait_for_next_recv_message = defer.Deferred()
 
-        self._broker.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.item_id)
-        self._broker.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.item_id)
+        self.subscribe(self._wait_for_next_recv_msg_subscriber, TO=self.item_id)
+        self.subscribe(self._wait_for_next_sent_msg_subscriber, FROM=self.item_id)
 
         # add any function that have been decorated
         for member_name in [x for x in dir(self) if not x.startswith("__")]:
@@ -319,7 +351,9 @@ class ParlayCommandItem(ParlayStandardItem):
 
         # run discovery to init everything for a first time
         # call it immediately after init
-        self._broker._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+        self._adapter._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+
+
 
     def get_discovery(self):
         """
@@ -375,7 +409,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 self.add_datastream(member_name, member_name, member.units)
 
     def _send_parlay_message(self, msg):
-        self._broker.publish(msg, self.on_message)
+        self.publish(msg)
 
     def on_message(self, msg):
         """
@@ -409,16 +443,22 @@ class ParlayCommandItem(ParlayStandardItem):
         if msg_type == "STREAM":
             try:
                 stream_name = str(contents["STREAM"])
-                hz = float(contents["RATE"])
+                remove = contents.get("STOP", False)
                 requester = topics["FROM"]
 
-                def sample():
-                    val = getattr(self, self._datastreams[stream_name]["ATTR_NAME"])
-                    self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': val},
+                def sample(stream_value):
+                    self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': stream_value},
                                       extra_topics={"STREAM": stream_name})
 
-                looper = LoopingCall(sample)
-                self.__class__.__dict__[stream_name].stream(self, requester, looper, hz)
+                if remove:
+                    # if we've been asked to unsubscribe
+                    # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
+                    self.__class__.__dict__[stream_name].stop(self, requester)
+                else:
+                    #listen in if we're subscribing
+                    # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
+                    self.__class__.__dict__[stream_name].listen(self, sample, requester)
+
 
             except Exception as e:
                 self.send_response(msg, {"STREAM": contents.get("STREAM", "__UNKNOWN_STREAM__"), "ACTION": "RESPONSE",
@@ -445,6 +485,9 @@ class ParlayCommandItem(ParlayStandardItem):
                 # try to run the method, return the data and say status ok
                 def run_command():
                     return method(**kws)
+
+                self.send_response(msg, msg_status=MSG_STATUS.ACK)
+                self.send_response(msg, msg_status=MSG_STATUS.ACK)
 
                 result = defer.maybeDeferred(run_command)
                 result.addCallback(lambda r: self.send_response(msg, {"RESULT": r}))
@@ -553,12 +596,31 @@ class ParlayStandardScriptProxy(object):
             self._item_proxy = item_proxy
             self._val = None
             self._rate = rate
+            self._listener = lambda _: _
+            self._new_value = defer.Deferred()
+            self._reactor = self._item_proxy._script._reactor
 
             item_proxy._script.add_listener(self._update_val_listener)
 
             msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
                                             direct=True, response_req=False, STREAM=self._name, RATE=rate)
             item_proxy._script.send_parlay_message(msg)
+
+        def attach_listener(self, listener):
+            self._listener = listener
+
+
+        def wait_for_value(self):
+            """
+            If in thread:
+                Will block until datastream is updated
+            If in Broker:
+                Will return deferred that is called back with the datastream value when updated
+            """
+            return self._reactor.maybeblockingCallFromThread(lambda: self._new_value)
+
+        def get(self):
+            return self.__get__(None, None)
 
         def _update_val_listener(self, msg):
             """
@@ -567,7 +629,12 @@ class ParlayStandardScriptProxy(object):
             topics, contents = msg["TOPICS"], msg['CONTENTS']
             if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._name \
                     and 'VALUE' in contents:
-                self._val = contents["VALUE"]
+                new_val = contents["VALUE"]
+                self._listener(new_val)
+                self._val = new_val
+                temp = self._new_value
+                self._new_value = defer.Deferred() # set up a new one
+                temp.callback(new_val)
             return False  # never eat me!
 
         def __get__(self, instance, owner):
@@ -608,6 +675,9 @@ class ParlayStandardScriptProxy(object):
                 def _closure_wrapper(f_name=func_name, f_id=func_id, _arg_names=arg_names, _self=self):
 
                     def func(*args, **kwargs):
+                        if len(args) + len(kwargs) > len(_arg_names):
+                            raise KeyError("Too many Arguments. Expected arguments are: " +
+                                           str([str(x[0]) for x in _arg_names]))
                         # add positional args with name lookup
                         for j in range(len(args)):
                             kwargs[_arg_names[j][0]] = args[j]
@@ -646,8 +716,13 @@ class ParlayStandardScriptProxy(object):
         # send the message and block for response
         msg = self._script.make_msg(self.item_id, self._command_id_lookup[command], msg_type=MSG_TYPES.COMMAND,
                                     direct=True, response_req=True, COMMAND=command, **kwargs)
+        # make the handle that sets up the listeners
+        handle = CommandHandle(msg, self._script)
         self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
-        return CommandHandle(msg, self._script)
+        return handle
+
+    def get_datastream_handle(self, name):
+        return object.__getattribute__(self, name)
 
     # Some re-implementation so our instance-bound descriptors will work instead of having to be class-bound.
     # Thanks: http://blog.brianbeck.com/post/74086029/instance-descriptors
@@ -668,6 +743,7 @@ class ParlayStandardScriptProxy(object):
                     isinstance(obj, ParlayStandardScriptProxy.StreamProxy):
                 return obj.__set__(self, value)
         return object.__setattr__(self, name, value)
+
 
 
 # register the proxy so it can be used in scripts
@@ -694,12 +770,11 @@ class CommandHandle(object):
         self._script = script
         self.msg_list = []  # list of al messages with the same message id but swapped TO and FROM
         self._done = False  # True when we're done listening (So we can clean up)
-
-        self._complete_deferred = defer.Deferred()
-        self._ack_deferred = defer.Deferred()
+        self._queue = Queue.Queue()
 
         # add our listener
         self._script.add_listener(self._generic_on_message)
+
 
     def _generic_on_message(self, msg):
         """
@@ -712,34 +787,43 @@ class CommandHandle(object):
                 and topics.get("TO", None) == self._msg_topics["FROM"] \
                 and topics.get("FROM", None) == self._msg_topics['TO']:
 
-            # add it to the list if the msg ids match but to and from are swapped
+            # add it to the list if the msg ids match but to and from are swapped (this is for inspection later)
             self.msg_list.append(msg)
+            # add it to the message queue for messages that we have not looked at yet
+            self._queue.put_nowait(msg)
 
             status = topics.get("MSG_STATUS", None)
             msg_type = topics.get("MSG_TYPE", None)
             if msg_type == MSG_TYPES.RESPONSE and status != MSG_STATUS.ACK:
                 #  if it's a response but not an ack, then we're done
                 self._done = True
-                if status == MSG_STATUS.ERROR:  # errback on error
-                    self._complete_deferred.errback(failure.Failure(BadStatusError(msg)))
-                else:
-                    self._complete_deferred.callback(msg)
-            elif msg_type == MSG_TYPES.RESPONSE and status == MSG_STATUS.ACK:
-                # new deferred because we could get more than one ACK
-                old_ack, self._ack_deferred = self._ack_deferred, defer.Deferred()
-                old_ack.callback(msg)
 
         # remove this function from the listeners list
         return self._done
+
+    def wait_for(self, fn, timeout=None):
+        """
+        Block and wait for a message in our queue where fn returns true. Return that message
+        """
+        msg = self._queue.get(timeout=timeout, block=True)
+        while not fn(msg):
+            msg = self._queue.get(timeout=timeout, block=True)
+
+        return msg
 
     def wait_for_complete(self):
         """
         Called from a scripts thread. Blocks until the message is complete.
         """
-        return threads.blockingCallFromThread(self._script.reactor, lambda: self._complete_deferred)
+
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.ACK and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
+
+        return msg["CONTENT"]["RESULT"]
 
     def wait_for_ack(self):
         """
         Called from a scripts thread. Blocks until the message is ackd
         """
-        return threads.blockingCallFromThread(self._script.reactor, lambda: self._ack_deferred)
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.ACK and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)

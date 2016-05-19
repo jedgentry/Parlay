@@ -1,5 +1,5 @@
-from parlay.server.reactor import reactor
-from parlay_script import WebSocketClientFactory, ParlayScript, DEFAULT_ENGINE_WEBSOCKET_PORT
+from parlay.server.reactor import reactor, run_in_reactor
+from parlay_script import ParlayScript, DEFAULT_ENGINE_WEBSOCKET_PORT, start_script
 from threading import Thread
 import inspect
 import time
@@ -13,35 +13,25 @@ script_name = inspect.stack()[0][1]
 THREADED_REACTOR = reactor
 THREADED_REACTOR.getThreadPool()
 
+script = None
 
 class ThreadedParlayScript(ParlayScript):
 
+    ready = False
+
     def _start_script(self):
-        self._ready = True
+        global script
+        ThreadedParlayScript.ready = True
+        script = self  # so everyone knows we're THE script
         # do nothing. This is just an appliance class that doesn't run anything
         pass
-
-
-# define a websocket factory to give this instance out on connection
-class ScriptWebSocketFactory(WebSocketClientFactory):
-
-    def buildProtocol(self, addr):
-        p = script
-        p.factory = self
-        return p
-
-
-script = ThreadedParlayScript(script_name, script_name, THREADED_REACTOR)
-script._ready = False
-
 
 def start_reactor(ip, port):
     try:
         global THREADED_REACTOR
         # This is the reactor we will be using in a separate thread
-
-        factory = ScriptWebSocketFactory("ws://" + ip + ":" + str(port), reactor=THREADED_REACTOR)
-        THREADED_REACTOR.connectTCP(ip, port, factory)
+        THREADED_REACTOR.callWhenRunning(lambda: start_script(ThreadedParlayScript, ip, port,
+                                                              stop_reactor_on_close=True, reactor=THREADED_REACTOR))
         THREADED_REACTOR._registerAsIOThread = False
         THREADED_REACTOR.run(installSignalHandlers=False)
         print "DONE REACTING"
@@ -67,7 +57,13 @@ def setup(ip='localhost', port=DEFAULT_ENGINE_WEBSOCKET_PORT, timeout=3):
         # wait till we're ready
         start = datetime.datetime.now()
         print "Connecting to", ip, ":", port
-        while THREADED_REACTOR is None or (not THREADED_REACTOR.running) or not script._ready:
+        while THREADED_REACTOR is None or (not THREADED_REACTOR.running) or not ThreadedParlayScript.ready:
             time.sleep(0.001)
             if (datetime.datetime.now() - start).total_seconds() > timeout:
                 raise RuntimeError("Could not connect to parlay. Is the parlay system running?")
+
+def run_in_threaded_reactor(fn):
+    """
+    Decorator to run the decorated function in the threaded reactor.
+    """
+    return run_in_reactor(THREADED_REACTOR)(fn)
