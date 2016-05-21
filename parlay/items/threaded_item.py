@@ -216,11 +216,11 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        item_disc = self._find_item_info(self.discovery, item_id, "ID")
-        if item_disc is None:
-            raise KeyError("Couldn't find item with id " + str(item_id))
-        else:
+        try:
+            item_disc = next(self._find_item_info(self.discovery, item_id, "ID"))
             return self._proxy_item(item_disc)
+        except StopIteration:
+            raise KeyError("Couldn't find item with id " + str(item_id))
 
     def get_item_by_name(self, item_name):
         """
@@ -233,11 +233,27 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        item_disc = self._find_item_info(self.discovery, item_name, "NAME")
-        if item_disc is None:
-            raise KeyError("Couldn't find item with name " + str(item_name))
-        else:
+        try:
+            g = self._find_item_info(self.discovery, item_name, "NAME")
+            item_disc = next(g)
             return self._proxy_item(item_disc)
+        except StopIteration:
+            raise KeyError("Couldn't find item with name " + str(item_name))
+
+    def get_all_items_with_name(self, item_name):
+        """
+        Returns a handler object that can be used to send messages to an item.
+
+        :param item_name: globally unique name of the item
+        :return: a proxy object for the item
+        """
+
+        if not self._reactor.running:
+            raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
+
+
+        return [self._proxy_item(x) for x in self._find_item_info(self.discovery, item_name, "NAME")]
+
 
     def _proxy_item(self, item_disc):
         """
@@ -273,12 +289,10 @@ class ThreadedItem(BaseItem):
         """
         for item in discovery:
             if item.get(key, None) == item_id:
-                return item
-            found = self._find_item_info(item.get('CHILDREN', []), item_id, key)
-            # did a child find it?
-            if found is not None:
-                return found
-        return None
+                yield item
+            # see if a child found it
+            for child in self._find_item_info(item.get('CHILDREN', []), item_id, key):
+                yield child
 
     def sleep(self, timeout):
         """
