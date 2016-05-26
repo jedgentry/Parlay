@@ -1,4 +1,4 @@
-![Parlay Logo](parlay/ui/images/logo.png)
+![Parlay Logo](parlay/docs/_static/logo.png)
 
 # Parlay: Powerful Development and Testing System for Embedded Device Software
 
