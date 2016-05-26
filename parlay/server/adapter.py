@@ -18,7 +18,7 @@ class Adapter(object):
         """
         raise NotImplementedError()
 
-    def subscribe(self, **kwargs):
+    def subscribe(self, fn, **kwargs):
         """
         :kwargs The topics and their values to subscribe to
         """
@@ -31,3 +31,8 @@ class Adapter(object):
         self._items.append(item)
         #let the item know we're their adapter
         item._adapter = self
+
+
+
+
+
