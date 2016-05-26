@@ -1,3 +1,6 @@
+dev: [![Build Status](https://travis-ci.org/PromenadeSoftware/Parlay.svg?branch=dev)](https://travis-ci.org/PromenadeSoftware/Parlay)
+master: [![Build Status](https://travis-ci.org/PromenadeSoftware/Parlay.svg?branch=master)](https://travis-ci.org/PromenadeSoftware/Parlay)
+
 ![Parlay Logo](parlay/ui/images/logo.png)
 
 # Parlay: Powerful Development and Testing System for Embedded Device Software
