@@ -1,8 +1,10 @@
 from meta_protocol import ProtocolMeta
 import inspect
 from twisted.internet import defer
-from parlay.server.broker import run_in_broker
+from parlay.server.broker import run_in_broker, run_in_thread
 from parlay.protocols.utils import timeout
+from collections import deque
+
 
 
 class BaseProtocol(object):
@@ -12,8 +14,9 @@ class BaseProtocol(object):
     """
     __metaclass__ = ProtocolMeta
 
-    def __init__(self):
+    def __init__(self, data_buffer_length=100):
         self._new_data = defer.Deferred()
+        self._data_buffer = deque([], data_buffer_length)
         self.items = getattr(self, "items", [])
 
     @classmethod
@@ -77,7 +80,6 @@ class BaseProtocol(object):
         """
         return {}
 
-
     def get_discovery(self):
         """
         This will get called when a discovery message is sent out. Return a deferred that will be called back with
@@ -89,17 +91,8 @@ class BaseProtocol(object):
                 'protocol_type': getattr(self, "_protocol_type_name", "UNKNOWN"),
                 'CHILDREN': [x.get_discovery() for x in self.items]}
 
-    @run_in_broker
-    def wait_for_data(self, timeout_secs=None):
-        """
-        Call this to wait until there is data from the protocol.
-        If threaded: Will block. Return value is serial line data
-        If Async   : Will not blocl. Return value is Deferred that will be called back with  data
-        :param timeout_secs : Timeout if you don't get data in time. None if no timeout
-        :type timeout_secs : int|None
-        """
-        assert timeout_secs is None or timeout_secs >= 0
-        return timeout(self._new_data, timeout_secs)
+    def get_new_data_wait_handler(self):
+        return WaitHandler(self._new_data)
 
     @run_in_broker
     def got_new_data(self, data):
@@ -111,5 +104,32 @@ class BaseProtocol(object):
         # setup the new data in case it causes a callback to fire
         self._new_data = defer.Deferred()
         old_new_data.callback(data)
+        self._data_buffer.append(data)
 
 
+class WaitHandler(object):
+    """
+    An Object used to do safe cross thread waits on deferreds
+    """
+    def __init__(self, deferred):
+        self._deferred = deferred
+
+    @run_in_broker
+    def addCallback(self, fn, async=False):
+        """
+        Add a callback when you get new data
+        """
+        if not async:
+            fn = run_in_thread(fn)
+        self._deferred.addCallback(fn)
+
+    @run_in_broker
+    def wait(self, timeout_secs=None):
+        """
+        Call this to wait until there is data from the protocol.
+        If threaded: Will block. Return value is serial line data
+        If Async   : Will not block. Return value is Deferred that will be called back with  data
+        :param timeout_secs : Timeout if you don't get data in time. None if no timeout
+        :type timeout_secs : int|None
+        """
+        return timeout(self._deferred, timeout_secs)
