@@ -67,13 +67,10 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         self.got_new_data(line)
 
     def rawDataReceived(self, data):
-        pass
+        self.got_new_data(data)
 
     def __str__(self):
         return "Serial Terminal @ " + self._parlay_name
-
-
-
 
 class LineItem(ParlayCommandItem):
 
@@ -87,5 +84,9 @@ class LineItem(ParlayCommandItem):
     def send_raw_data(self, data):
         self._protocol.sendLine(str(data))
 
+    @parlay_command(async=True)
     def wait_for_data(self, timeout_secs=3):
-        return self._protocol.wait_for_data(timeout_secs)
+        """
+        :type timeout_secs float
+        """
+        return self._protocol.get_new_data_wait_handler().wait(timeout_secs)
