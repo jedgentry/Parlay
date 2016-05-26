@@ -97,6 +97,13 @@ def timeout(d, seconds):
             timeout_deferred.errback(failure.Failure(TimeoutError()))
 
     timer = reactor.callLater(seconds, cancel)
+    # clean up the timer on success
+    def clean_up_timer(result):
+        if timer.active():
+            timer.cancel()
+        return result  # pass through the result
+
+    d.addCallback(clean_up_timer)
     return timeout_deferred
 
 

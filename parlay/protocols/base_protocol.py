@@ -14,9 +14,8 @@ class BaseProtocol(object):
     """
     __metaclass__ = ProtocolMeta
 
-    def __init__(self, data_buffer_length=100):
+    def __init__(self):
         self._new_data = defer.Deferred()
-        self._data_buffer = deque([], data_buffer_length)
         self.items = getattr(self, "items", [])
 
     @classmethod
@@ -104,7 +103,6 @@ class BaseProtocol(object):
         # setup the new data in case it causes a callback to fire
         self._new_data = defer.Deferred()
         old_new_data.callback(data)
-        self._data_buffer.append(data)
 
 
 class WaitHandler(object):
