@@ -169,6 +169,7 @@ class Broker(Adapter):
         Publish a message to the Parlay system
         :param msg : The message to publish
         :param write_method : the protocol's method to callback if the broker needs to send a response
+        :type msg : dict
         """
         if write_method is None:
             write_method = lambda _: _
@@ -192,8 +193,6 @@ class Broker(Adapter):
         Time Complexity is O(2*n) * O(k)
         where:  n = the number of levels of the listener list
                 k = the number of keys in the msg
-
-        TODO: Remake this in super-fast Cython as a Trie
         """
         if root_list is None:
             root_list = self._listeners
