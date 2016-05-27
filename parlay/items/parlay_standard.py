@@ -20,9 +20,9 @@ class ParlayStandardItem(ThreadedItem):
     discovery. Inherit from it and use the parlay decorators to get UI functionality
     """
 
-    def __init__(self, item_id, name):
+    def __init__(self, item_id, name, reactor=None, adapter=None):
         # call parent
-        ThreadedItem.__init__(self, item_id, name)
+        ThreadedItem.__init__(self, item_id, name, reactor, adapter)
         self._content_fields = []
         self._topic_fields = []
         self._properties = {}  # Dictionary from name to (attr_name, read_only, write_only)
@@ -207,15 +207,18 @@ class ParlayProperty(object):
             self.x = ParlayProperty(default=0, val_type=int)
     """
 
-    def __init__(self, default=None, val_type=None, read_only=False, write_only=False):
+    def __init__(self, default=None, val_type=None, read_only=False, write_only=False,
+                 custom_read=None, custom_write=None):
         """
         Init method for the ParlayProperty class
 
-        :param default: an inital value for the property
-        :param val_type: the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type
+        :param default : an inital value for the property
+        :param val_type : the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type
         on set and throw an exception if it couldn't be coerced
-        :param read_only: Set to true to make read only
-        :param write_only: Set to true to make write only
+        :param read_only : Set to true to make read only
+        :param write_only : Set to true to make write only
+        :param custom_write : Custom write function to call when writing
+        :param custom_read : Custom read function to get the value
         :return: none
         """
         self._val_lookup = {}  # lookup based on instance
@@ -223,11 +226,19 @@ class ParlayProperty(object):
         self._read_only = read_only
         self._write_only = write_only
         self._val_type = val_type
+        self._custom_read = custom_read
+        self._custom_write = custom_write
         # can't be both read and write only
         assert(not(self._read_only and write_only))
 
     def __get__(self, instance, objtype=None):
-        return self._val_lookup.get(instance, self._init_val)
+        # return this object if we're accessing it from the class level, instead of the object level
+        if inspect.isclass(instance):
+            return self
+        if self._custom_read is None:
+            return self._val_lookup.get(instance, self._init_val)
+        else:
+            return self._custom_read()
 
     def __set__(self, instance, value):
         # special case for boolean
@@ -237,7 +248,7 @@ class ParlayProperty(object):
 
         # coerce the val
         val = value if self._val_type is None else self._val_type(value)
-        self._val_lookup[instance] = val
+        self._val_lookup[instance] = val if self._custom_write is None else self._custom_write(val)
 
 
 class ParlayDatastream(object):
@@ -312,7 +323,7 @@ class ParlayCommandItem(ParlayStandardItem):
     # id generator for auto numbering class instances
     __ID_GEN = message_id_generator(2**32, 1)
 
-    def __init__(self, item_id=None, name=None):
+    def __init__(self, item_id=None, name=None, reactor=None, adapter=None):
         """
         :param item_id : The id of the Item (Must be unique in this system)
         :type item_id str | int
@@ -326,7 +337,7 @@ class ParlayCommandItem(ParlayStandardItem):
         if name is None:
             name = self.__class__.__name__
 
-        ParlayStandardItem.__init__(self, item_id, name)
+        ParlayStandardItem.__init__(self, item_id, name, reactor, adapter)
         self._commands = {}  # dict with command name -> callback function
 
         # ease of use deferred for wait* functions
