@@ -356,9 +356,19 @@ class ParlayCommandItem(ParlayStandardItem):
                 # build the sub-field based on their signature
                 arg_names = member._parlay_fn.func_code.co_varnames[1:member._parlay_fn.func_code.co_argcount]   # remove self
 
-                # TODO: defaults based on method signature
+                # get a list of the default arguments
+                # (don't use argspec because it is needlesly strict and fails on perfectly valid Cython functions)
+                defaults = member._parlay_fn.func_defaults if member._parlay_fn.func_defaults is not None else []
+                # cut params to only the last x (defaults are always at the end of the signature)
+                params = arg_names
+                params = params[len(params) - len(defaults):]
+                default_lookup = dict(zip(params, defaults))
+
                 # add the sub_fields, trying to best guess their discovery types. If not possible then default to STRING
-                member.__func__._parlay_sub_fields = [self.create_field(x, member._parlay_arg_discovery.get(x, INPUT_TYPES.STRING)) for x in arg_names]
+                member.__func__._parlay_sub_fields = [self.create_field(x,
+                                                                        member._parlay_arg_discovery.get(x, INPUT_TYPES.STRING),
+                                                                        default=default_lookup.get(x, None))
+                                                      for x in arg_names]
 
         # run discovery to init everything for a first time
         # call it immediately after init
