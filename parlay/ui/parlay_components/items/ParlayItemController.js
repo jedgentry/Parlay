@@ -8,15 +8,15 @@
         .directive("parlayEmptyWorkspacePlaceholder", ParlayEmptyWorkspacePlaceholder)
         .controller("ParlayItemController", ParlayItemController);
 
+    ParlayItemController.$inject = ["ParlayItemManager", "$mdSidenav"];
     /**
-     * @name ParlayItemController
-     * @param {Parlay Service} ParlayItemManager - Service that manages the available items.
-     * @param {Angular Material Service} $mdSidenav - Angular Material Service for $mdSidenav.
+     * @constructor
+     * @param {Object} ParlayItemManager - Service that manages the available items.
+     * @param {Object} $mdSidenav - Angular Material Service for $mdSidenav.
      * @description
      * The ParlayItemController is a controller that manages the items currently active in the workspace.
      *
      */
-    ParlayItemController.$inject = ["ParlayItemManager", "$mdSidenav"];
     function ParlayItemController (ParlayItemManager, $mdSidenav) {
 
         this.filterItems = function () {

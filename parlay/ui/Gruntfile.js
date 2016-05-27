@@ -509,6 +509,15 @@ module.exports = function (grunt) {
                     'dev/index.html': 'index.html'
                 }
             }
+		},
+		
+		'jsdoc': {
+			'doc': {
+				'src': ['<%= meta.source %>', '<%= meta.vendor_components %>']
+			},
+            'options': {
+                'readme': 'README.md'
+            }
 		}
 
 	});
@@ -573,5 +582,9 @@ module.exports = function (grunt) {
         'karma:coverage',
         'open:coverage'
     ]);
+
+	grunt.registerTask('doc', 'Generates documentation.', [
+		'jsdoc:doc'
+	]);
 
 };

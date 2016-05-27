@@ -62,6 +62,7 @@ from twisted.web import static, server
 import os
 import json
 import signal
+import functools
 
 
 # path to the root parlay folder
@@ -169,6 +170,7 @@ class Broker(Adapter):
         Publish a message to the Parlay system
         :param msg : The message to publish
         :param write_method : the protocol's method to callback if the broker needs to send a response
+        :type msg : dict
         """
         if write_method is None:
             write_method = lambda _: _
@@ -192,8 +194,6 @@ class Broker(Adapter):
         Time Complexity is O(2*n) * O(k)
         where:  n = the number of levels of the listener list
                 k = the number of keys in the msg
-
-        TODO: Remake this in super-fast Cython as a Trie
         """
         if root_list is None:
             root_list = self._listeners
@@ -718,8 +718,12 @@ def run_in_broker(fn):
     If in a background thread, it will block until completion. If already in a reactor thread, then no change
     """
     from parlay.server.reactor import run_in_reactor
-    reactor = Broker.get_instance()._reactor
-    return run_in_reactor(reactor)(fn)
+    @functools.wraps(fn)
+    def decorator(*args, **kwargs):
+        reactor = Broker.get_instance()._reactor
+        return run_in_reactor(reactor)(fn)(*args, **kwargs)
+
+    return decorator
 
 
 def run_in_thread(fn):
@@ -729,8 +733,12 @@ def run_in_thread(fn):
     with result.
     """
     from parlay.server.reactor import run_in_thread
-    reactor = Broker.get_instance()._reactor
-    return run_in_thread(reactor)(fn)
+    @functools.wraps(fn)
+    def decorator(*args, **kwargs):
+        reactor = Broker.get_instance()._reactor
+        return run_in_thread(reactor)(fn)(*args, **kwargs)
+
+    return decorator
 
 
 def main():
