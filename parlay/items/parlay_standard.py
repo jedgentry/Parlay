@@ -493,6 +493,16 @@ class ParlayCommandItem(ParlayStandardItem):
             try:
                 method = self._commands[command]
                 arg_names = method._parlay_fn.func_code.co_varnames[1: method._parlay_fn.func_code.co_argcount]  # remove 'self'
+                # add the defaults to the msg if they're not overwritten
+                defaults = method._parlay_fn.func_defaults if method._parlay_fn.func_defaults is not None else []
+                # cut params to only the last x (defaults are always at the end of the signature)
+                params = arg_names
+                params = params[len(params) - len(defaults):]
+                default_lookup = dict(zip(params, defaults))
+                for k,v in default_lookup.iteritems():
+                    if k not in msg["CONTENTS"] or msg["CONTENTS"][k] is None:
+                        msg["CONTENTS"][k] = v
+
                 kws = {k: msg["CONTENTS"][k] for k in arg_names}
                 try:
                     # do any type conversions (default to whatever we were sent if no conversions)
