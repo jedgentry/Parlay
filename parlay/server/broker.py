@@ -326,7 +326,8 @@ class Broker(Adapter):
         """
         track the given protocol for discovery
         """
-        self._protocols.append(protocol)
+        if protocol not in self._protocols:
+            self._protocols.append(protocol)
 
     def untrack_protocol(self, protocol):
         """
@@ -382,7 +383,8 @@ class Broker(Adapter):
 
             # append to list on success
             def ok(p):
-                self.track_protocol(p)
+                if p is not None:
+                    self.track_protocol(p)
                 return p
 
             d.addCallback(ok)
