@@ -57,7 +57,7 @@ class LocalItemProtocol(BaseProtocol):
     def open(cls, broker, item_name):
         item_class = LOCAL_ITEM_CLASSES[item_name]
         obj = item_class()
-        return LocalItemProtocol(obj)
+        return obj
 
     @classmethod
     def open_for_obj(cls, item_obj):
