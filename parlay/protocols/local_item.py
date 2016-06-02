@@ -17,6 +17,9 @@ def local_item(auto_connect=False):
     :return: decorator function
     """
     def decorator(cls):
+        """
+        Monkey-patch __init__ to open a protocol when an object is constructed
+        """
         # register class with dict of local items
         class_name = cls.__name__
         cls._local_item_auto_connect = auto_connect  # set the auto connect flag
@@ -33,8 +36,10 @@ def local_item(auto_connect=False):
             broker = Broker.get_instance()
             protocol_obj = LocalItemProtocol(self)
             broker.track_protocol(protocol_obj)
+            self._local_protocol = protocol_obj
             return result
         cls.__init__ = new_init
+        cls.__orig_init__ = orig_init
         return cls
 
     return decorator
@@ -57,7 +62,9 @@ class LocalItemProtocol(BaseProtocol):
     def open(cls, broker, item_name):
         item_class = LOCAL_ITEM_CLASSES[item_name]
         obj = item_class()
-        return obj
+        return obj._local_protocol
+
+
 
     @classmethod
     def open_for_obj(cls, item_obj):
