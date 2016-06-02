@@ -508,7 +508,7 @@ class ParlayCommandItem(ParlayStandardItem):
                     # do any type conversions (default to whatever we were sent if no conversions)
                     kws = {k: method._parlay_arg_conversions[k](v) if k in method._parlay_arg_conversions
                                                                    else v for k, v in kws.iteritems()}
-                except ValueError as e:
+                except (ValueError, TypeError) as e:
                     self.send_response(msg, contents={"DESCRIPTION": e.message, "ERROR": "BAD TYPE"},
                                        msg_status=MSG_STATUS.ERROR)
                     return None
