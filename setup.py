@@ -2,10 +2,10 @@ from setuptools import setup, find_packages
 from distutils.extension import Extension
 import os
 import fnmatch
+import urllib2
 
-RELEASE = False
-USE_CYTHON = False
-
+UI_VERSION = "0.0.3"
+UI_LOCATION = "parlay/ui/dist"
 
 def find_files(directory, pattern):
 
@@ -18,19 +18,24 @@ def find_files(directory, pattern):
                 yield _modulename, _filename
 
 
-ext = '*.pyx' if USE_CYTHON else '*.c'
+ext = '*.c'
 
 extensions = [Extension(name, [path]) for name, path in find_files(".", ext)]
 
-if USE_CYTHON:
-    from Cython.Build import cythonize
-    extensions = cythonize(extensions, gdb_debug=(not RELEASE))
+# wget the dist file and put it in /ui/dist
+response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
+html = response.read()
+if not os.path.exists(UI_LOCATION):
+    os.makedirs(UI_LOCATION)
+
+with open(UI_LOCATION + "/index.html", 'w+') as index_file:
+    index_file.write(html)
 
 files = [os.path.relpath(filename, "parlay")
-                             for module_name, filename in find_files("parlay/ui/dist", "*")]
-# include docs
-files.extend([os.path.relpath(filename, "parlay")
-                             for module_name, filename in find_files("parlay/docs/_build", "*")])
+                             for module_name, filename in find_files(UI_LOCATION, "*")]
+
+
+#Custom Setup installer that will wget the UI for us
 setup(
     name="parlay",
     version='0.0.3',
