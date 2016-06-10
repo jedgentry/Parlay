@@ -53,6 +53,7 @@ There are two 'special type' messages that are *not* published. The are distingu
 import sys
 
 from twisted.internet import defer
+from parlay.server.adapter import PyAdapter
 from parlay.server.reactor import reactor
 from parlay.protocols.meta_protocol import ProtocolMeta
 from adapter import Adapter
@@ -72,7 +73,7 @@ BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 BROKER_VERSION = "0.1.0"
 
 
-class Broker(Adapter):
+class Broker(object):
     """
     The Dispatcher is the sole holder of global state. There should be only one.
     It also coordinates all communication between protcols
@@ -103,7 +104,10 @@ class Broker(Adapter):
     def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
         assert(Broker.instance is None)
 
-        Adapter.__init__(self)
+        # the one python adapter for this Broker's python environment
+        self.pyadapter = PyAdapter(broker=self)
+        # all of the attached adapters
+        self.adapters = [self.pyadapter]
 
         # the currently connected protocols
         self._protocols = []
@@ -122,10 +126,7 @@ class Broker(Adapter):
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
-        self._discovery_cache = {}  # dict: K->V = Protocol -> discovery
 
-        # we're always connected to ourselves
-        self._connected.callback(True)
 
     @staticmethod
     def get_instance():
@@ -322,25 +323,6 @@ class Broker(Adapter):
                         # call it again
                         self.unsubscribe_all(owner, root_list[k][v])
 
-    def track_protocol(self, protocol):
-        """
-        track the given protocol for discovery
-        """
-        if protocol not in self._protocols:
-            self._protocols.append(protocol)
-
-    def untrack_protocol(self, protocol):
-        """
-        Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
-        """
-        self.unsubscribe_all(protocol)
-        if protocol in self._discovery_cache:
-            del self._discovery_cache[protocol]  # remove from discovery cache
-        try:
-            self._protocols.remove(protocol)
-        except ValueError:
-            pass
-
     @classmethod
     def call_on_start(cls, func):
         """
@@ -367,6 +349,11 @@ class Broker(Adapter):
             # need a lambda to eat any results from the previous callback in the chain
             cls._stopped.addBoth(lambda *args: func())
 
+    def get_protocols(self):
+        """
+        Return a deferred that will fire with a list of protocol objects that can be opened
+        """
+        self.adapter
     def open_protocol(self, protocol_name, open_params):
         """
         Open a protocol with the given name and parameters (only run this once the Broker has started running
@@ -384,7 +371,7 @@ class Broker(Adapter):
             # append to list on success
             def ok(p):
                 if p is not None:
-                    self.track_protocol(p)
+                    self.pyadapter.track_protocol(p)
                 return p
 
             d.addCallback(ok)
@@ -457,14 +444,26 @@ class Broker(Adapter):
         elif request == 'get_open_protocols':
             # respond with the string repr of each protocol
             try:
-                reply['CONTENTS']['protocols'] = [{"name": str(x),
-                                                   "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
-                                                  for x in self._protocols]
-                reply['CONTENTS']['status'] = 'ok'
+                protocols = defer.DeferredList([defer.maybeDeferred(x.get_protocols) for x in self.adapters])
+
+                def protocols_done(protocol_results):
+                    flat_protocol_list = []  # flatten all of the lists into a single protocol list
+                    for x in protocol_results:
+                        flat_protocol_list.extend(x[1])
+
+                    reply['CONTENTS']['protocols'] = [{"name": str(x),
+                                                       "protocol_type": getattr(x, "_protocol_type_name", "UNKNOWN")}
+                                                      for x in flat_protocol_list]
+                    reply['CONTENTS']['status'] = 'ok'
+                    message_callback(reply)
+
+                protocols.addCallback(protocols_done)
+
             except Exception as e:
                 reply['CONTENTS']['status'] = 'Error while listing protocols: ' + str(e)
+                message_callback(reply)
 
-            message_callback(reply)
+
 
         elif request == 'close_protocol':
             # close the protocol with the string repr given
@@ -502,46 +501,19 @@ class Broker(Adapter):
 
         elif request == "get_discovery":
             # if we're forcing a refresh, clear our whole cache
-            if msg['CONTENTS'].get('force', False):
-                self._discovery_cache = {}
+            force = msg['CONTENTS'].get('force', False)
 
-            d_list = []
-            discovery = []
-            for p in self._protocols:
-                # if it's already in the cache, then just return it, otherwise, get it from the protocol
-                if p in self._discovery_cache:
-                    d = defer.Deferred()
-                    d.callback(self._discovery_cache[p])
-                else:
-                    d = defer.maybeDeferred(p.get_discovery)
+            all_d = defer.DeferredList([defer.maybeDeferred(x.discover, force=force) for x in self.adapters],
+                                       fireOnOneErrback=True, consumeErrors=False)
 
-                # add this protocols discovery
-                def callback(disc, error=None, protocol=p):
-                    protocol_discovery = disc
+            def discovery_done(adapters_discovery):
+                discovery = []
+                for x in adapters_discovery:
+                    discovery.extend(x[1])
 
-                    if error is not None:
-                        protocol_discovery = {'error': str(error)}
-                        sys.stderr.write(str(error))
-
-                    if type(disc) is dict:
-                        discovery.append(protocol_discovery)
-                        # add it to the cache
-                        self._discovery_cache[protocol] = protocol_discovery
-                    else:
-                        sys.stderr.write("ERROR: Discovery must return a dict, instead got: " + str(disc) +
-                                         " from " + str(protocol))
-
-                d.addCallback(callback)
-                d.addErrback(lambda err: callback({}, error=err))
-
-                d_list.append(d)
-
-            # wait for all to be finished
-            all_d = defer.gatherResults(d_list, consumeErrors=False)
-
-            def discovery_done(*_):
                 # append the discovery for the broker
                 discovery.append(Broker._discovery)
+
                 reply['CONTENTS']['status'] = 'ok'
                 reply['CONTENTS']['discovery'] = discovery
                 message_callback(reply)
@@ -550,11 +522,10 @@ class Broker(Adapter):
                 reply['TOPICS']['type'] = 'DISCOVERY_BROADCAST'
                 self.publish(reply, lambda _: _)
 
-            def discovery_error(*args):
-                # append the discovery for the broker
-                discovery.append(Broker._discovery)
-                reply['CONTENTS']['status'] = str(args)
-                reply['CONTENTS']['discovery'] = discovery
+            def discovery_error(*adapters_discovery):
+                #only show the error messages
+                reply['CONTENTS']['status'] = str(adapters_discovery)
+                reply['CONTENTS']['discovery'] = []
                 message_callback(reply)
 
             all_d.addCallback(discovery_done)
@@ -621,7 +592,7 @@ class Broker(Adapter):
         """
         Start up and run the broker. This method call with not return
         """
-        from parlay.protocols.websocket import ParlayWebSocketProtocol
+        from parlay.protocols.websocket import WebSocketServerAdapter
         import webbrowser
 
         # cleanup on sigint
@@ -655,7 +626,7 @@ class Broker(Adapter):
             ssl_context_factory = BrokerSSlContextFactory()
 
             factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
-            factory.protocol = ParlayWebSocketProtocol
+            factory.protocol = WebSocketServerAdapter
             factory.setProtocolOptions(allowHixie76=True)
             listenWS(factory, ssl_context_factory, interface=interface)
             root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
@@ -671,7 +642,7 @@ class Broker(Adapter):
         if not ssl_only:
             # listen for websocket connections on port 8085
             factory = WebSocketServerFactory("ws://localhost:" + str(self.websocket_port))
-            factory.protocol = ParlayWebSocketProtocol
+            factory.protocol = WebSocketServerAdapter
             self._reactor.listenTCP(self.websocket_port, factory, interface=interface)
 
             # http server

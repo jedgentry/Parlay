@@ -8,7 +8,7 @@ import sys
 import traceback
 from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES, ListenerStatus
 from autobahn.twisted.websocket import WebSocketClientFactory
-from parlay.protocols.websocket import WebsocketAdapter, WebsocketAdapterFactory
+from parlay.protocols.websocket import WebsocketClientAdapter, WebsocketClientAdapterFactory
 
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
@@ -108,7 +108,7 @@ def start_script(script_class, engine_ip='localhost', engine_port=DEFAULT_ENGINE
     script_class.stop_reactor_on_close = stop_reactor_on_close if stop_reactor_on_close is not None else not reactor.running
 
     # connect it up
-    factory = WebsocketAdapterFactory("ws://" + engine_ip + ":" + str(engine_port), reactor=reactor)
+    factory = WebsocketClientAdapterFactory("ws://" + engine_ip + ":" + str(engine_port), reactor=reactor)
     adapter = factory.adapter
     script_item = script_class(_reactor=reactor, adapter=adapter)
     reactor.connectTCP(engine_ip, engine_port, factory)

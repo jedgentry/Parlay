@@ -33,9 +33,8 @@ def local_item(auto_connect=False):
             Call the original ctor and then pass self to a new local protocol and append it to the broker
             """
             result = orig_init(self, *args, **kwargs)
-            broker = Broker.get_instance()
             protocol_obj = LocalItemProtocol(self)
-            broker.track_protocol(protocol_obj)
+            Broker.get_instance().pyadapter.track_protocol(protocol_obj)
             self._local_protocol = protocol_obj
             return result
         cls.__init__ = new_init
@@ -68,9 +67,8 @@ class LocalItemProtocol(BaseProtocol):
 
     @classmethod
     def open_for_obj(cls, item_obj):
-        broker = Broker.get_instance()
         protocol_obj = LocalItemProtocol(item_obj)
-        broker.track_protocol(protocol_obj)
+        Broker.get_instance().pyadapter.track_protocol(protocol_obj)
         return protocol_obj
 
     @classmethod
