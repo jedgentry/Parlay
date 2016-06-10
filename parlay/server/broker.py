@@ -349,11 +349,7 @@ class Broker(object):
             # need a lambda to eat any results from the previous callback in the chain
             cls._stopped.addBoth(lambda *args: func())
 
-    def get_protocols(self):
-        """
-        Return a deferred that will fire with a list of protocol objects that can be opened
-        """
-        self.adapter
+
     def open_protocol(self, protocol_name, open_params):
         """
         Open a protocol with the given name and parameters (only run this once the Broker has started running
@@ -398,15 +394,17 @@ class Broker(object):
                  'CONTENTS': {'status': "STATUS NOT FILLED IN"}}
 
         if request == 'get_protocols':
-            reg = ProtocolMeta.protocol_registry
-            # make a dictionary of protocol names (keys) to (values) a dictionary of open params and defaults
-            protocols = {k: {} for k in reg.keys()}
-            for name in protocols.keys():
-                protocols[name]["params"] = reg[name].get_open_params()
-                protocols[name]["defaults"] = reg[name].get_open_params_defaults()
+            d = defer.DeferredList([defer.maybeDeferred(x.get_protocols) for x in self.adapters])
 
-            reply['CONTENTS'] = protocols
-            message_callback(reply)
+            def protocols_done(protocol_list):
+                protocols = {}
+                for x in protocol_list:
+                    protocols.update(x[1])
+
+                reply['CONTENTS'] = protocols
+                message_callback(reply)
+
+            d.addCallback(protocols_done)
 
         elif request == 'open_protocol':
             protocol_name = msg['CONTENTS']['protocol_name']
@@ -444,7 +442,7 @@ class Broker(object):
         elif request == 'get_open_protocols':
             # respond with the string repr of each protocol
             try:
-                protocols = defer.DeferredList([defer.maybeDeferred(x.get_protocols) for x in self.adapters])
+                protocols = defer.DeferredList([defer.maybeDeferred(x.get_open_protocols) for x in self.adapters])
 
                 def protocols_done(protocol_results):
                     flat_protocol_list = []  # flatten all of the lists into a single protocol list

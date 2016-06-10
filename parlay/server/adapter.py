@@ -1,4 +1,5 @@
 from twisted.internet import reactor, defer
+from parlay.protocols.meta_protocol import ProtocolMeta
 import sys
 
 class Adapter(object):
@@ -42,6 +43,9 @@ class Adapter(object):
         """
         raise NotImplementedError()
 
+    def get_open_protocols(self):
+        raise NotImplementedError()
+
     def discover(self, force):
         """
         Return the discovery (or a deferred) for all protocols and items attached to this adapter
@@ -58,7 +62,7 @@ class PyAdapter(Adapter):
 
     def __init__(self, broker):
         self._broker = broker
-        self.protocols = []  # list of protocols that could potentially be opened
+        self.open_protocols = []  # list of protocols that could potentially be opened
         self._discovery_cache = {}  # dict: K->V = Protocol -> discovery
 
         super(PyAdapter, self).__init__()
@@ -73,8 +77,8 @@ class PyAdapter(Adapter):
         """
         track the given protocol for discovery
         """
-        if protocol not in self.protocols:
-            self.protocols.append(protocol)
+        if protocol not in self.open_protocols:
+            self.open_protocols.append(protocol)
 
     def untrack_protocol(self, protocol):
         """
@@ -84,7 +88,7 @@ class PyAdapter(Adapter):
         if protocol in self._broker._discovery_cache:
             del self._broker._discovery_cache[protocol]  # remove from discovery cache
         try:
-            self.protocols.remove(protocol)
+            self.open_protocols.remove(protocol)
         except ValueError:
             pass
 
@@ -92,7 +96,21 @@ class PyAdapter(Adapter):
         """
         Return a list of protocols that could potentially be opened
         """
-        return self.protocols
+        reg = ProtocolMeta.protocol_registry
+        # make a dictionary of protocol names (keys) to (values) a dictionary of open params and defaults
+        protocols = {k: {} for k in reg.keys()}
+        for name in protocols.keys():
+            protocols[name]["params"] = reg[name].get_open_params()
+            protocols[name]["defaults"] = reg[name].get_open_params_defaults()
+
+        return protocols
+
+    def get_open_protocols(self):
+        """
+        Returns a list of protocol object that are currently open
+        :return:
+        """
+        return self.open_protocols
 
     def discover(self, force):
         """
@@ -105,7 +123,7 @@ class PyAdapter(Adapter):
             self._discovery_cache = {}
 
         d_list = []
-        for p in self.protocols:
+        for p in self.open_protocols:
             # if it's already in the cache, then just return it, otherwise, get it from the protocol
             if p in self._discovery_cache:
                 d = defer.Deferred()

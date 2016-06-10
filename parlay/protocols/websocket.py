@@ -107,6 +107,9 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
 
         return self._protocol_response_defer
 
+    def get_open_protocols(self):
+        return []
+
     def __str__(self):
         return "Websocket at " + str(self.peer)
 
