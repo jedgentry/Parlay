@@ -245,8 +245,8 @@ class Broker(Adapter):
             root_list = root_list[k][v]
 
         # now that we're done, we have the leaf in root_list. Append it to the None list
-        listeners = root_list.get(None, [])
-        listeners.append((func, owner))
+        listeners = root_list.get(None, set())
+        listeners.add((func, owner))
         root_list[None] = listeners
 
     def unsubscribe(self, owner, TOPICS):
