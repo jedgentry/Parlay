@@ -3,7 +3,7 @@ Parlay Standard Item Communications Specification
 =================================================
 
 Parlay Standard Items are the most commonly used item type in the Parlay
-system. They support the *Streamable* and *Property* interfaces out of
+system. They support the *Command* *Streamable* and *Property* interfaces out of
 the box, and come with an intuitive automatic UI card in the UI. It is
 recommended that most items be sub-classed from the Parlay Standard
 Item.
@@ -13,8 +13,9 @@ JSON Message Format
 
 All Parlay-defined keys are in CAPS. All custom keys are not.
 
-All Parlay messages are JSON objects with two top-level keys: \*
-"TOPICS": \* "CONTENTS":
+All Parlay messages are JSON objects with two top-level keys:
+ * "TOPICS"
+ * "CONTENTS"
 
 The value of each of these is a JSON object.
 
@@ -51,7 +52,7 @@ The Parlay-defined keys of the "TOPICS" object are as follows:
 +-------------+------------+---------------------------------------------------+
 
 Users can include their own keys in the TOPICS object. Those
-user-defined keys will have no effect on the Parlay Standard Endpoint
+user-defined keys will have no effect on the Parlay Standard Item
 User Interface card.
 
 Valid Values for MSG\_STATUS key
@@ -61,14 +62,19 @@ The "MSG\_STATUS" key in the "TOPICS" object is used for response or
 asynchronous messages. The following values are allowed for the
 "MSG\_STATUS" key:
 
-| Value \| Description \|
-| --------- \| ------------------------------------------------- \|
-| "ERROR" \| Script will assert, UI will pop up an error. \|
-| "WARNING" \| UI will pop up a warning. Message on console. \|
-| "INFO" \| No action taken \|
-| "OK" \| UI indicates successful completion \|
-| "ACK" \| Message successfully received, not completed. \|
-
++---------------+----------------------------------------------------------------------------------------------+
+| Value         | Description                                                                                  |
++===============+==============================================================================================+
+| "ERROR"       | Script will assert, UI will pop up an error.                                                 |
++---------------+----------------------------------------------------------------------------------------------+
+| "WARNING"     | UI will pop up a warning. Message on console.                                                |
++---------------+----------------------------------------------------------------------------------------------+
+| "INFO"        | No action taken                                                                              |
++---------------+----------------------------------------------------------------------------------------------+
+| "OK"          | UI indicates successful completion                                                           |
++---------------+----------------------------------------------------------------------------------------------+
+| "PROGRESS"    | Message successfully received, not completed. 0 or more PROGRESS messages can be sent        |
++---------------+----------------------------------------------------------------------------------------------+
 Contents Dictionary
 -------------------
 
@@ -102,7 +108,7 @@ value of the MSG\_TYPE field in the TOPICS object:
 +---------------+--------------+----------+----------------------------------------+
 
 If a message is "MSG\_TYPE": "EVENT", or "MSG\_TYPE": "RESPONSE" and
-"MSG\_STATUS": "ERROR", then the Parlay Standard Endpoint UI can display
+"MSG\_STATUS": "ERROR", then the Parlay Standard Item UI can display
 other information contained in the following fields:
 
 +-----------------+-------------+-------------------------------------------------+
@@ -142,20 +148,39 @@ Property interface for more detail.
 |                |              | property to or the value that was retrieved    |
 +----------------+--------------+------------------------------------------------+
 
-Endpoint Discovery
-==================
+Item Discovery
+==============
 
 Protocols must respond to Discovery requests with Discovery response
 messages. The format of a Discovery response message is defined
-elsewhere, but it includes a list of Endpoint objects that have the
+elsewhere, but it includes a list of Item objects that have the
 following format.
 
-Endpoint Object Format
-----------------------
+Item ID Format
+--------------
+
+Item IDs are unicode strings that must be unique within the Parlay System. Uniqueness is not
+guaranteed by the Broker, but should be considered a fatal error by any system during discovery.
+
+To ensure Item ID uniqueness, a hierarchical period-separated schema should be used. The first
+level should be the specific adapter type (e.g. 'python','Qt', etc). The specific sub-levels are
+left to the decision of the implementation, but should be detailed enough to ensure uniqueness and
+ease of management.
+
+Some examples of ID:
+For an an item in Python: "python.promenade.LIMS" or "python.project_name.Linker"
+For an item on an embedded board: "ArmBoard.5.3ad2"
+
+
+Item Object Format
+------------------
 
 +----------------+-------------+-----------------------------------------------+
 | Key            | Required?   | Value                                         |
 +================+=============+===============================================+
+| "ID"           | Yes         | The system wide unique ID of the  endpoint.   |
+|                |             | (`See Item ID Format <#item-id-format>`__)    |
++----------------+-------------+-----------------------------------------------+
 | "NAME"         | Yes         | name of item                                  |
 +----------------+-------------+-----------------------------------------------+
 | "TYPE"         | No          | < type of device, e.g.: "Waveform Generator", |
@@ -166,7 +191,7 @@ Endpoint Object Format
 | "INTERFACES"   | No          | < list of interfaces that this item supports  |
 |                |             | >                                             |
 +----------------+-------------+-----------------------------------------------+
-| "CHILDREN"     | No          | < list of children Endpoint objects >         |
+| "CHILDREN"     | No          | < list of children Item objects >             |
 +----------------+-------------+-----------------------------------------------+
 | "DATA\_STREAMS | No          | < list of DataStream objects (`see format     |
 | "              |             | below <#datastream-object-format>`__) >       |
