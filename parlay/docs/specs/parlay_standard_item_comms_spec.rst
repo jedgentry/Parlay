@@ -168,8 +168,9 @@ left to the decision of the implementation, but should be detailed enough to ens
 ease of management.
 
 Some examples of ID:
-For an an item in Python: "python.promenade.LIMS" or "python.project_name.Linker"
-For an item on an embedded board: "ArmBoard.5.3ad2"
+
+* For an an item in Python: "python.promenade.LIMS" or "python.project_name.Linker"
+* For an item on an embedded board: "ArmBoard.5.3ad2"
 
 
 Item Object Format
