@@ -517,8 +517,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 def run_command():
                     return method(**kws)
 
-                self.send_response(msg, msg_status=MSG_STATUS.ACK)
-                self.send_response(msg, msg_status=MSG_STATUS.ACK)
+                self.send_response(msg, msg_status=MSG_STATUS.PROGRESS)
 
                 result = defer.maybeDeferred(run_command)
                 result.addCallback(lambda r: self.send_response(msg, {"RESULT": r}))
@@ -825,7 +824,7 @@ class CommandHandle(object):
 
             status = topics.get("MSG_STATUS", None)
             msg_type = topics.get("MSG_TYPE", None)
-            if msg_type == MSG_TYPES.RESPONSE and status != MSG_STATUS.ACK:
+            if msg_type == MSG_TYPES.RESPONSE and status != MSG_STATUS.PROGRESS:
                 #  if it's a response but not an ack, then we're done
                 self._done = True
 
@@ -847,7 +846,7 @@ class CommandHandle(object):
         Called from a scripts thread. Blocks until the message is complete.
         """
 
-        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.ACK and
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.PROGRESS and
                                         msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
 
         return msg["CONTENTS"]["RESULT"]
@@ -856,5 +855,5 @@ class CommandHandle(object):
         """
         Called from a scripts thread. Blocks until the message is ackd
         """
-        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.ACK and
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.PROGRESS and
                                         msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
