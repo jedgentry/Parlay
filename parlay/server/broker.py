@@ -269,10 +269,10 @@ class Broker(Adapter):
             root_list = root_list[k][v]
 
         # now that we're done, that means that we are subscribed and we have the leaf in root_list
-        listeners = root_list.get(None, [])
+        listeners = root_list.get(None, set())
         
         # filter out any subscriptions by 'owner'
-        root_list[None] = [x for x in listeners if x[1] != owner]
+        root_list[None] = set([x for x in listeners if x[1] != owner])
 
     def _clean_trie(self, root_list=None):
         """
@@ -302,7 +302,7 @@ class Broker(Adapter):
                 del root_list[k]
 
         # add subscriptions ar our level
-        total_sub += len(root_list.get(None, []))
+        total_sub += len(root_list.get(None, set()))
 
         return total_sub
 
@@ -314,7 +314,7 @@ class Broker(Adapter):
             root_list = self._listeners
 
         if None in root_list:   # don't bother checking if there's no listeners here
-            root_list[None] = [x for x in root_list[None] if x[1] != owner]
+            root_list[None] = set([x for x in root_list[None] if x[1] != owner])
 
         for k in root_list:
             if k is not None:  # special key for listener list
