@@ -71,31 +71,34 @@ class ParlayStandardItem(ThreadedItem):
         else:
             self._content_fields.append(discovery)
 
-    def add_property(self, name, attr_name=None, input=INPUT_TYPES.STRING, read_only=False, write_only=False):
+    def add_property(self, id, attr_name=None, input=INPUT_TYPES.STRING, read_only=False, write_only=False, name=None):
         """
         Add a property to this Item.
-        name : The name of the property
-        attr_name = the name of the attr to set in 'self' when setting and getting (None if same as name)
-        read_only = Read only
-        write_only = write_only
+        :param id : the id of the name
+        :param name : The name of the property (defaults to ID)
+        :param attr_name = the name of the attr to set in 'self' when setting and getting (None if same as name)
+        :param read_only = Read only
+        :param write_only = write_only
         """
+        name = name if name is not None else id
         attr_name = attr_name if attr_name is not None else name  # default
                                                 # attr_name isn't needed for discovery, but for lookup
-        self._properties[name] = {"NAME": name, "ATTR_NAME": attr_name, "INPUT": input,
+        self._properties[id] = {"PROPERTY": id, "PROPERTY_NAME": name, "ATTR_NAME": attr_name, "INPUT": input,
                                   "READ_ONLY": read_only, "WRITE_ONLY": write_only}  # add to internal list
 
-    def add_datastream(self, name, attr_name=None, units=""):
+    def add_datastream(self, id, attr_name=None, units="", name=None):
         """
         Add a datastream to this Item.
-
-        :param name: The name of the datastream
+        :param id : The id of the stream
+        :param name: The name of the datastream (defaults to id)
         :param attr_name: the name of the attr to set in 'self' when setting and getting (same as name if None)
         :param units: units of streaming value that will be reported during discovery
         """
+        name = name if name is not None else id
         attr_name = attr_name if attr_name is not None else name  # default
 
         # attr_name isn't needed for discovery, but for lookup
-        self._datastreams[name] = {"NAME": name, "ATTR_NAME": attr_name, "UNITS": units}  # add to internal list
+        self._datastreams[id] = {"STREAM": id, "STREAM_NAME": name, "ATTR_NAME": attr_name, "UNITS": units}  # add to internal list
 
     def clear_fields(self):
         """
@@ -118,8 +121,8 @@ class ParlayStandardItem(ThreadedItem):
         discovery = BaseItem.get_discovery(self)
         discovery["TOPIC_FIELDS"] = self._topic_fields
         discovery["CONTENT_FIELDS"] = self._content_fields
-        discovery["PROPERTIES"] = sorted([x for x in self._properties.values()], key=lambda v: v['NAME'])
-        discovery["DATASTREAMS"] = sorted([x for x in self._datastreams.values()], key=lambda v: v['NAME'])
+        discovery["PROPERTIES"] = sorted([x for x in self._properties.values()], key=lambda v: v['PROPERTY'])
+        discovery["DATASTREAMS"] = sorted([x for x in self._datastreams.values()], key=lambda v: v['STREAM'])
 
         if self.item_type is not None:
             discovery["TYPE"] = self.item_type
@@ -320,6 +323,9 @@ class ParlayCommandItem(ParlayStandardItem):
     This is a parlay item that takes commands, with arguments.
     """
 
+    #! change this to have a custom subsystem ID for the entire Python subsystem
+    SUBSYSTEM_ID = "python"
+
     # id generator for auto numbering class instances
     __ID_GEN = message_id_generator(2**32, 1)
 
@@ -332,7 +338,7 @@ class ParlayCommandItem(ParlayStandardItem):
         :rtype : object
         """
         if item_id is None:
-            item_id = self.__class__.__name__ + " " + str(ParlayCommandItem.__ID_GEN.next())
+            item_id = ParlayCommandItem.SUBSYSTEM_ID + "." + self.__class__.__name__ + "." + str(ParlayCommandItem.__ID_GEN.next())
 
         if name is None:
             name = self.__class__.__name__
@@ -445,40 +451,40 @@ class ParlayCommandItem(ParlayStandardItem):
         # handle property messages
         if msg_type == "PROPERTY":
             action = contents.get('ACTION', "")
-            property_name = str(contents.get('PROPERTY', ""))
+            property_id = str(contents.get('PROPERTY', ""))
             try:
                 if action == 'SET':
                     assert 'VALUE' in contents  # we need a value to set!
-                    setattr(self, self._properties[property_name]["ATTR_NAME"], contents['VALUE'])
-                    self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE"})
+                    setattr(self, self._properties[property_id]["ATTR_NAME"], contents['VALUE'])
+                    self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE"})
                     return True
                 elif action == "GET":
-                    val = getattr(self, self._properties[property_name]["ATTR_NAME"])
-                    self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE", "VALUE": val})
+                    val = getattr(self, self._properties[property_id]["ATTR_NAME"])
+                    self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "VALUE": val})
                     return True
             except Exception as e:
-                self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
+                self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
                                    msg_status=MSG_STATUS.ERROR)
 
         # handle data stream messages
         if msg_type == "STREAM":
             try:
-                stream_name = str(contents["STREAM"])
+                stream_id = str(contents["STREAM"])
                 remove = contents.get("STOP", False)
                 requester = topics["FROM"]
 
                 def sample(stream_value):
                     self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': stream_value},
-                                      extra_topics={"STREAM": stream_name})
+                                      extra_topics={"STREAM": stream_id})
 
                 if remove:
                     # if we've been asked to unsubscribe
                     # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
-                    self.__class__.__dict__[stream_name].stop(self, requester)
+                    self.__class__.__dict__[stream_id].stop(self, requester)
                 else:
                     #listen in if we're subscribing
                     # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
-                    self.__class__.__dict__[stream_name].listen(self, sample, requester)
+                    self.__class__.__dict__[stream_id].listen(self, sample, requester)
 
 
             except Exception as e:

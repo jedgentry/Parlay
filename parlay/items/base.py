@@ -61,11 +61,8 @@ class BaseItem(object):
     The Base Item that all other Items should inherit from
     """
 
-    #! change this to have a custom subsystem ID for the entire Python subsystem
-    SUBSYSTEM_ID = "python"
-
     def __init__(self, item_id, name, adapter=None):
-        self.item_id = BaseItem.SUBSYSTEM_ID + "." + str(item_id)
+        self.item_id = item_id
         self.item_name = name
         """:type Adapter"""
         self._adapter = adapter if adapter is not None else Broker.get_instance()

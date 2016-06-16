@@ -19,9 +19,9 @@ class ParlayScript(ThreadedItem):
         if item_id is None:
             # use the full file path as the ID, default to class name if unknown
             try:
-                item_id = os.path.abspath(sys.modules['__main__'].__file__)
+                item_id = "script." + os.path.abspath(sys.modules['__main__'].__file__)
             except:
-                item_id = self.__class__.__name__ + " (Unknown File)"
+                item_id = "script." + self.__class__.__name__ + " (Unknown File)"
 
         if name is None:
             name = self.__class__.__name__ + ".py"
