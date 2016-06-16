@@ -194,7 +194,7 @@ Item Object Format
 +----------------+-------------+-----------------------------------------------+
 | "CHILDREN"     | No          | < list of children Item objects >             |
 +----------------+-------------+-----------------------------------------------+
-| "DATA\_STREAMS | No          | < list of DataStream objects (`see format     |
+| "DATASTREAMS | No          | < list of DataStream objects (`see format     |
 | "              |             | below <#datastream-object-format>`__) >       |
 +----------------+-------------+-----------------------------------------------+
 | "PROPERTIES"   | No          | < list of Property objects (`see format       |
