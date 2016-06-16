@@ -7,8 +7,6 @@ from parlay.testing.unittest_mixins.reactor import ReactorMixin
 
 from parlay.items import parlay_standard
 
-
-
 class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
 
     def setUp(self):
@@ -41,10 +39,23 @@ class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
 
         self.assertEqual(self.prop_item.custom_rw_propery, "1.0,2.0,3.0")
 
+
+
+    def testPropertySpec_Set(self):
+        # set to 5
+        self.prop_item.simple_property = 5
+        self.assertEqual(self.prop_item.simple_property, 5)
+        self.prop_item.get_discovery()
+        self.prop_item.on_message({"TOPICS": {"TO": "PROPERTY_TEST_ITEM", "MSG_TYPE": "PROPERTY", "FROM": "TEST", "MSG_ID": 100},
+                              "CONTENTS": {"ACTION": "SET", "PROPERTY": "simple_property", "VALUE": 10}})
+
+        self.assertEqual(self.prop_item.simple_property, 10)
+
+
     def tearDown(self):
         #reset custom property list
         PropertyTestItem.custom_list = []
-        pass
+
 
 
 class PropertyTestItem(parlay_standard.ParlayCommandItem):
