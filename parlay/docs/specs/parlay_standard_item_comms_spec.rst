@@ -179,7 +179,7 @@ Item Object Format
 +----------------+-------------+-----------------------------------------------+
 | Key            | Required?   | Value                                         |
 +================+=============+===============================================+
-| "ID"           | Yes         | The system wide unique ID of the  endpoint.   |
+| "ID"           | Yes         | The system wide unique ID of the  item.       |
 |                |             | (`See Item ID Format <#item-id-format>`__)    |
 +----------------+-------------+-----------------------------------------------+
 | "NAME"         | Yes         | name of item                                  |
