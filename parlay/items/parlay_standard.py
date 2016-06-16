@@ -599,15 +599,15 @@ class ParlayStandardScriptProxy(object):
         Proxy class for a parlay property
         """
 
-        def __init__(self, name, item_proxy, blocking_set=True):
-            self._name = name
+        def __init__(self, id, item_proxy, blocking_set=True):
+            self._id = id
             self._item_proxy = item_proxy
             # do we want to block on a set until we get the ACK?
             self._blocking_set = blocking_set
 
         def __get__(self, instance, owner):
             msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
-                                            direct=True, response_req=True, PROPERTY=self._name, ACTION="GET")
+                                            direct=True, response_req=True, PROPERTY=self._id, ACTION="GET")
             resp = instance._script.send_parlay_message(msg)
             # return the VALUE of the response
             return resp["CONTENTS"]["VALUE"]
@@ -615,7 +615,7 @@ class ParlayStandardScriptProxy(object):
         def __set__(self, instance, value):
             msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
                                             direct=True, response_req=self._blocking_set,
-                                            PROPERTY=self._name, ACTION="SET", VALUE=value)
+                                            PROPERTY=self._id, ACTION="SET", VALUE=value)
             # Wait until we're sure its set
             resp = instance._script.send_parlay_message(msg)
 
@@ -627,8 +627,8 @@ class ParlayStandardScriptProxy(object):
         Proxy class for a parlay stream
         """
 
-        def __init__(self, name, item_proxy, rate):
-            self._name = name
+        def __init__(self, id, item_proxy, rate):
+            self._id = id
             self._item_proxy = item_proxy
             self._val = None
             self._rate = rate
@@ -639,7 +639,7 @@ class ParlayStandardScriptProxy(object):
             item_proxy._script.add_listener(self._update_val_listener)
 
             msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
-                                            direct=True, response_req=False, STREAM=self._name, RATE=rate)
+                                            direct=True, response_req=False, STREAM=self._id, RATE=rate)
             item_proxy._script.send_parlay_message(msg)
 
         def attach_listener(self, listener):
@@ -663,7 +663,7 @@ class ParlayStandardScriptProxy(object):
             Script listener that will update the val whenever we get a stream update
             """
             topics, contents = msg["TOPICS"], msg['CONTENTS']
-            if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._name \
+            if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._id \
                     and 'VALUE' in contents:
                 new_val = contents["VALUE"]
                 self._listener(new_val)
@@ -738,11 +738,15 @@ class ParlayStandardScriptProxy(object):
 
         # properties
         for prop in discovery.get("PROPERTIES", []):
-            setattr(self, prop['NAME'], ParlayStandardScriptProxy.PropertyProxy(prop['NAME'], self))
+            property_id = prop["PROPERTY"]
+            property_name = prop["PROPERTY_NAME"] if "PROPERTY_NAME" in prop else property_id
+            setattr(self, property_name, ParlayStandardScriptProxy.PropertyProxy(property_id, self))
 
         # streams
         for stream in discovery.get("DATASTREAMS", []):
-            setattr(self, stream['NAME'], ParlayStandardScriptProxy.StreamProxy(stream['NAME'], self,
+            stream_id = stream["STREAM"]
+            stream_name = stream["STREAM_NAME"] if "STREAM_NAME" in stream else stream_id
+            setattr(self, stream_name, ParlayStandardScriptProxy.StreamProxy(stream_id, self,
                                                                                 self.datastream_update_rate_hz))
 
     def send_parlay_command(self, command, **kwargs):

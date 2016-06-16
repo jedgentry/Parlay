@@ -306,7 +306,7 @@ class ThreadedItem(BaseItem):
 
         return self._reactor.maybeblockingCallFromThread(self._sleep, timeout)
 
-    ####################### THe following  must be run from the reactor thread ###################
+    ####################### The following  must be run from the reactor thread ###################
     #############################   Do not call directly from script thread #####################
     def _send_parlay_message_from_thread(self, msg, timeout):
         """
