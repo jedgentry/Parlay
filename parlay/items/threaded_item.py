@@ -306,7 +306,7 @@ class ThreadedItem(BaseItem):
 
         return run_in_broker(lambda: self._sleep(timeout))
 
-    ####################### THe following  must be run from the reactor thread ###################
+    ####################### The following  must be run from the reactor thread ###################
     #############################   Do not call directly from script thread #####################
     def _send_parlay_message_from_thread(self, msg, timeout):
         """
@@ -326,7 +326,7 @@ class ThreadedItem(BaseItem):
                 if received_msg['TOPICS']['TO'] == self.item_id and \
                         received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
 
-                    if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ACK:
+                    if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.PROGRESS:
                         return False  # keep waiting, an ACK means its not finished yet, it just got our msg
                     if timer is not None:
                         # Clear the timer
