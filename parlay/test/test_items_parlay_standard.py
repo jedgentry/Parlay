@@ -39,8 +39,6 @@ class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
 
         self.assertEqual(self.prop_item.custom_rw_propery, "1.0,2.0,3.0")
 
-
-
     def testPropertySpec_Set(self):
         # set to 5
         self.prop_item.simple_property = 5
@@ -50,6 +48,35 @@ class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
                               "CONTENTS": {"ACTION": "SET", "PROPERTY": "simple_property", "VALUE": 10}})
 
         self.assertEqual(self.prop_item.simple_property, 10)
+
+
+    def testPropertySpec_Get(self):
+        # set to 5
+        self.prop_item.simple_property = 5
+        self.assertEqual(self.prop_item.simple_property, 5)
+        self.prop_item.get_discovery()
+        self.prop_item.on_message({"TOPICS": {"TO": "PROPERTY_TEST_ITEM", "MSG_TYPE": "PROPERTY",
+                                              "FROM": "TEST", "MSG_ID": 100},
+                                   "CONTENTS": {"ACTION": "GET", "PROPERTY": "simple_property"}})
+        print self.adapter.last_published
+        self.assertEqual(self.adapter.last_published,
+                         {'TOPICS': {'FROM': 'PROPERTY_TEST_ITEM', 'MSG_TYPE': 'RESPONSE',
+                                     'MSG_STATUS': 'OK', 'MSG_ID': 100, 'TO': 'TEST', 'RESPONSE_REQ': False,
+                                     'TX_TYPE': 'DIRECT'},
+                          'CONTENTS': {'ACTION': 'RESPONSE', 'PROPERTY': 'simple_property', 'VALUE': 5}})
+
+        self.prop_item.simple_property = 10
+        self.assertEqual(self.prop_item.simple_property, 10)
+        self.prop_item.get_discovery()
+        self.prop_item.on_message({"TOPICS": {"TO": "PROPERTY_TEST_ITEM", "MSG_TYPE": "PROPERTY",
+                                              "FROM": "TEST", "MSG_ID": 900},
+                                   "CONTENTS": {"ACTION": "GET", "PROPERTY": "simple_property"}})
+        print self.adapter.last_published
+        self.assertEqual(self.adapter.last_published,
+                         {'TOPICS': {'FROM': 'PROPERTY_TEST_ITEM', 'MSG_TYPE': 'RESPONSE',
+                                     'MSG_STATUS': 'OK', 'MSG_ID': 900, 'TO': 'TEST', 'RESPONSE_REQ': False,
+                                     'TX_TYPE': 'DIRECT'},
+                          'CONTENTS': {'ACTION': 'RESPONSE', 'PROPERTY': 'simple_property', 'VALUE': 10}})
 
 
     def tearDown(self):
