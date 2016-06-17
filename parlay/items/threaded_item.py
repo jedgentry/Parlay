@@ -3,7 +3,7 @@ from parlay.items.base import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
 from base import BaseItem
-from parlay.server.broker import Broker
+from parlay.server.broker import Broker, run_in_broker
 import sys
 import json
 
@@ -304,7 +304,7 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        return self._reactor.maybeblockingCallFromThread(self._sleep, timeout)
+        return run_in_broker(lambda: self._sleep(timeout))
 
     ####################### THe following  must be run from the reactor thread ###################
     #############################   Do not call directly from script thread #####################
