@@ -36,8 +36,9 @@ The Parlay-defined keys of the "TOPICS" object are as follows:
 |             | false)     |                                                   |
 +-------------+------------+---------------------------------------------------+
 | "MSG\_ID"   | Conditiona | Required only if a response is required           |
-|             | l          | ("RESPONSE\_REQ": true). Unique Alpha-Number      |
-|             |            | (from sender). A Response to this message will    |
+|             | l          | ("RESPONSE\_REQ": true). Unique Integer between 0 |
+|             |            | and 65535 (16-bit) from the sender.               |
+|             |            | A Response to this message will                   |
 |             |            | use the same number.                              |
 +-------------+------------+---------------------------------------------------+
 | "MSG\_STATU | No         | See `Valid Values for MSG\_STATUS                 |

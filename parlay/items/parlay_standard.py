@@ -29,9 +29,6 @@ class ParlayStandardItem(ThreadedItem):
         self._datastreams = {}
         self.item_type = None
 
-        # default msg ids are 32 bit ints between 100 and 65535
-        self._msg_id_generator = message_id_generator(65535, 100)
-
     def subscribe(self, _fn, **kwargs):
         return self._adapter.subscribe(_fn, **kwargs)
 
@@ -133,7 +130,7 @@ class ParlayStandardItem(ThreadedItem):
         contents is a dictionary of contents to send
         """
         if msg_id is None:
-            msg_id = self._msg_id_generator.next()
+            msg_id = self._message_id_generator.next()
         if contents is None:
             contents = {}
         if from_ is None:

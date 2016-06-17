@@ -53,7 +53,7 @@ class ThreadedItem(BaseItem):
         self._auto_update_discovery = True  #: If True auto update discovery with broadcast discovery messages
         self.discovery = {}  #: The current discovery information to pull from
 
-        self._message_id_generator = message_id_generator(sys.maxint, 100)
+        self._message_id_generator = message_id_generator(65535, 100)
 
         # Add this listener so it will be first in the list to pickup errors, warnings and events.
         self.add_listener(self._system_listener)
