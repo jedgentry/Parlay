@@ -83,29 +83,29 @@ fields in the "CONTENTS" object are defined the discovery information
 provided by the Protocol. However, some fields are required based on the
 value of the MSG\_TYPE field in the TOPICS object:
 
-+---------------+--------------+----------+----------------------------------------+
-| TOPICS/MSG\_T | CONTENTS Key | Required | Value                                  |
-| YPE           |              | ?        |                                        |
-+===============+==============+==========+========================================+
-| "COMMAND"     | "COMMAND"    | Yes      | Command identifier (string or number)  |
-+---------------+--------------+----------+----------------------------------------+
-| "COMMAND"     | "COMMAND\_NA | No       | String name of command for display     |
-|               | ME"          |          | (default display is the Command        |
-|               |              |          | identifier)                            |
-+---------------+--------------+----------+----------------------------------------+
-| "RESPONSE"    | "STATUS"     | Yes      | Response status identifier (string or  |
-|               |              |          | number)                                |
-+---------------+--------------+----------+----------------------------------------+
-| "RESPONSE"    | "STATUS\_NAM | No       | String name of status for display      |
-|               | E"           |          | (default display is the Response       |
-|               |              |          | status identifier                      |
-+---------------+--------------+----------+----------------------------------------+
-| "EVENT"       | "EVENT"      | Yes      | Event identifier (string or number)    |
-+---------------+--------------+----------+----------------------------------------+
-| "EVENT"       | "EVENT\_NAME | No       | String name of event identifier for    |
-|               | "            |          | display (default display is the event  |
-|               |              |          | identifier                             |
-+---------------+--------------+----------+----------------------------------------+
++---------------+---------------+----------+----------------------------------------+
+| TOPICS/MSG\_T | CONTENTS Key  | Required | Value                                  |
+| YPE           |               | ?        |                                        |
++===============+===============+==========+========================================+
+| "COMMAND"     | "COMMAND"     | Yes      | Command identifier (string or number)  |
++---------------+---------------+----------+----------------------------------------+
+| "COMMAND"     | "COMMAND\_NAM | No       | String name of command for display     |
+|               | E"            |          | (default display is the Command        |
+|               |               |          | identifier)                            |
++---------------+---------------+----------+----------------------------------------+
+| "RESPONSE"    | "STATUS"      | Yes      | Response status identifier (string or  |
+|               |               |          | number)                                |
++---------------+---------------+----------+----------------------------------------+
+| "RESPONSE"    | "STATUS\_NAME"| No       | String name of status for display      |
+|               |               |          | (default display is the Response       |
+|               |               |          | status identifier                      |
++---------------+---------------+----------+----------------------------------------+
+| "EVENT"       | "EVENT"       | Yes      | Event identifier (string or number)    |
++---------------+---------------+----------+----------------------------------------+
+| "EVENT"       | "EVENT\_NAME" | No       | String name of event identifier for    |
+|               |               |          | display (default display is the event  |
+|               |               |          | identifier                             |
++---------------+---------------+----------+----------------------------------------+
 
 If a message is "MSG\_TYPE": "EVENT", or "MSG\_TYPE": "RESPONSE" and
 "MSG\_STATUS": "ERROR", then the Parlay Standard Item UI can display
@@ -239,7 +239,7 @@ DataStream Object Format
 +==============+============+================================================================+
 | "STREAM"     | Yes        | The data stream ID                                             |
 +--------------+------------+----------------------------------------------------------------+
-|"STREAN_NAME" | No         | The data stream name  (Defaults to ID)                         |
+|"STREAM_NAME" | No         | The data stream name  (Defaults to ID)                         |
 +--------------+------------+----------------------------------------------------------------+
 | "UNITS"      | No         | Human readable string representing units of this data stream   |
 +--------------+------------+----------------------------------------------------------------+
