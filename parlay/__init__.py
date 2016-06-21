@@ -20,10 +20,22 @@ stop_for_test = Broker.stop_for_test
 
 def open_protocol(protocol_name, **kwargs):
     """
-    Open a protocol immediately after the Broker initializes.
+    Sets up a protocol to be opened after the Broker initializes.
+
+    This function has the same effect as opening a new protocol from the
+    browser-based user interface.
 
     :param protocol_name: name of protocol class to call the open method
+    :type protocol_name: str
     :param kwargs: keyword arguments to pass to the protocol's _open_ method
     :return: none
+
+
+    **Example Usage**::
+
+        from parlay import open_protocol, start
+        open_protocol("ASCIILineProtocol", port="/dev/ttyUSB0", baudrate=57600)
+        start()
+
     """
     Broker.call_on_start(lambda: Broker.get_instance().open_protocol(protocol_name, kwargs))
