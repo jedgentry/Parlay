@@ -19,42 +19,43 @@ All Parlay messages are JSON objects with two top-level keys:
 
 The value of each of these is a JSON object.
 
-Topics Object
+TOPICS Object
 -------------
 
 The Parlay-defined keys of the "TOPICS" object are as follows:
 
-+-------------+------------+---------------------------------------------------+
-| Key         | Required?  | Values                                            |
-+=============+============+===================================================+
-| "TX\_TYPE"  | Yes        | "DIRECT" or "BROADCAST"                           |
-+-------------+------------+---------------------------------------------------+
-| "MSG\_TYPE" | Yes        | "COMMAND", "EVENT", "RESPONSE", "PROPERTY", or    |
-|             |            | "STREAM"                                          |
-+-------------+------------+---------------------------------------------------+
-| "RESPONSE\_ | No         | Whether the sender requires a response to this    |
-| REQ"        | (default   | message. true or false                            |
-|             | false)     |                                                   |
-+-------------+------------+---------------------------------------------------+
-| "MSG\_ID"   | Conditiona | Required only if a response is required           |
-|             | l          | ("RESPONSE\_REQ": true). Unique Integer between 0 |
-|             |            | and 65535 (16-bit) from the sender.               |
-|             |            | A Response to this message will                   |
-|             |            | use the same number.                              |
-+-------------+------------+---------------------------------------------------+
-| "MSG\_STATU | No         | See `Valid Values for MSG\_STATUS                 |
-| S"          |            | key <#valid-values-for-MSG_STATUS-key>`__ section |
-|             |            | below                                             |
-+-------------+------------+---------------------------------------------------+
-| "FROM"      | Yes        | The ID of the object this is message is from      |
-+-------------+------------+---------------------------------------------------+
-| "TO"        | Conditiona | For direct messages ("TX\_TYPE": "DIRECT") only.  |
-|             | l          | The ID of the object this message is to.          |
-+-------------+------------+---------------------------------------------------+
++-----------------+-------------+---------------------------------------------------+
+| Key             | Required?   | Values                                            |
++=================+=============+===================================================+
+| "TX\_TYPE"      | Yes         | "DIRECT" or "BROADCAST"                           |
++-----------------+-------------+---------------------------------------------------+
+| "MSG\_TYPE"     | Yes         | "COMMAND", "EVENT", "RESPONSE", "PROPERTY", or    |
+|                 |             | "STREAM"                                          |
++-----------------+-------------+---------------------------------------------------+
+| "RESPONSE\_REQ" | No          | Whether the sender requires a response to this    |
+|                 | (default    | message. true or false                            |
+|                 | false)      |                                                   |
++-----------------+-------------+---------------------------------------------------+
+| "MSG\_ID"       | Conditional | Required only if a response is required           |
+|                 |             | ("RESPONSE\_REQ": true). Unique Integer between 0 |
+|                 |             | and 65535 (16-bit) from the sender.               |
+|                 |             | A Response to this message will                   |
+|                 |             | use the same number.                              |
++-----------------+-------------+---------------------------------------------------+
+| "MSG\_STATUS"   | No          | See `Valid Values for MSG\_STATUS                 |
+|                 |             | key <#valid-values-for-MSG_STATUS-key>`__ section |
+|                 |             | below                                             |
++-----------------+-------------+---------------------------------------------------+
+| "FROM"          | Yes         | The ID of the object this is message is from      |
++-----------------+-------------+---------------------------------------------------+
+| "TO"            | Conditional | For direct messages ("TX\_TYPE": "DIRECT") only.  |
+|                 |             | The ID of the object this message is to.          |
++-----------------+-------------+---------------------------------------------------+
 
 Users can include their own keys in the TOPICS object. Those
 user-defined keys will have no effect on the Parlay Standard Item
 User Interface card.
+
 
 Valid Values for MSG\_STATUS key
 --------------------------------
@@ -76,7 +77,9 @@ asynchronous messages. The following values are allowed for the
 +---------------+----------------------------------------------------------------------------------------------+
 | "PROGRESS"    | Message successfully received, not completed. 0 or more PROGRESS messages can be sent        |
 +---------------+----------------------------------------------------------------------------------------------+
-Contents Dictionary
+
+
+CONTENTS Dictionary
 -------------------
 
 The other top level key in a Parlay JSON message is "CONTENTS". Most
@@ -84,29 +87,29 @@ fields in the "CONTENTS" object are defined the discovery information
 provided by the Protocol. However, some fields are required based on the
 value of the MSG\_TYPE field in the TOPICS object:
 
-+---------------+---------------+----------+----------------------------------------+
-| TOPICS/MSG\_T | CONTENTS Key  | Required | Value                                  |
-| YPE           |               | ?        |                                        |
-+===============+===============+==========+========================================+
-| "COMMAND"     | "COMMAND"     | Yes      | Command identifier (string or number)  |
-+---------------+---------------+----------+----------------------------------------+
-| "COMMAND"     | "COMMAND\_NAM | No       | String name of command for display     |
-|               | E"            |          | (default display is the Command        |
-|               |               |          | identifier)                            |
-+---------------+---------------+----------+----------------------------------------+
-| "RESPONSE"    | "STATUS"      | Yes      | Response status identifier (string or  |
-|               |               |          | number)                                |
-+---------------+---------------+----------+----------------------------------------+
-| "RESPONSE"    | "STATUS\_NAME"| No       | String name of status for display      |
-|               |               |          | (default display is the Response       |
-|               |               |          | status identifier                      |
-+---------------+---------------+----------+----------------------------------------+
-| "EVENT"       | "EVENT"       | Yes      | Event identifier (string or number)    |
-+---------------+---------------+----------+----------------------------------------+
-| "EVENT"       | "EVENT\_NAME" | No       | String name of event identifier for    |
-|               |               |          | display (default display is the event  |
-|               |               |          | identifier                             |
-+---------------+---------------+----------+----------------------------------------+
++------------------+-----------------+-------------+----------------------------------------+
+| TOPICS/MSG\_TYPE | CONTENTS Key    | Required?   | Value                                  |
+|                  |                 |             |                                        |
++==================+=================+=============+========================================+
+| "COMMAND"        | "COMMAND"       | Yes         | Command identifier (string or number)  |
++------------------+-----------------+-------------+----------------------------------------+
+| "COMMAND"        | "COMMAND\_NAME" | No          | String name of command for display     |
+|                  |                 |             | (default display is the Command        |
+|                  |                 |             | identifier)                            |
++------------------+-----------------+-------------+----------------------------------------+
+| "RESPONSE"       | "STATUS"        | Yes         | Response status identifier (string or  |
+|                  |                 |             | number)                                |
++------------------+-----------------+-------------+----------------------------------------+
+| "RESPONSE"       | "STATUS\_NAME"  | No          | String name of status for display      |
+|                  |                 |             | (default display is the Response       |
+|                  |                 |             | status identifier                      |
++------------------+-----------------+-------------+----------------------------------------+
+| "EVENT"          | "EVENT"         | Yes         | Event identifier (string or number)    |
++------------------+-----------------+-------------+----------------------------------------+
+| "EVENT"          | "EVENT\_NAME"   | No          | String name of event identifier for    |
+|                  |                 |             | display (default display is the event  |
+|                  |                 |             | identifier                             |
++------------------+-----------------+-------------+----------------------------------------+
 
 If a message is "MSG\_TYPE": "EVENT", or "MSG\_TYPE": "RESPONSE" and
 "MSG\_STATUS": "ERROR", then the Parlay Standard Item UI can display
@@ -177,102 +180,102 @@ Some examples of ID:
 Item Object Format
 ------------------
 
-+----------------+-------------+-----------------------------------------------+
-| Key            | Required?   | Value                                         |
-+================+=============+===============================================+
-| "ID"           | Yes         | The system wide unique ID of the  item.       |
-|                |             | (`See Item ID Format <#item-id-format>`__)    |
-+----------------+-------------+-----------------------------------------------+
-| "NAME"         | Yes         | name of item                                  |
-+----------------+-------------+-----------------------------------------------+
-| "TYPE"         | No          | < type of device, e.g.: "Waveform Generator", |
-|                |             | "Stepper Motor"... >                          |
-+----------------+-------------+-----------------------------------------------+
-| "TEMPLATE"     | Yes         | < e.g. ‘sscom/STD\_ITEM’ >                    |
-+----------------+-------------+-----------------------------------------------+
-| "INTERFACES"   | No          | < list of interfaces that this item supports  |
-|                |             | >                                             |
-+----------------+-------------+-----------------------------------------------+
-| "CHILDREN"     | No          | < list of children Item objects >             |
-+----------------+-------------+-----------------------------------------------+
-| "DATASTREAMS | No          | < list of DataStream objects (`see format     |
-| "              |             | below <#datastream-object-format>`__) >       |
-+----------------+-------------+-----------------------------------------------+
-| "PROPERTIES"   | No          | < list of Property objects (`see format       |
-|                |             | below <#property-object-format>`__ >          |
-+----------------+-------------+-----------------------------------------------+
-| "CONTENT\_FIEL | Yes         | < list of Field objects (`see format          |
-| DS"            |             | below <#field-object-format>`__) that         |
-|                |             | describe fields that will be in the CONTENTS  |
-|                |             | field of messages from this item >            |
-+----------------+-------------+-----------------------------------------------+
-| "TOPIC\_FIELDS | No          | < list of Field objects (`see format          |
-| "              |             | below <#field-object-format>`__) that         |
-|                |             | describe fields that will be in the TOPICS    |
-|                |             | field of messages from this item >            |
-+----------------+-------------+-----------------------------------------------+
++-------------------+-------------+-----------------------------------------------+
+| Key               | Required?   | Value                                         |
++===================+=============+===============================================+
+| "ID"              | Yes         | The system wide unique ID of the  item.       |
+|                   |             | (`See Item ID Format <#item-id-format>`__)    |
++-------------------+-------------+-----------------------------------------------+
+| "NAME"            | Yes         | name of item                                  |
++-------------------+-------------+-----------------------------------------------+
+| "TYPE"            | No          | < type of device, e.g.: "Waveform Generator", |
+|                   |             | "Stepper Motor"... >                          |
++-------------------+-------------+-----------------------------------------------+
+| "TEMPLATE"        | Yes         | < e.g. ‘sscom/STD\_ITEM’ >                    |
++-------------------+-------------+-----------------------------------------------+
+| "INTERFACES"      | No          | < list of interfaces that this item supports  |
+|                   |             | >                                             |
++-------------------+-------------+-----------------------------------------------+
+| "CHILDREN"        | No          | < list of children Item objects >             |
++-------------------+-------------+-----------------------------------------------+
+| "DATASTREAMS"     | No          | < list of DataStream objects (`see format     |
+|                   |             | below <#datastream-object-format>`__) >       |
++-------------------+-------------+-----------------------------------------------+
+| "PROPERTIES"      | No          | < list of Property objects (`see format       |
+|                   |             | below <#property-object-format>`__ >          |
++-------------------+-------------+-----------------------------------------------+
+| "CONTENT\_FIELDS" | Yes         | < list of Field objects (`see format          |
+|                   |             | below <#field-object-format>`__) that         |
+|                   |             | describe fields that will be in the CONTENTS  |
+|                   |             | field of messages from this item >            |
++-------------------+-------------+-----------------------------------------------+
+| "TOPIC\_FIELDS"   | No          | < list of Field objects (`see format          |
+|                   |             | below <#field-object-format>`__) that         |
+|                   |             | describe fields that will be in the TOPICS    |
+|                   |             | field of messages from this item >            |
++-------------------+-------------+-----------------------------------------------+
 
 Property Object Format
 ----------------------
 
-+----------------+-------------+-----------------------------------------------+
-| Key            | Required?   | Value                                         |
-+================+=============+===============================================+
-| "PROPERTY"     | Yes         | The property ID                               |
-+----------------+-------------+-----------------------------------------------+
-| "PROPERTY_NAME"| NO          | The property name (Defaults to ID)            |
-+----------------+-------------+-----------------------------------------------+
-| "INPUT"        | Yes         | "NUMBER", "STRING", "NUMBERS", "STRINGS",     |
-|                |             | "OBJECT", "ARRAY", "DROPDOWN"                 |
-+----------------+-------------+-----------------------------------------------+
-| "READ\_ONLY"   | No          | Boolean, whether the property is read only,   |
-|                |             | defaults to false                             |
-+----------------+-------------+-----------------------------------------------+
-| "WRITE\_ONLY"  | No          | Boolean, whether the property is write only,  |
-|                |             | defaults to false                             |
-+----------------+-------------+-----------------------------------------------+
++-----------------+-------------+-----------------------------------------------+
+| Key             | Required?   | Value                                         |
++=================+=============+===============================================+
+| "PROPERTY"      | Yes         | The property ID                               |
++-----------------+-------------+-----------------------------------------------+
+| "PROPERTY_NAME" | NO          | The property name (Defaults to ID)            |
++-----------------+-------------+-----------------------------------------------+
+| "INPUT"         | Yes         | "NUMBER", "STRING", "NUMBERS", "STRINGS",     |
+|                 |             | "OBJECT", "ARRAY", "DROPDOWN"                 |
++-----------------+-------------+-----------------------------------------------+
+| "READ\_ONLY"    | No          | Boolean, whether the property is read only,   |
+|                 |             | defaults to false                             |
++-----------------+-------------+-----------------------------------------------+
+| "WRITE\_ONLY"   | No          | Boolean, whether the property is write only,  |
+|                 |             | defaults to false                             |
++-----------------+-------------+-----------------------------------------------+
 
 DataStream Object Format
 ------------------------
 
-+--------------+------------+----------------------------------------------------------------+
-| Key          | Required   | Value                                                          |
-+==============+============+================================================================+
-| "STREAM"     | Yes        | The data stream ID                                             |
-+--------------+------------+----------------------------------------------------------------+
-|"STREAM_NAME" | No         | The data stream name  (Defaults to ID)                         |
-+--------------+------------+----------------------------------------------------------------+
-| "UNITS"      | No         | Human readable string representing units of this data stream   |
-+--------------+------------+----------------------------------------------------------------+
++---------------+------------+----------------------------------------------------------------+
+| Key           | Required   | Value                                                          |
++===============+============+================================================================+
+| "STREAM"      | Yes        | The data stream ID                                             |
++---------------+------------+----------------------------------------------------------------+
+| "STREAM_NAME" | No         | The data stream name  (Defaults to ID)                         |
++---------------+------------+----------------------------------------------------------------+
+| "UNITS"       | No         | Human readable string representing units of this data stream   |
++---------------+------------+----------------------------------------------------------------+
 
 Field Object format
 -------------------
 
-+----------------+-------------+-----------------------------------------------+
-| Key            | Required?   | Value                                         |
-+================+=============+===============================================+
-| "LABEL"        | No          | (label to show same as MSG\_KEY if not        |
-|                |             | defined)                                      |
-+----------------+-------------+-----------------------------------------------+
-| "MSG\_KEY"     | Yes         | < key passed with created message for this    |
-|                |             | field >                                       |
-+----------------+-------------+-----------------------------------------------+
-| "INPUT"        | Yes         | "NUMBER", "STRING", "NUMBERS", "STRINGS",     |
-|                |             | "OBJECT", "ARRAY", "DROPDOWN"                 |
-+----------------+-------------+-----------------------------------------------+
-| "REQUIRED"     | No          | If true, require the user fill out before     |
-|                |             | sending command                               |
-+----------------+-------------+-----------------------------------------------+
-| "DEFAULT"      | No          | Default value for the input. If dropdown,     |
-|                |             | then this will be the selected default        |
-+----------------+-------------+-----------------------------------------------+
-| "HIDDEN"       | No          | If set to true, will hide the input from the  |
-|                |             | user (i.e.: The default will be used as the   |
-|                |             | value since the user can’t change anything)   |
-+----------------+-------------+-----------------------------------------------+
-| "DROPDOWN\_OPT | Conditional | If input is a dropdown, must be a list of     |
-| IONS"          |             | strings or a list of tuples                   |
-+----------------+-------------+-----------------------------------------------+
-| "DROPDOWN\_SUB | No          | < list of Field objects>                      |
-| \_FIELDS"      |             |                                               |
-+----------------+-------------+-----------------------------------------------+
++-------------------------+-------------+-----------------------------------------------+
+| Key                     | Required?   | Value                                         |
++=========================+=============+===============================================+
+| "LABEL"                 | No          | (label to show same as MSG\_KEY if not        |
+|                         |             | defined)                                      |
++-------------------------+-------------+-----------------------------------------------+
+| "MSG\_KEY"              | Yes         | < key passed with created message for this    |
+|                         |             | field >                                       |
++-------------------------+-------------+-----------------------------------------------+
+| "INPUT"                 | Yes         | "NUMBER", "STRING", "NUMBERS", "STRINGS",     |
+|                         |             | "OBJECT", "ARRAY", "DROPDOWN"                 |
++-------------------------+-------------+-----------------------------------------------+
+| "REQUIRED"              | No          | If true, require the user fill out before     |
+|                         |             | sending command                               |
++-------------------------+-------------+-----------------------------------------------+
+| "DEFAULT"               | No          | Default value for the input. If dropdown,     |
+|                         |             | then this will be the selected default        |
++-------------------------+-------------+-----------------------------------------------+
+| "HIDDEN"                | No          | If set to true, will hide the input from the  |
+|                         |             | user (i.e.: The default will be used as the   |
+|                         |             | value since the user can’t change anything)   |
++-------------------------+-------------+-----------------------------------------------+
+| "DROPDOWN\_OPTIONS"     | Conditional | If input is a dropdown, must be a list of     |
+|                         |             | strings or a list of tuples                   |
++-------------------------+-------------+-----------------------------------------------+
+| "DROPDOWN\_SUB\_FIELDS" | No          | < list of Field objects>                      |
+|                         |             |                                               |
++-------------------------+-------------+-----------------------------------------------+
