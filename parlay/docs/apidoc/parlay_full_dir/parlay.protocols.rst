@@ -1,11 +1,6 @@
 parlay.protocols
 ================
 
-.. automodule:: parlay.protocols
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 parlay.protocols.base_protocol
 ------------------------------
 

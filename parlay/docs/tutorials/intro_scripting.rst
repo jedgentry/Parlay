@@ -12,7 +12,7 @@ Scripts connect to Parlay
 An important thing to understand about Parlay scripts is that they run
 separately from the Parlay system. To run a script that controls items
 that are connected to Parlay, *first run Parlay*, in the same way as the
-`Hello World <hello_world>`__ tutorial. Then, in a separate command line
+:doc:`hello_world` tutorial. Then, in a separate command line
 window, run your script. The script will automatically connect to the
 Parlay broker over a websocket connection. It can then send messages to
 and receive messages from other items that are connected to the Parlay
@@ -23,7 +23,7 @@ Basic Script to control Hello World item
 
 Let's start with a very simple script, that will send a command to, and
 read the response from, the "CheerfulPerson" item that we created in the
-`Hello World <hello_world>`__ tutorial.
+:doc:`hello_world` tutorial.
 
 .. code:: python
 
@@ -46,7 +46,7 @@ read the response from, the "CheerfulPerson" item that we created in the
 
     print response
 
-First, run the `Hello World <Hello-World>`__ example, and *leave it
+First, run the :doc:`hello_world` example, and *leave it
 running*. You can close the browser user interface window if you wish
 (it doesn't matter, because the Parlay server is still running in the
 command line window).
@@ -80,7 +80,7 @@ item that is connected to the Parlay server. This will fail if the item
 is not connected.
 
 During discovery, any connected items will also report what commands
-they support. In the case of `Hello World <Hello-World>`__, the
+they support. In the case of :doc:`hello_world`, the
 ``CheerfulPerson`` item supports the ``say_hello()`` command. In the
 script, all you have to do is call the function ``say_hello()``. Behind
 the scenes, this will send a command to the item, and wait for the

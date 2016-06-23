@@ -164,6 +164,29 @@ in the Parlay User Interface as a ``ASCIILineProtocol``, rather than a
             # WRONG! DON'T DO THIS!
             return ASCIILineProtocol.open(broker, port=port, baudrate=115200, delimiter="\r")
 
+
+Using the base class ``get_discovery`` method
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``SerialMotorControllerProtocol`` inherits from ``ASCIILineProtocol``,
+which inherits from ``BaseProtocol``.  ``BaseProtocol`` has a ``get_discovery``
+method defined as follows:
+
+.. code:: python
+
+        def get_discovery(self):
+            return {'TEMPLATE': 'Protocol',
+                    'NAME': str(self),
+                    'protocol_type': getattr(self, "_protocol_type_name", "UNKNOWN"),
+                    'CHILDREN': [x.get_discovery() for x in self.items]}
+
+For the base ``get_discovery`` method to work, the protocol must create a list
+of items in ``self.items`` that each support their own ``get_discovery`` method.
+
+We already took care of this in our ``__init__`` method as described above.  As
+described below, our ``SerialMotorControllerItem`` class inherits from
+``ParlayCommandItem``, which means that it supports the ``get_discovery`` method.
+
+
 The Item
 --------
 
