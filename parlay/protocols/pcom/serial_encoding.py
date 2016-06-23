@@ -156,20 +156,72 @@ LoggingInfo = enum(
     'Error',
     'Critical Error')
 
+CategoryMap = {
+    'COMMAND': MessageType.Order,
+    'PROPERTY': MessageType.Order,
+    'RESPONSE': MessageType.Order_Response,
+    'EVENT': MessageType.Notification
+}
+
 START_BYTE = 0x02
-STOP_BYTE  = 0x03
+END_BYTE = 0x03
 ESCAPE_BYTE = 0x10
 
 START_BYTE_STR = b'\x02'
-STOP_BYTE_STR  = b'\x03'
+END_BYTE_STR  = b'\x03'
 ESCAPE_BYTE_STR = b'\x10'
+
+PACKET_TYPE_MASK = 0xf0
+PACKET_SEQ_MASK = 0x0f
+PACKET_HEADER_SIZE = 10
+
+TYPE_ACK = 0x20
+TYPE_NAK = 0x30
+TYPE_NO_ACK_REQ = 0x40
+TYPE_ACK_REQ = 0x80
+
+
+def deserialize_type(type_byte):
+
+    '''
+
+    Translates the serialized type byte to a JSON message type
+    '''
+
+    # TODO: Handle streams and other response sub types
+    category = type_byte & 0xf0
+    sub_type = type_byte & 0x0f
+
+    msg_type = ""
+
+    if category == MessageType.Order:
+        if sub_type == OrderSubTypes.Command:
+            msg_type = "COMMAND"
+        else:
+            msg_type = "PROPERTY"
+    elif category == MessageType.Order_Response:
+        msg_type = "RESPONSE"
+    elif category == MessageType.Notification:
+        msg_type = "EVENT"
+
+    else:
+        raise Exception("Unhandled type category")
+
+
+    return msg_type
+
 
 def ack_nak_message(sequence_num, is_ack):
     """
     Generate an Ack message with the packets sequence number
+
+    ------------------------------------------------------
+    | ACK_MASK | Seq num, CHECKSUM, PAYLOAD SIZE (2 bytes)|
+    ------------------------------------------------------
     """
-    ack_nak_bit_mask = 0x80 if is_ack else  0x40
-    return bytearray([sequence_num | ack_nak_bit_mask, 0, 0x100 - (sequence_num | ack_nak_bit_mask)])
+
+    type_mask = TYPE_ACK if is_ack else TYPE_NAK
+    return bytearray([sequence_num | type_mask, 0x100 - (sequence_num | type_mask), 0, 0])
 
 
 def encode_service_message(msg):
@@ -187,46 +239,10 @@ def encode_service_message(msg):
     # Bytes [10:N]  Format string (Null terminated data structure description (0 for no data))
     # Bytes [N+1:M] Data in the form of bytes[10:N]. Size must match format string
 
-    '''
-    Do I need this??
 
-    #cast all to ints in case they didn't get decoded that way
-    topIService, bottomIService = 0xffff, 0xffff                 # to/from device codes
-    #command, status, event are all the same to us
-    command = msg.get_command_event_status()
-    #pack them up in a binary buffer
-
-  #  binary_msg = struct.pack("<HHHHHHI", msg.msg_id, msg.from_, msg.to, msg.response_code, msg.msg_type, msg.attributes, msg.format_string)
-
-    '''
-
-    binary_msg = struct.pack("<HHHHBBs", msg.msg_id, msg.from_, msg.to, response_code(msg), serialize_msg_type(msg),
+    return struct.pack("<HHHHBBs", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), serialize_msg_type(msg),
                              serialize_msg_attrs(msg) , msg.format_string)
 
-    '''
-
-    Not sure if I need this stuff yet.
-
-
-    message_type = msg.msg_type
-
-    data_type = msg.data_type
-    if isinstance(data_type, basestring):
-        data_type = getattr(BufferDataType, data_type)
-
-    binary_msg += struct.pack("<B", (message_type & 0xF) | ((data_type & 0xF) << 4))
-
-    # Byte 18    Attributes:
-    #   Bits 0-1  Priority  0= normal, 1 = drop-able,  2 = high
-    #   Bits 2:4  Logging Info
-    message_priority = MessagePriority.Normal
-    binary_msg += struct.pack("<B", (message_priority & 0x3) | ((message_logging & 0x7) << 2))
-
-
-    if len(msg.data) > 0:
-        binary_msg += BufferDataCTypePack[data_type]([x for x in msg.data if x != '' and x is not None]).tostring()
-    '''
-    return binary_msg
 
 def serialize_msg_attrs(msg):
     '''
@@ -238,7 +254,7 @@ def serialize_msg_attrs(msg):
     '''
     return msg.priority | (msg.response_req < 1)
 
-def response_code(message):
+def serialize_response_code(message):
     '''
 
     :param msg_type: The message type of the dictionary message
@@ -293,6 +309,9 @@ def category(message):
 
 def sub_category(msg, category):
     '''
+    Extracts the subcategory from the parameter msg
+
+    TODO: Clean this function up!
     '''
 
     # Possibly use dictionaries to map
@@ -351,37 +370,46 @@ def sub_category(msg, category):
 
 
 
-def decode_service_message(binary_msg):
+def decode_service_message(binary_msg, msg_len):
     """
     Build the json message from the binary version
     :type binary_msg: str
     """
-    length = len(binary_msg)
+    msg_length = len(binary_msg)
 
     # ensure the packet is big enough
-    if length < 18:
+    if msg_length < PACKET_HEADER_SIZE:
         raise Exception('binary message less than minimum size', binary_msg)
 
 
     msg = service_message.ServiceMessage()
-    # create the json message with the basic information
-    msg.to, msg.from_, topIService, bottomIService, command, msg.msg_id, msg.info = struct.unpack("<HHHHHHI", binary_msg[0:16])
-    msg.data_type = (ord(binary_msg[16]) >> 4)
 
-    msg.msg_type = (ord(binary_msg[16]) & 0xF)
-    msg.set_command_event_status(command)  # set the command/status/event based on the type
-    #message_logging = LoggingInfo.lookup[((ord(binary_msg[17]) >> 2) & 0x7)],
-    #message_priority= MessagePriority.lookup[(ord(binary_msg[17]) & 0x3)],
+    # Unpack the header
 
-    # decode the data buffer if there is one
-    if length > 18:
-        try:
-            msg.data = BufferDataCTypeUnpack[msg.data_type](binary_msg[18:])
-        except IndexError:
-            print msg.data_type, " Type not found"
-            raise Exception('data type lookup not found', msg.data_type)
-    else:
-        msg.data = []
+    msg.msg_id, msg.from_, msg.to, msg.response_req, msg.msg_type, msg.attributes \
+        = struct.unpack("<HHHHBB", binary_msg[0:PACKET_HEADER_SIZE])
+
+
+    # TODO: Is str() necessary here?
+    # Extract the format string
+    format_string_end_index = str(binary_msg).find('\0', PACKET_HEADER_SIZE)
+    format_string = binary_msg[PACKET_HEADER_SIZE:format_string_end_index+1]
+    format_string_length = (format_string_end_index+1) - PACKET_HEADER_SIZE
+
+    print "--->FORMAT STRING LENGTH: ", format_string_length
+
+    # NOTE: There is a comma here because unpack returns a tuple
+    msg.format_string, = struct.unpack("<%ds" % format_string_length, format_string)
+
+    print "---> FORMAT STRING RECEIVED: ", msg.format_string
+    # Extract the data
+
+    data_len = msg_length - (format_string_length+PACKET_HEADER_SIZE)
+
+    # NOTE: There is a comma here because struct.unpack() returns a tuple
+    msg.data = struct.unpack("<%ds" % data_len, binary_msg[format_string_end_index+1:])
+
+    print "---> DATA RECEIVED: ", msg.data
 
     return msg
 
@@ -404,7 +432,7 @@ def pack_flex_data(data):
     raise NotImplementedError()
 
 
-def stuff_packet(packet, sequence_num, use_ack):
+def wrap_packet(packet, sequence_num, use_ack):
     """
     append book-end bytes, escape bytes that need escaping, and append serial level header info
     like sequence num and whetehr we need to ACK or not
@@ -441,29 +469,45 @@ def stuff_packet(packet, sequence_num, use_ack):
 
 def unstuff_packet(packet):
     """
-    Unstuff the packet. Descape and  return sequence number, ack_expected, is_ack, and is_nak, dict_msg as a tuple
+    Unstuff the packet. Descape and return sequence number, ack_expected, is_ack, and is_nak, dict_msg as a tuple
     dict_msg is the message (if there is one) or None (if it's an ack/nak)
     """
     packet = _deescape_packet(packet)
     packet_len = len(packet)
+
+    if verify_packet(packet) != 0:
+        print "WARNING PACKET DIDNT ADD UP TO ZERO"
+
     if packet_len < 1:
         raise IndexError("Packets must be AT LEAST 3 bytes long. packet was: " + str(packet))
 
-    # read the header information for this packet
-    sequence_num = packet[0] & 0x0f
-    ack_expected = (packet[0] & 0x10) == 0x10
-    payload_length = packet[1] + ((packet[0] & 0xC0) << 2)
+    # Read the UART packet header information
+    sequence_num = packet[0] & PACKET_SEQ_MASK
+    packet_type = (packet[0] & PACKET_TYPE_MASK)
+    payload_length = packet[2] + packet[3]
 
-    #we're an ACK or a nack
-    if packet_len == 3:
-        is_ack = (packet[0] & 0x80) == 0x80
-        return sequence_num, False, is_ack, not is_ack, None
-    else:
-        data = packet[2: packet_len - 1]
-        return sequence_num, ack_expected, False, False, decode_service_message(buffer(data))
+    ack_expected = (packet_type == TYPE_ACK_REQ)
+    is_ack = (packet_type == TYPE_ACK)
+    is_nak = (packet_type == TYPE_NAK)
+
+    data = packet[4: packet_len]
+
+    dict_msg = None if (is_ack or is_nak) else decode_service_message(buffer(data), packet_len-4)
+
+    return sequence_num, ack_expected, is_ack, is_nak, dict_msg
 
 
 
+def verify_packet(packet):
+    '''
+    Ensures that the packet's sum is zero.
+    :param packet:
+    :return:
+    '''
+    sum = 0
+    for i in packet:
+        sum += i
+    return sum & 0xff
 
 def _escape_packet(packet):
         """
@@ -473,12 +517,12 @@ def _escape_packet(packet):
         msg = bytearray()
         msg.append(START_BYTE) # START
         for b in packet:
-            if b == START_BYTE or b == STOP_BYTE or b == ESCAPE_BYTE:   # if b is an escape values
+            if b == START_BYTE or b == END_BYTE or b == ESCAPE_BYTE:   # if b is an escape values
                 msg.append(ESCAPE_BYTE)
                 msg.append(b + ESCAPE_BYTE)
             else:
                 msg.append(b)
-        msg.append(STOP_BYTE)
+        msg.append(END_BYTE)
         return msg
 
 def _deescape_packet(packet):
@@ -546,7 +590,7 @@ if __name__ == "__main__":
 
     s = serial.Serial("/dev/ttyUSB0", baudrate=57600, timeout=1)
     print "Binary: ", [hex(ord(x)) for x in binary_msg]
-    binary_msg = stuff_packet(binary_msg, 1, True)
+    binary_msg = wrap_packet(binary_msg, 1, True)
     print "Stuffed: ", [hex(x) for x in binary_msg]
     print "Unstuffed: ", unstuff_packet(binary_msg)[4]
     s.write(binary_msg)

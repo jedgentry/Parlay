@@ -12,7 +12,7 @@ from parlay.protocols.utils import message_id_generator, timeout, MessageQueue, 
 
 from serial.tools import list_ports
 import service_message
-import serial_encoding
+from serial_encoding import *
 
 import struct
 
@@ -22,10 +22,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     # Command code is 0x00 for discovery
 
     NUM_RETRIES = 3
-    DISCOVERY_SERVICE_CODE = 0x0000
-    START_BYTE = 0x02
-    END_BYTE = 0x03
-    ESCAPE_BYTE = 0x10
+    DISCOVERY_SERVICE_CODE = 0xfefe
+
 
     # The minimum event ID. Some event IDs may need to be reserved
     # in the future.
@@ -35,19 +33,22 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     # Number of bits we have for sequence number
     SEQ_BITS = 4
 
+
     @classmethod
     def open(cls, broker, port, baudrate):
         '''
 
         :param cls: The class object (supplied by system)
-        :param broker: current broker insatnce (supplied by system)
+        :param broker: current broker instance (supplied by system)
         :param port: the serial port device to use. On linux, something like/dev/ttyUSB0
         :return: returns the instantiated protocol object
 
         '''
+
+        # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
 
-        protocol = PCOM_Serial(broker, None)
+        protocol = PCOM_Serial(broker)
         print "Serial Port constructed with port " + str(port)
         SerialPort(protocol, port, broker._reactor, baudrate=57600)
 
@@ -57,7 +58,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     def get_open_params_defaults(cls):
 
         '''
-        Returns a list of parameters defaults. Needed to override default in order to return a list
+        Returns a list of parameters defaults. These will be displayed in the UI.
         :return:
         '''
 
@@ -70,23 +71,35 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         return default_args
 
     def close(self):
+        '''
+        Simply close the connectection
+        :return:
+        '''
         self.transport.loseConnection()
-        return defer.succeed(None)  # fake deferred since we don't have anything asynchronous to do
+        return defer.succeed(None)
 
-    def __init__(self, broker, system_ids):
+    def __init__(self, broker):
         """
         :param broker: The Broker singleton that will route messages
         :param system_ids: A list of system_ids that are connected, or None to do a discovery
 
         """
 
-        # Testing
-        self.items = [SerialLEDItem(1, 100, "LED", self)]
+        # A list of items that we will need to discover for
+        self.items = []
 
         BaseProtocol.__init__(self)
+
+        # Set the LineReceiver to line mode. This causes lineReceived to be called
+        # when data is sent to the serial port. We will get a line whenever the END_BYTE
+        # appears in the buffer
+        self.setLineMode()
+        self.delimiter = END_BYTE_STR
+
+        # The buffer that we will be storing the data that arrives via the serial connection
         self._binary_buffer = bytearray()
+
         self.broker = broker
-        self._system_ids = system_ids if system_ids is not None else []
 
         # Event IDs are 16-bit (2 byte) numbers so we need a radix
         # of 65535 or 0xFFFF in hex
@@ -98,7 +111,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # a new message is added to the MessageQueue object
         self._event_queue = MessageQueue(self._send_message_down_transport)
 
-        # Not deferred yet
         self._attached_system_d = None
 
         # Dictionary that maps ID # to Deferred object
@@ -125,15 +137,19 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         :type message dict
         """
-        print "Testing send_message_down_transport"
         # Turn it into a service message that we can understand.
         s = service_message.ServiceMessage.from_dict_msg(message)
-        packet = serial_encoding.encode_service_message(s)
-        wait_for_ack = False
-        sequence_num = self._seq_num.next()
-        packet = str(serial_encoding.stuff_packet(packet, sequence_num, wait_for_ack))
 
-        # write it
+        # Serialize the message and prepare for protocol wrapping.
+        packet = encode_service_message(s)
+        need_ack = False
+
+        # Get the next sequence number and then wrap the protocol with
+        # the desired low level byte wrapping and send down serial line
+        sequence_num = self._seq_num.next()
+        packet = str(wrap_packet(packet, sequence_num, need_ack))
+
+        # Write to serial line! Good luck packet.
         self.transport.write(packet)
 
         # Testing
@@ -141,12 +157,12 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         print "--->", [hex(ord(x)) for x in packet]
 
         num_retries_left = self.NUM_RETRIES
-        while wait_for_ack and num_retries_left > 0:
+        while need_ack and num_retries_left > 0:
             try:
                 ack_sequence_num = yield timeout(self._ack_deferred, .5)
                 if ack_sequence_num == sequence_num:
                     # print "ACK"
-                    wait_for_ack = False  # we got it, no need to wait
+                    need_ack = False  # we got it, no need to wait
                 else:
                     print "Wrong Seq Num? ", ack_sequence_num, "!=", sequence_num
             except TimeoutError:
@@ -158,7 +174,24 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         defer.returnValue(message)
 
-    def send_command(self, to, tx_type, command_id, msg_status="INFO", response_req=True):
+    def _discovery_listener(self, msg):
+        """
+        We need did this function to fire the deferred objects based on the msg we receive.
+        If the message ID matches an ID in the dictionary, fire the deferred.
+
+        :type msg service_message.ServiceMessage
+
+        """
+        # Return if there aren't any IDs left
+        if len(self._discovery_msg_ids) == 0:
+            return
+
+        if msg.msg_type == service_message.MsgType.COMMAND_RESPONSE and msg.msg_id in self._discovery_msg_ids:
+            # If the message was a response and matched an ID in the dictionary, remove it and fire the
+            # corresponding Deferred object.
+            self._discovery_msg_ids.pop(msg.msg_id).callback(msg)
+
+    def send_command(self, to, tx_type, command_id=0, msg_status="INFO", response_req=True):
         """
 
         Send a command and return a deferred that will succeed on a response and with the response
@@ -199,8 +232,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             self._discovery_msg_ids[event_id] = result
 
         # Message will be added to event queue and
-        # sent down serial line
+        # sent down serial line (via callback function _send_down_transport())
         self._event_queue.add({"TOPICS": topics, "CONTENTS": contents})
+
+        # Return the Deferred object if we need to
         return result
 
     def connectionMade(self):
@@ -227,7 +262,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         '''
 
-        # Wait until deferred system has been yielded.
+        # If we have stored systems, return them first
         while self._attached_system_d is not None:
             yield self._attached_system_d
 
@@ -238,23 +273,40 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # is to fetch all subsystems. The reactor inside of
         # the embedded core should return with each subsystem as a
         # ID, Name pair (eg. (0, "IO_Control_board"))
-        subsystem_ids = self._get_subsystems()
+        subsystem_ids = yield self._get_subsystems()
+
+        # Convert subsystem IDs to ints so that we can send them
+        # back down the serial line to retrieve their attached items
+        subsystem_ids = [ord(x[0]) for x in subsystem_ids]
 
 
-        # Back to the deferred object. Read up on this to fully understand.
-        # Looks like a lock is getting released here.
+        print "SUBSYSTEMS FOUND: ", subsystem_ids
+
+        # For each subsystem ID, fetch the items attached to it
+        # for subsystem in subsystem_ids:
+        #    response = yield self.send_command((subsystem << 8), "DIRECT")
+
+
+
+        # TODO: Explain this in comments
         d = self._attached_system_d
         self._attached_system_d = None
         d.callback(None)
 
+    @defer.inlineCallbacks
     def _get_subsystems(self):
         '''
         Sends a broadcast message. A broadcast message goes to the reactor and expects a list of
         subsystems in return.
         :return:
         '''
-        self._send_broadcast_message()
-        return
+
+        # NOTE: Multiple messages may be sent back for the subsystem
+        sub_systems = []
+        response = yield self._send_broadcast_message()
+        print "RESPONSE ", response
+        sub_systems += response.data
+        defer.returnValue(sub_systems)
 
     @defer.inlineCallbacks
     def get_discovery(self):
@@ -296,10 +348,18 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # The response code, event type, event attributes, and format string are all zero for a
         # broadcast message
-        data_stream = self.send_command(to=destination_id, command_id=0, tx_type="BROADCAST")
+        return self.send_command(to=destination_id, command_id=0, tx_type="BROADCAST")
 
-        # Once the message is translated to a byte sequence, we need to run
-        # it through the Promenade protocol and send it down the wire.
+
+    def _send_ack(self, sequence_num):
+
+        '''
+        Sends an ACK message down the serial line.
+
+        :param sequence_num:
+        :return:
+        '''
+
 
 
     def _encode_event(self, event_id, from_id, to_id, response_code, event_type, event_attrs, format_string, data=None):
@@ -427,6 +487,82 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         self._binary_buffer = bytearray(self._encode_event(0, self.DISCOVERY_SERVICE_CODE, device_id, 0, 0, 0, 0))
 
         print self._binary_buffer
+
+    def rawDataReceived(self, data):
+        '''
+        This function is called whenever data appears on the serial port
+        :param data:
+        :return:
+        '''
+
+        raise Exception('Using line received!')
+
+    def _on_packet(self, sequence_num, ack_expected, is_ack, is_nak, msg):
+        """
+        This will get called with every new serial packet.
+        The parameters are the expanded tuple gicen from unstuff_packet
+        :param sequence_num: the sequence number of the received packet
+        :param ack_expected: Is an ack expected to this message?
+        :param is_ack : Is this an ack?
+        :param is_nak: Is this a nak?
+        :param msg: The service message (if it is one and not an ack/nak)
+        :type msg : service_message.SSComServiceMessage
+        """
+
+        if is_ack:
+            # let everyone know we got the ack and make a new deferred
+            temp = self._ack_deferred   # temp handle
+            self._ack_deferred = defer.Deferred()  # setup a new one for everyone to listen to
+            temp.callback(sequence_num)  # callback and invalidate the old deferred
+            return
+        elif is_nak:
+            return  # ignore, the timeout will happen and handle a resend
+
+        # If we need to ack, ACK!
+        if ack_expected:
+            ack = str(self._p_wrap(ack_nak_message(sequence_num, True)))
+            self.transport.write(ack)
+            print "---> ACK MESSAGE SENT"
+            print [hex(ord(x)) for x in ack]
+
+        # also send it to discovery listener locally
+        print 'About to call listener'
+        self._discovery_listener(msg)
+
+    def lineReceived(self, line):
+        '''
+        If this function is called we have received a <line> on the serial port
+        that ended in 0x03.
+
+
+        :param line:
+        :return:
+        '''
+
+        print "--->Line received was called!"
+        print [hex(ord(x)) for x in line]
+
+        #Using byte array so unstuff can use numbers instead of strings
+        buf = bytearray()
+        start_byte_index = (line.find(START_BYTE_STR) + 1)
+        buf += line
+        packet_tuple = unstuff_packet(buf[start_byte_index:])
+        self._on_packet(*packet_tuple)
+        print packet_tuple
+
+
+'''
+
+        parlay_msg = msg.to_dict_msg()
+        self.broker.publish(parlay_msg, self.transport.write)
+
+        # ack the remote device if it expects it
+        if ack_expected:
+            self.transport.write(str(_escape_packet(ack_nak_message(sequence_num, True))))
+
+        # also send it to discovery listener locally
+        self._discovery_listener(msg)
+'''
 
 
 

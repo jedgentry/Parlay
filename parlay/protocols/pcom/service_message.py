@@ -23,6 +23,8 @@ class ServiceMessage(object):
     #if we get a string, we need to assign a service ID. Start at 0xfc00 and go to 0xffff
     _lookup_id_generator = message_id_generator(0xffff, 0xfc00)
 
+    VALID_MESSAGE_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
+
     @staticmethod
     def _verify_command_status_event_for_msg_type(msg_type, command, status, event):
         if msg_type == MsgType.COMMAND and (status is not None or event is not None):
@@ -41,7 +43,9 @@ class ServiceMessage(object):
             raise ValueError("data must be a list, tuple, or None")
 
     def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None,
-                 response_req=None, msg_status=None, contents=None):
+                 response_req=None, msg_status=None, contents=None, data=None):
+
+        # TODO: Change response_req to response_code
 
         # private variables only accessed through @property functions
 
@@ -52,6 +56,11 @@ class ServiceMessage(object):
         self._response_req = None
         self._msg_status = None
         self._contents = None
+        self._msg_subtype = None
+        self._attributes = None
+        self._format_string = '\0'
+        self._data = []
+
 
         self.to = to
         self.from_ = from_
@@ -63,7 +72,7 @@ class ServiceMessage(object):
         self.contents = contents
         self.priority = 0
         self.format_string = '\0'
-
+        self.data = data
 
     @classmethod
     def _get_service_id(cls, name):
@@ -126,8 +135,8 @@ class ServiceMessage(object):
 
     def to_dict_msg(self):
         msg = {'TOPICS': {}, 'CONTENTS': {}}
-        msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
-        msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
+        msg['TOPICS']['TO'] = self.to
+        msg['TOPICS']['FROM'] = self.self.from_
         msg['TOPICS']['MSG_ID'] = self.msg_id
         msg['CONTENTS']['message_info'] = self.info
 
@@ -244,21 +253,24 @@ class ServiceMessage(object):
         if value is None:
             self._data = []
         else:
-            self._verify_data(value)
+           # self._verify_data(value)
             self._data = value
 
     @property
-    def data_type(self):
+    def format_string(self):
         return self._data_type
 
-    @data_type.setter
-    def data_type(self, value):
+    @format_string.setter
+    def format_string(self, value):
         # if value is a string, do a lookup for the int
-        if isinstance(value, basestring) and hasattr(MsgDataType, value.upper()):
+        '''
+         if isinstance(value, basestring) and hasattr(MsgDataType, value.upper()):
             value = getattr(MsgDataType, value.upper())
         # otherwise, if we're already an int
         elif not is_valid_enum_value(MsgDataType, value):
             raise ValueError("{} is not a valid option for MsgDataType".format(value))
+
+            '''
         self._data_type = value
 
     @property
@@ -270,10 +282,11 @@ class ServiceMessage(object):
         self._msg_type = value
         '''
         if value is not None:
-            # if value is a string, do a lookup for the int
-            if isinstance(value, basestring) and hasattr(MsgType, value.upper()):
-                value = getattr(MsgType, value.upper())
-            # otherwise, if we're already an int
+            # If value is a string, make sure it is a valid message type
+            # according to the JSON message spec
+            if value in self.VALID_MESSAGE_TYPES:
+
+            # Otherwise it should be a valid integer representation for a type
             elif not is_valid_enum_value(MsgType, value):
                 raise ValueError("{} is not a valid option for MsgType".format(value))
         self._msg_type = value
@@ -290,7 +303,9 @@ class ServiceMessage(object):
             self._command = None
             self._status = None
             self._event = None
-        '''
+
+            '''
+
 
     @property
     def command(self):
@@ -311,6 +326,16 @@ class ServiceMessage(object):
         self._event = value
         self._status = None
         self._command = None
+
+    @property
+    def attributes(self):
+        return self._attributes
+
+    @data.setter
+    def attributes(self, value):
+        self._attributes = value
+        self.priority = value & 0x01
+        self.response_req = value & 0x02
 
     @property
     def status(self):
@@ -365,4 +390,4 @@ class ResponseMessage(ServiceMessage):
             from_ = cmd_msg.to
             msg_id = cmd_msg.msg_id
         super(self.__class__, self).__init__(to=to, from_=from_, msg_id=msg_id, msg_type=MsgType.COMMAND_RESPONSE,
-                                             status=status, info=info, data=data, data_type=data_type)
+                                             data=data)
