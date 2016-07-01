@@ -274,7 +274,7 @@ Field Object format
 |                         |             | value since the user can’t change anything)   |
 +-------------------------+-------------+-----------------------------------------------+
 | "DROPDOWN\_OPTIONS"     | Conditional | If input is a dropdown, must be a list of     |
-|                         |             | strings or a list of tuples                   |
+|                         |             | tuples                                        |
 +-------------------------+-------------+-----------------------------------------------+
 | "DROPDOWN\_SUB\_FIELDS" | No          | < list of Field objects>                      |
 |                         |             |                                               |
