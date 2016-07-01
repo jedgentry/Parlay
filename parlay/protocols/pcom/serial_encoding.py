@@ -46,6 +46,24 @@ BufferDataType = enum(
     'DATA_TYPE_MAX'
 )
 
+FORMAT_STRING_TABLE = {
+
+    'B':   1,
+    'b':   1,
+    'x':   1,
+    'c':   1,
+    'H':   2,
+    'h':   2,
+    'I':   4,
+    'i':   4,
+    'Q':   8,
+    'q':   8,
+    'f':   4,
+    'd':   8,
+    's':   1
+
+}
+
 #Lookup table from our ENUM to pack string
 #call this with the list of values, and you'll get a buffer back that has been packed
 #in binary form
@@ -223,6 +241,20 @@ def ack_nak_message(sequence_num, is_ack):
     type_mask = TYPE_ACK if is_ack else TYPE_NAK
     return bytearray([sequence_num | type_mask, 0x100 - (sequence_num | type_mask), 0, 0])
 
+def get_unpack_format(input_format, data):
+
+    output_format = ""
+    index = 0
+
+    digit_str = ""
+    for char in input_format:
+        if char.isdigit():
+            d
+        else:
+            output_format += char
+
+
+
 
 def encode_service_message(msg):
     """
@@ -239,9 +271,41 @@ def encode_service_message(msg):
     # Bytes [10:N]  Format string (Null terminated data structure description (0 for no data))
     # Bytes [N+1:M] Data in the form of bytes[10:N]. Size must match format string
 
+    payload = struct.pack("<HHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), serialize_msg_type(msg),
+                             serialize_msg_attrs(msg))
 
-    return struct.pack("<HHHHBBs", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), serialize_msg_type(msg),
-                             serialize_msg_attrs(msg) , msg.format_string)
+    if msg.format_string:
+        payload += struct.pack("s", msg.format_string)
+
+    # NULL terminate the format_string,
+    # or if there isn't a format_string we just
+    # want a NULL byte
+    payload += struct.pack("B", 0)
+
+    # If there is data to send, msg.format_string should not
+    # contain anything. We want to add msg.data and a NULL byte
+    # to the payload.
+    if msg.data:
+        msg.data = cast_data(msg.format_string, msg.data)
+        payload += struct.pack(msg.format_string, *msg.data)
+        payload += struct.pack("B", 0)
+
+    return payload
+
+def cast_data(fmt_string, data):
+    result = []
+    index = 0
+    for i in fmt_string:
+        if i.isalpha():
+            if i in "bBhHiIlLqQnN":
+                result.append(int(data[index]))
+            elif i in "fd":
+                result.append(float(data[index]))
+            else:
+                raise Exception("Unhandled data type")
+
+    return result
+
 
 
 def serialize_msg_attrs(msg):
@@ -295,8 +359,6 @@ def serialize_msg_type(msg):
 def category(message):
 
     m_type = message.msg_type
-
-    print m_type
 
     if m_type == 'COMMAND' or m_type == 'PROPERTY':
         return MessageType.Order
@@ -396,23 +458,89 @@ def decode_service_message(binary_msg, msg_len):
     format_string = binary_msg[PACKET_HEADER_SIZE:format_string_end_index+1]
     format_string_length = (format_string_end_index+1) - PACKET_HEADER_SIZE
 
-    print "--->FORMAT STRING LENGTH: ", format_string_length
+    # If the format string only contains the NULL byte
+    # our data and format_string should be empty
+    if format_string_length == 1:
+        print "NOTE: Format string length was 1"
+        msg.format_string = ''
+        msg.data = []
+        return msg
 
     # NOTE: There is a comma here because unpack returns a tuple
     msg.format_string, = struct.unpack("<%ds" % format_string_length, format_string)
+    msg.format_string = translate_fmt_str(msg.format_string, binary_msg[format_string_end_index+1:])
 
-    print "---> FORMAT STRING RECEIVED: ", msg.format_string
     # Extract the data
 
     data_len = msg_length - (format_string_length+PACKET_HEADER_SIZE)
 
+    receive_format = "<"+msg.format_string
     # NOTE: There is a comma here because struct.unpack() returns a tuple
-    msg.data = struct.unpack("<%ds" % data_len, binary_msg[format_string_end_index+1:])
+    msg.data = struct.unpack(receive_format, binary_msg[format_string_end_index+1:])
+    #hex_print(msg.data)
 
-    print "---> DATA RECEIVED: ", msg.data
+    # msg.data = struct.unpack(">%ds" % data_len, binary_msg[format_string_end_index+1:])
 
     return msg
 
+def get_str_len(bin_data):
+    '''
+    Helper function that gets the length of a binary sequence up to
+    and including the NULL byte.
+
+    :param bin_data: binary byte sequence
+    :return: count (including NULL byte) of bytes
+    '''
+
+    count = 0
+    for i in bin_data:
+        if i is not '\x00':
+            count += 1
+        else:
+            return count + 1 # Include NULL byte
+
+def translate_fmt_str(fmt_str, bin_data):
+    '''
+
+    Given a format string used in the Embedded Core Protocol and a binary message
+    returns a format string that may be used in the Python struct library.
+
+    More specifically, the variable "s" format character is translated to
+    "<str len>s".
+
+    eg:
+
+    translate_fmt_str("s", "\x65\x64\x00") --> "3s" because the length of the string is 3 (including NULL byte).
+
+    :param fmt_str: A format string where 's' represents a variable length
+    :param bin_data: Binary sequence of bytes where strings are NULL terminated
+    :return: a new format string where 's' is replaced by '<len>s' where len is the length
+    of the string represented by 's'.
+    '''
+
+    output_str = ""
+    int_holder = ''
+    index = 0
+
+    for char in fmt_str:
+
+        if char.isdigit():
+            int_holder += char
+
+        if char.isalpha():
+            if char is 's':
+                count = get_str_len(bin_data[index:])
+                output_str += str(count)
+            else:
+                multiplier = 1 if len(int_holder) == 0 else int(int_holder)
+                count = FORMAT_STRING_TABLE[char] * multiplier
+                int_holder = ''
+
+            index += count
+
+        output_str += char
+
+    return output_str
 
 def pack_little_endian(type_string, list):
     a = array.array(type_string, list)
@@ -421,6 +549,11 @@ def pack_little_endian(type_string, list):
 
     return a
 
+
+# TESTING PURPOSES
+
+def hex_print(buf):
+    print [hex(ord(x)) for x in buf]
 
 def pack_svc_msg(data):
     #TODO: pack entire service messages into payload.
@@ -446,24 +579,26 @@ def wrap_packet(packet, sequence_num, use_ack):
     checksum = 0
 
     payload_length = len(packet)
-    sequence_byte = sequence_num + (NORMAL << 4)
-
-    if use_ack:
-        sequence_byte |= 0x10  # 0x10 = needs an ACK flag
+    sequence_byte = sequence_num | (NORMAL << 4) if use_ack else sequence_num | (ACK << 4)
 
     checksum_array = bytearray([sequence_byte])
     # calculate and add the checksum byte
-    print "CHECKSUM = " + str(checksum)
-    print "PAYLOAD SIZE = " + str(payload_length)
     checksum_array.append(payload_length & 0xffff)
     checksum_array += packet
 
-    checksum = 0x100 - checksum_calc(checksum_array)
+    checksum = (0x100 - checksum_calc(checksum_array)) & 0xff
 
     binary_msg = bytearray([sequence_byte, checksum]) + struct.pack("<H", payload_length & 0xffff) + packet
-    print 'BINARY MSG'
-    print  "--->", [hex(x) for x in binary_msg]
-    # add the start stop and escape characters and send over serial port
+
+    #print 'BINARY MSG'
+    #print  "--->", [hex(x) for x in binary_msg]
+
+    # If the packet sum is not zero we should raise an exception
+    # and not send the packet.
+    if verify_packet(binary_msg):
+        raise Exception("Checksum wasn't zero!")
+
+    # Add the start stop and escape characters and send over serial port
     return _escape_packet(binary_msg)
 
 
@@ -507,6 +642,7 @@ def verify_packet(packet):
     sum = 0
     for i in packet:
         sum += i
+
     return sum & 0xff
 
 def _escape_packet(packet):

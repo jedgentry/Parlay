@@ -43,7 +43,7 @@ class ServiceMessage(object):
             raise ValueError("data must be a list, tuple, or None")
 
     def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None,
-                 response_req=None, msg_status=None, contents=None, data=None):
+                 response_req=None, msg_status=None, contents=None, data=None, data_fmt=None):
 
         # TODO: Change response_req to response_code
 
@@ -58,7 +58,7 @@ class ServiceMessage(object):
         self._contents = None
         self._msg_subtype = None
         self._attributes = None
-        self._format_string = '\0'
+        self._format_string = ''
         self._data = []
 
 
@@ -71,7 +71,7 @@ class ServiceMessage(object):
         self.msg_status = msg_status
         self.contents = contents
         self.priority = 0
-        self.format_string = '\0'
+        self.format_string = data_fmt
         self.data = data
 
     @classmethod
@@ -115,15 +115,15 @@ class ServiceMessage(object):
 
         msg_id = dict_msg['TOPICS']['MSG_ID']
 
-        to = dict_msg['TOPICS']['TO']
-        from_ = dict_msg['TOPICS']['FROM']
+        to = cls._get_service_id(dict_msg['TOPICS']['TO'])
+        from_ = cls._get_service_id(dict_msg['TOPICS']['FROM'])
 
         msg_type = dict_msg['TOPICS']['MSG_TYPE']
 
-        response_req = dict_msg['TOPICS']['RESPONSE_REQ']
+        response_req = dict_msg['TOPICS'].get("RESPONSE_REQ", False)
 
-        msg_status = dict_msg['TOPICS']['MSG_STATUS']
-        tx_type = dict_msg['TOPICS']['TX_TYPE']
+        msg_status = dict_msg['TOPICS'].get("MSG_STATUS", "INFO")
+        tx_type = dict_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
         contents = dict_msg['CONTENTS']
 
@@ -131,7 +131,6 @@ class ServiceMessage(object):
                   msg_status=msg_status, tx_type=tx_type, contents=contents)
 
         return msg
-
 
     def to_dict_msg(self):
         msg = {'TOPICS': {}, 'CONTENTS': {}}
@@ -250,15 +249,16 @@ class ServiceMessage(object):
 
     @data.setter
     def data(self, value):
-        if value is None:
+        if hasattr(value, '__iter__'):
+            self._data = list(value)
+        elif value == None:
             self._data = []
         else:
-           # self._verify_data(value)
-            self._data = value
+            self._data = [value]
 
     @property
     def format_string(self):
-        return self._data_type
+        return self._format_string
 
     @format_string.setter
     def format_string(self, value):
@@ -271,7 +271,7 @@ class ServiceMessage(object):
             raise ValueError("{} is not a valid option for MsgDataType".format(value))
 
             '''
-        self._data_type = value
+        self._format_string = value
 
     @property
     def msg_type(self):
