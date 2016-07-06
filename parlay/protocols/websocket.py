@@ -123,7 +123,7 @@ class WebsocketClientAdapter(Adapter, WebSocketClientProtocol):
         WebSocketClientProtocol.__init__(self)
         Adapter.__init__(self)
         self._subscribe_q = []
-        self._listener_list = []  # no way to unsubscribe. Subsciptions last
+        self._listener_list = []  # no way to unsubscribe. Subscriptions last
 
 
     def onConnect(self, request):
@@ -133,6 +133,9 @@ class WebsocketClientAdapter(Adapter, WebSocketClientProtocol):
         for _fn, topics in self._subscribe_q:
             self.subscribe(_fn, **topics)
         self._subscribe_q = []  # empty the list
+
+    def call_on_every_message(self, listener):
+        self._listener_list.append(listener)
 
     def onMessage(self, packet, isBinary):
         """

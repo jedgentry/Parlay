@@ -4,7 +4,7 @@ Define a base class for creating a client script
 from twisted.internet import reactor as default_reactor
 from twisted.python.failure import Failure
 from twisted.internet.protocol import Factory
-import sys
+import sys, os
 import traceback
 from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES, ListenerStatus
 from autobahn.twisted.websocket import WebSocketClientFactory
@@ -17,7 +17,12 @@ class ParlayScript(ThreadedItem):
 
     def __init__(self, item_id=None, name=None, _reactor=None, adapter=None):
         if item_id is None:
-            item_id = self.__class__.__name__ + ".py"
+            # use the full file path as the ID, default to class name if unknown
+            try:
+                item_id = "script." + os.path.abspath(sys.modules['__main__'].__file__)
+            except:
+                item_id = "script." + self.__class__.__name__ + " (Unknown File)"
+
         if name is None:
             name = self.__class__.__name__ + ".py"
         # default script name and id to the name of this class

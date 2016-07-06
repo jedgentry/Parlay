@@ -3,7 +3,7 @@ from parlay.items.base import MSG_TYPES, MSG_STATUS
 from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
 from base import BaseItem
-from parlay.server.broker import Broker
+from parlay.server.broker import Broker, run_in_broker
 import sys
 import json
 
@@ -53,7 +53,7 @@ class ThreadedItem(BaseItem):
         self._auto_update_discovery = True  #: If True auto update discovery with broadcast discovery messages
         self.discovery = {}  #: The current discovery information to pull from
 
-        self._message_id_generator = message_id_generator(sys.maxint, 100)
+        self._message_id_generator = message_id_generator(65535, 100)
 
         # Add this listener so it will be first in the list to pickup errors, warnings and events.
         self.add_listener(self._system_listener)
@@ -304,9 +304,9 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        return self._reactor.maybeblockingCallFromThread(self._sleep, timeout)
+        return run_in_broker(lambda: self._sleep(timeout))
 
-    ####################### THe following  must be run from the reactor thread ###################
+    ####################### The following  must be run from the reactor thread ###################
     #############################   Do not call directly from script thread #####################
     def _send_parlay_message_from_thread(self, msg, timeout):
         """
@@ -326,7 +326,7 @@ class ThreadedItem(BaseItem):
                 if received_msg['TOPICS']['TO'] == self.item_id and \
                         received_msg['TOPICS'].get('MSG_ID', None) == msg['TOPICS']['MSG_ID']:
 
-                    if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.ACK:
+                    if received_msg['TOPICS'].get('MSG_STATUS', "") == MSG_STATUS.PROGRESS:
                         return False  # keep waiting, an ACK means its not finished yet, it just got our msg
                     if timer is not None:
                         # Clear the timer

@@ -11,10 +11,33 @@ LOCAL_ITEM_CLASSES = {}
 
 def local_item(auto_connect=False):
     """
-    A class decorator that registers a class as independent.
+    A class decorator for python Items that are not part of an external protocol.
+
+    Local items are self-contained, and do not communicate over external protocols, for
+    example a serial port.  They are typically used for simulators or pure python computation
+    items.
 
     :param auto_connect: whether to automatically connect to the Parlay broker when the item is created.
     :return: decorator function
+
+    **Example usage of local_item decorator**::
+
+        # motor_sim.py
+
+        @local_item()
+        class MotorSimulator(ParlayCommandItem):
+
+            def __init__(self, item_id, item_name):
+                ...
+
+    **Example usage of defined local item**::
+
+        import parlay
+        from motor_sim import MotorSimulator
+
+        MotorSimulator("motor1", "motor 1")  # motor1 will be discoverable
+        parlay.start()
+
     """
     def decorator(cls):
         """

@@ -1,55 +1,3 @@
-"""
-The broker is the main message router of the parlay system. It should be run like:
-
-broker = Broker()
-broker.run()  # Development mode. For production mode run like  broker.run(mode=Broker.Modes.PRODUCTION)
-
-The Default mode for the Broker is DEVELOPER mode. In DEVELOPER mode, the broker will listen on HTTP, HTTPS, Websocket
-and Secure Websocket ports.
-
-Every interface (e.g. Ethernet, WiFi, localhost, etc) is listened on in DEVELOPER mode. This means, even over encrypted
-channels like https, that DEVELOPER mode is **insecure** and will allow anyone with an network connection to issue
-commands, inject messages, log messages, and load the web-based parlay UI.  This is highly useful when debugging or
-commanding remote systems, but is *not* recommended to be used in a production environment.
-
-PRODUCTION mode, listens on HTTP, HTTPS, Websocket and Secure Websocket just like in DEVELOPER mode, however it *only*
-listens on the 'localhost' interface, which means that the broker will only connect with  processes and scripts on
-the local device. Since this mode does not allow arbitrary connections, it is safe to be used in a production
-environment.
-
-If only secure communication protocols (HTTPS and WSS (Secure Websocket) ) are desired, the broker may be run with
-a 'secure only' flag in either mode.
-e.g.: broker.run(self, mode=Modes.DEVELOPMENT, ssl_only=True) or broker.run(self, mode=Modes.PRODUCTION, ssl_only=True)
-The default keys shipped with Parlay are shipped with every instance, and are therefore *not* secure. If security is
-desired, you must generate your own SSL certificates and overwrite the default certificate files in the parlay/keys/
-directory.
-
-See the README in the parlay/keys/ directory for more information on how to generate secure certificates for Parlay.
-
-
-The broker uses a standard publish/subscribe paradigm.
-
-Modules that want to send message 'publish' the message to the broker and the broker sends a copy of that message to
-every connection that has 'subscribed' to messages with a matching topic signature. For more information on message
-types and structures.
-
-All messages must be key-value pairs (typically JSON strings or python dictionaries). The only requirement for messages
-is that every message must have, at its top level, a 'topics' key and a 'CONTENTS' key. 'topics' must be a key value
-pairing and can be subscribed to. 'CONTENTS' can be an object of any type and can **not** be subscribed to.
-
-Any message that isn't a 'special type' is implicitly a command to 'publish' that message.
-
-There are two 'special type' messages that are *not* published. The are distinguished by the 'type' topic.
-
- * 'type': 'broker'  -- these are special commands to the broker. These messages and their formats are defined
-  on the protocol documentation page
-
- * 'type': 'subscribe' -- these are commands to the broker to subscribe to a specific combination of topics.
- The 'CONTENTS' in a subscribe message must be simply the key 'TOPICS' and a key-value pair of TOPICS/values to
- subscribe to.
- E.G.: (in JSON) {'TOPICS':{'type':'subscribe'},'CONTENTS':{'TOPICS':{'to':'Motor 1', 'id': 12345} } }
-
-"""
 import sys
 
 from twisted.internet import defer
@@ -75,8 +23,8 @@ BROKER_VERSION = "0.1.0"
 
 class Broker(object):
     """
-    The Dispatcher is the sole holder of global state. There should be only one.
-    It also coordinates all communication between protcols
+    The Broker is the sole holder of global state. There should be only one.
+    It also coordinates all communication between protocols.
     """
     instance = None
     _started = defer.Deferred()
@@ -143,7 +91,7 @@ class Broker(object):
               websocket_port=8085, secure_websocket_port=8086, ui_path=None):
         """
         Run the default Broker implementation.
-        This call will not return
+        This call will not return.
         """
         broker = Broker.get_instance()
         broker.http_port = http_port
@@ -246,8 +194,8 @@ class Broker(object):
             root_list = root_list[k][v]
 
         # now that we're done, we have the leaf in root_list. Append it to the None list
-        listeners = root_list.get(None, [])
-        listeners.append((func, owner))
+        listeners = root_list.get(None, set())
+        listeners.add((func, owner))
         root_list[None] = listeners
 
     def unsubscribe(self, owner, TOPICS):
@@ -270,10 +218,10 @@ class Broker(object):
             root_list = root_list[k][v]
 
         # now that we're done, that means that we are subscribed and we have the leaf in root_list
-        listeners = root_list.get(None, [])
+        listeners = root_list.get(None, set())
         
         # filter out any subscriptions by 'owner'
-        root_list[None] = [x for x in listeners if x[1] != owner]
+        root_list[None] = set([x for x in listeners if x[1] != owner])
 
     def _clean_trie(self, root_list=None):
         """
@@ -303,7 +251,7 @@ class Broker(object):
                 del root_list[k]
 
         # add subscriptions ar our level
-        total_sub += len(root_list.get(None, []))
+        total_sub += len(root_list.get(None, set()))
 
         return total_sub
 
@@ -315,7 +263,7 @@ class Broker(object):
             root_list = self._listeners
 
         if None in root_list:   # don't bother checking if there's no listeners here
-            root_list[None] = [x for x in root_list[None] if x[1] != owner]
+            root_list[None] = set([x for x in root_list[None] if x[1] != owner])
 
         for k in root_list:
             if k is not None:  # special key for listener list

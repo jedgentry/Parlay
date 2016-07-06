@@ -54,8 +54,7 @@ class MSG_STATUS(object):
     WARNING = "WARNING"
     INFO = "INFO"
     OK = "OK"
-    ACK = 'ACK'
-
+    PROGRESS = 'PROGRESS'
 
 class BaseItem(object):
     """
