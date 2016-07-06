@@ -103,7 +103,7 @@ class WebsocketAdapter(Adapter, WebSocketClientProtocol):
         self._subscribe_q = []  # empty the list
 
     def call_on_every_message(self, listener):
-        self._subscribe_q.append(listener)
+        self._listener_list.append(listener)
 
     def onMessage(self, packet, isBinary):
         """
