@@ -127,7 +127,6 @@ class WebsocketClientAdapter(Adapter, WebSocketClientProtocol):
         self._subscribe_q = []
         self._listener_list = []  # no way to unsubscribe. Subscriptions last
 
-
     def onConnect(self, request):
         WebSocketClientProtocol.onConnect(self, request)
         self._connected.callback(True)
@@ -170,7 +169,7 @@ class WebsocketClientAdapter(Adapter, WebSocketClientProtocol):
 
             self._listener_list.append(listener)
 
-    def publish(self, msg):
+    def publish(self, msg, callback=None):
         if not self.connected:
             raise RuntimeError("Not Connected to Broker yet")
         self.sendMessage(json.dumps(msg))

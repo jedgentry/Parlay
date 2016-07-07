@@ -61,6 +61,11 @@ class ThreadedItem(BaseItem):
 
         self._adapter.subscribe(self._discovery_broadcast_listener, type='DISCOVERY_BROADCAST')
 
+
+    # we need to overrite publish so we can register our callback for broker type messages
+    def publish(self, msg):
+        self._adapter.publish(msg, self._runListeners)
+
     def _discovery_broadcast_listener(self, msg):
         """
         Listen for discovery broadcast listeners and update our discovery accordingly

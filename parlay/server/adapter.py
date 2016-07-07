@@ -17,9 +17,11 @@ class Adapter(object):
 
         self.open_protocols = []  # list of protocols that *ARE* open
 
-    def publish(self, msg):
+    def publish(self, msg, callback=None):
         """
         :type msg dict
+        :type callback function
+        :arg callback :Optional the callback function to call if the broker responds directly
         """
         raise NotImplementedError()
 
@@ -85,8 +87,10 @@ class PyAdapter(Adapter):
 
         super(PyAdapter, self).__init__()
 
-    def publish(self, msg):
-        self._broker.publish(msg)
+    def publish(self, msg, callback=None):
+
+        #publish the message, and if the broker needs to respond he can publish it himself
+        self._broker.publish(msg, callback)
 
     def subscribe(self, fn, **kwargs):
         self._broker.subscribe(fn, **kwargs)

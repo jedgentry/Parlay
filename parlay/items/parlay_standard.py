@@ -29,11 +29,6 @@ class ParlayStandardItem(ThreadedItem):
         self._datastreams = {}
         self.item_type = None
 
-    def subscribe(self, _fn, **kwargs):
-        return self._adapter.subscribe(_fn, **kwargs)
-
-    def publish(self, msg):
-        return self._adapter.publish(msg)
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
