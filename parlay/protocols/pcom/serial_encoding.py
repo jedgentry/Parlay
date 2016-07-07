@@ -149,9 +149,6 @@ def deserialize_subtype(type_byte):
         r_subtype = order_map[serial_subtype]
 
 
-
-
-
 def ack_nak_message(sequence_num, is_ack):
     """
     Generate an Ack message with the packets sequence number
@@ -361,8 +358,9 @@ def sub_category(msg, category):
 
 def decode_pcom_message(binary_msg):
     """
-    Build the json message from the binary version
+    Build a pcom message object from the serialized message
     :type binary_msg: str
+    :return : PCOMMessage
     """
     msg_length = len(binary_msg)
 
@@ -378,7 +376,6 @@ def decode_pcom_message(binary_msg):
     msg.msg_id, msg.from_, msg.to, msg.response_code, msg.msg_type, msg.attributes \
         = struct.unpack("<HHHHBB", binary_msg[0:PACKET_HEADER_SIZE])
 
-    # TODO: Is str() necessary here?
     # Extract the format string
     format_string_end_index = str(binary_msg).find('\0', PACKET_HEADER_SIZE)
     format_string = binary_msg[PACKET_HEADER_SIZE:format_string_end_index+1]
@@ -393,19 +390,27 @@ def decode_pcom_message(binary_msg):
 
     # NOTE: There is a comma here because unpack returns a tuple
     msg.format_string, = struct.unpack("<%ds" % format_string_length, format_string)
-    msg.format_string = translate_fmt_str(msg.format_string, binary_msg[format_string_end_index+1:])
+
+    # The embedded serial message will have a format where string lengths are variable,
+    # for example 'hSb'. The unpack() method requires string lengths to be specified, so we need
+    # to translate the format string from the embedded message to something that unpack can understand like 'h12sb'
+    receive_format = "<" + translate_fmt_str(msg.format_string, binary_msg[format_string_end_index+1:])
 
     #Strip NULL byte
     msg.format_string = msg.format_string[:-1]
-    # Extract the data
 
-    data_len = msg_length - (format_string_length+PACKET_HEADER_SIZE)
-
-    receive_format = "<"+msg.format_string
-    # NOTE: There is a comma here because struct.unpack() returns a tuple
+    # NOTE: Struct unpack returns a tuple, which will be cast to a list
+    # through msg.data's property function.
+    # Each string in the data list will have a NULL byte attached to it.
     msg.data = struct.unpack(receive_format, binary_msg[format_string_end_index+1:])
 
-
+    # Remove null byte from all strings in data
+    print msg.data
+    msg.data = map(lambda s: s[:-1] if isinstance(s, basestring) else s, msg.data)
+    # It's possible to receive empty strings for parameter requests.
+    # In the case that we do receive an empty string we should not store it in data
+    msg.data = filter(lambda x: x != '', msg.data)
+    print msg.data
     return msg
 
 def get_str_len(bin_data):
@@ -423,7 +428,7 @@ def get_str_len(bin_data):
             count += 1
         else:
             return count + 1 # Include NULL byte
-    raise Exception("Format string wasn't NULL terminated")
+    raise Exception("Data string wasn't NULL terminated")
 
 def translate_fmt_str(fmt_str, bin_data):
     '''

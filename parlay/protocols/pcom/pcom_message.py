@@ -209,7 +209,7 @@ class PCOMMessage(object):
     @from_.setter
     def from_(self, value):
         self._from_ = value
-        
+
     @property
     def msg_status(self):
         return self._msg_status

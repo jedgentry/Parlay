@@ -73,7 +73,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         protocol = PCOM_Serial(broker)
         print "Serial Port constructed with port " + str(port)
-        SerialPort(protocol, port, broker._reactor, baudrate=57600)
+        SerialPort(protocol, port, broker.reactor, baudrate=57600)
 
         return protocol
 
@@ -291,7 +291,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # The data in the response message will be a list,
         # the property name should be in the 0th position
         # and strip the NULL byte.
-        defer.returnValue(response.data[0][:-1])
+        defer.returnValue(response.data[0])
 
     @defer.inlineCallbacks
     def get_command_name(self, to, requested_command_id):
@@ -323,7 +323,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         '''
 
         response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command id"], data=[requested_command_id])
-        defer.returnValue(response.data[0])
+
+        print "---> INPURT PARAM FORMAT"
+
+        r_Val = '' if len(response.data) == 0 else response.data[0]
+        defer.returnValue(r_Val)
 
     @defer.inlineCallbacks
     def get_command_input_param_names(self, to, requested_command_id):
@@ -343,10 +347,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command id"], data=[requested_command_id])
         print "RAW INPUT NAMES: ", response.data
 
-        param_names = [name[:-1] for name in response.data[0].split(',')]
-        param_names = [i for i in param_names if i != '']
-
-        print "INPUT PARAMETER NAMES: ", param_names
+        param_names = [] if len(response.data) == 0 else response.data[0].split(',')
         defer.returnValue(param_names)
 
     @defer.inlineCallbacks
@@ -364,7 +365,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
 
         response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command id"], data=[requested_command_id])
-        list_of_names = response.data[0].split(",")
+        list_of_names = [] if len(response.data) == 0 else response.data[0].split(",")
+
+        "---> PARAMETER DESCRIPTION ", response.data
         defer.returnValue(list_of_names)
 
 
@@ -379,7 +382,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :return: format string describing the type
         '''
         response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property id"], data=[requested_property_id])
-        defer.returnValue(response.data[0])
+        print "PROPERTY TYPE: ", response.data
+        r_Val = '' if len(response.data) == 0 else response.data[0]
+        defer.returnValue(r_Val)
 
 
     def send_command(self, to, tx_type="DIRECT", command_id=0, msg_status="INFO", response_req=True, params=[], data=[]):
@@ -596,7 +601,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             command_input_format = yield self.get_command_input_param_format(item_id, command_id)
             command_input_param_names = yield self.get_command_input_param_names(item_id, command_id)
             command_output_desc = yield self.get_command_output_parameter_desc(item_id, command_id)
-
             self._command_map[item_id][command_id] = CommandInfo(command_input_format, command_input_param_names)
 
             command_dropdowns.append((command_name[:-1], command_id))
