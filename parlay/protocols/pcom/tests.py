@@ -1,4 +1,4 @@
-from service_message import ServiceMessage
+from pcom_message import PCOMMessage
 import struct
 import serial_encoding
 import unittest
@@ -17,15 +17,15 @@ class TestSerialEncoding(unittest.TestCase):
     b_incoming_data = []
 
     b_contents = {"COMMAND": 1001}
-    s = ServiceMessage(msg_id=b_msg_id, from_=b_source_id, to= b_destination_id,
+    s = PCOMMessage(msg_id=b_msg_id, from_=b_source_id, to= b_destination_id,
                        response_code=b_order_code, msg_type=b_type, attributes=b_attributes,
                        data_fmt=b_format_string, data=b_incoming_data, contents=b_contents)
 
 
     def test_binary_unpacking(self):
 
-        b_msg = serial_encoding.encode_service_message(self.s)
-        msg = serial_encoding.decode_service_message(b_msg)
+        b_msg = serial_encoding.encode_pcom_message(self.s)
+        msg = serial_encoding.decode_pcom_message(b_msg)
 
         self.assertEqual(msg.msg_id, self.b_msg_id)
         self.assertEqual(msg.from_, self.b_source_id)
@@ -39,8 +39,8 @@ class TestSerialEncoding(unittest.TestCase):
         self.s.format_string = "B"
         self.s.data = [0x10]
 
-        b_msg = serial_encoding.encode_service_message(self.s)
-        msg = serial_encoding.decode_service_message(b_msg)
+        b_msg = serial_encoding.encode_pcom_message(self.s)
+        msg = serial_encoding.decode_pcom_message(b_msg)
 
         self.assertEqual(msg.msg_id, self.b_msg_id)
         self.assertEqual(msg.from_, self.b_source_id)
@@ -54,8 +54,8 @@ class TestSerialEncoding(unittest.TestCase):
         self.s.format_string = "fB"
         self.s.data = [0x10, 0x14]
 
-        b_msg = serial_encoding.encode_service_message(self.s)
-        msg = serial_encoding.decode_service_message(b_msg)
+        b_msg = serial_encoding.encode_pcom_message(self.s)
+        msg = serial_encoding.decode_pcom_message(b_msg)
 
         self.assertEqual(msg.msg_id, self.b_msg_id)
         self.assertEqual(msg.from_, self.b_source_id)
@@ -69,8 +69,8 @@ class TestSerialEncoding(unittest.TestCase):
         self.s.format_string = "ffbBH"
         self.s.data = [0x01, 0x01, 0x01, 0x01, 0x01]
 
-        b_msg = serial_encoding.encode_service_message(self.s)
-        msg = serial_encoding.decode_service_message(b_msg)
+        b_msg = serial_encoding.encode_pcom_message(self.s)
+        msg = serial_encoding.decode_pcom_message(b_msg)
 
         self.assertEqual(msg.msg_id, self.b_msg_id)
         self.assertEqual(msg.from_, self.b_source_id)
@@ -84,7 +84,7 @@ class TestSerialEncoding(unittest.TestCase):
 
 
 
-class TestServiceMessage(unittest.TestCase):
+class TestPCOMMessage(unittest.TestCase):
 
     command_msg = {
         'TOPICS': {
