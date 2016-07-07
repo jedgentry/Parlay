@@ -11,16 +11,14 @@ from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
 from parlay.protocols.utils import message_id_generator, timeout, MessageQueue, TimeoutError, delay
 
+from enums import MsgType
+
 from serial.tools import list_ports
 import service_message
 from serial_encoding import *
 from collections import namedtuple
 import struct
 import time
-
-
-Item = namedtuple('Item', 'item_name item_type commands properties')
-
 
 GET_ITEM_NAME = 1001
 GET_ITEM_TYPE = 1002
@@ -33,7 +31,7 @@ GET_COMMAND_OUTPUT_PARAM_DESC = 1013
 GET_PROPERTY_NAME = 1020
 GET_PROPERTY_TYPE = 1021
 
-
+PropertyData = namedtuple('PropertyData', 'name format')
 class PCOM_Serial(BaseProtocol, LineReceiver):
 
     # Command code is 0x00 for discovery
@@ -102,11 +100,20 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         """
 
-        # A list of items that we will need to discover for
+        # A list of items that we will need to discover for.
+        # The base protocol will use this dictionary to feed items to
+        # the UI
         self.items = []
         self.item_ids = []
 
+        # Store a map of Item IDs -> Command ID -> Command Objects
+        # Command objects will store the parameter -> format mapping
         self._command_map = {}
+
+        # Store a map of properties. We must keep track of a
+        # name -> format mapping in order to serialize data
+        self._property_map = {}
+
         BaseProtocol.__init__(self)
 
         # Set the LineReceiver to line mode. This causes lineReceived to be called
@@ -146,6 +153,46 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # back via asynchronous communication.
         self._ack_deferred = defer.Deferred()
 
+    def _get_data_format(self, msg):
+        '''
+        Takes a msg and does the appropriate table lookup to obtain the
+        format data for the command/property/stream.
+
+        Returns a tuple in the form of (data, format)
+        where data is a list and format is a format string.
+
+        :param msg:
+        :return:
+        '''
+
+        data = []
+        format = ''
+
+        if msg.msg_type == "COMMAND":
+            # If the message type is "COMMAND" there should be an
+            # entry in the 'CONTENTS' table for the command ID
+            if msg.to in self._command_map:
+                # TODO: Check if s.contents['COMMAND'] is in the second level of the map
+                # command will be a CommandInfo object that has a list of parameters and format string
+                command = self._command_map[msg.to][msg.contents['COMMAND']]
+                format = command.fmt
+                for param in command.params:
+                    data.append(msg.contents[param] if msg.contents[param] is not None else 0)
+
+        elif msg.msg_type == "PROPERTY":
+            # If the message type is a "PROPERTY" there should be
+            # a "PROPERTY" entry in the "CONTENTS" that has the property ID
+
+            if msg.to in self._property_map:
+                property = self._property_map[msg.to][msg.contents['PROPERTY']]
+                format = property.format
+                data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
+
+        return (data, format)
+
+
+
+
     @defer.inlineCallbacks
     def _send_message_down_transport(self, message):
         """
@@ -160,19 +207,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # Turn it into a service message that we can understand.
         s = service_message.ServiceMessage.from_dict_msg(message)
+        s.data, s.format_string = self._get_data_format(s)
+        print "DATA:", s.data
+        print "FORMAT: ", s.format_string
 
-        data = []
-        format = ''
-        if s.to in self._command_map:
-            command = self._command_map[s.to][s.contents['COMMAND']]
-            format = command.fmt
-            for param in command.params:
-                data.append(message['CONTENTS'][param])
-
-            s.data = data
-
-        s.data = data
-        s.format_string = format
         # Serialize the message and prepare for protocol wrapping.
         packet = encode_service_message(s)
         need_ack = True
@@ -182,7 +220,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         sequence_num = self._seq_num.next()
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        #print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
         # Write to serial line! Good luck packet.
         self.transport.write(packet)
 
@@ -215,7 +253,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         if len(self._discovery_msg_ids) == 0:
             return
 
-        if msg.msg_type == service_message.MsgType.COMMAND_RESPONSE and msg.msg_id in self._discovery_msg_ids:
+        if msg.category() == MessageType.Order_Response and msg.msg_id in self._discovery_msg_ids:
             # If the message was a response and matched an ID in the dictionary, remove it and fire the
             # corresponding Deferred object.
             self._discovery_msg_ids.pop(msg.msg_id).callback(msg)
@@ -369,6 +407,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                 "COMMAND": command_id,
         }
 
+        # If data was given via function arguments we need to pack it
+        # into the contents portion of the message to resemble a JSON message.
         for data_pair in zip(params,data):
             contents[data_pair[0]] = data_pair[1]
 
@@ -422,6 +462,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # ID, Name pair (eg. (0, "IO_Control_board"))
 
         subsystems = yield self._get_subsystems()
+        print "SUBSYTESMS", subsystems
 
         # Convert subsystem IDs to ints so that we can send them
         # back down the serial line to retrieve their attached item
@@ -438,6 +479,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         for item_id in self.item_ids:
             self.broker.subscribe(self.add_message_to_queue, TO=item_id)
             self._command_map[item_id] = {}
+            self._property_map[item_id] = {}
             self._command_map[item_id][GET_ITEM_NAME] = CommandInfo("",[])
             self._command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [])
             self._command_map[item_id][GET_COMMAND_IDS] = CommandInfo("",[])
@@ -563,6 +605,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         for property_id in property_ids:
             property_name = yield self.get_property_name(item_id, property_id)
             property_type = yield self.get_property_type(item_id, property_id)
+            self._property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
             print "--> Property name: ", property_name
 
@@ -598,16 +641,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
         # add the message to the queue
         self._message_queue.add(message)
-
-    def _send_ack(self, sequence_num):
-
-        '''
-        Sends an ACK message down the serial line.
-
-        :param sequence_num:
-        :return:
-        '''
-
 
 
     def _encode_event(self, event_id, from_id, to_id, response_code, event_type, event_attrs, format_string, data=None):
@@ -740,12 +773,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         elif is_nak:
             return  # ignore, the timeout will happen and handle a resend
 
+        parlay_msg = msg.to_dict_msg()
+        print "---> Message to be published: ", parlay_msg
+        self.broker.publish(parlay_msg, self.transport.write)
+
         # If we need to ack, ACK!
         if ack_expected:
             ack = str(self._p_wrap(ack_nak_message(sequence_num, True)))
             self.transport.write(ack)
-            #print "---> ACK MESSAGE SENT"
-            #print [hex(ord(x)) for x in ack]
+            print "---> ACK MESSAGE SENT"
+            print [hex(ord(x)) for x in ack]
 
         # also send it to discovery listener locally
         #print 'About to call listener'
@@ -761,8 +798,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :return:
         '''
 
-        #print "--->Line received was called!"
-        #print [hex(ord(x)) for x in line]
+        print "--->Line received was called!"
+        print [hex(ord(x)) for x in line]
 
         #Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
@@ -770,21 +807,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         buf += line
         packet_tuple = unstuff_packet(buf[start_byte_index:])
         self._on_packet(*packet_tuple)
-
-
-'''
-
-        parlay_msg = msg.to_dict_msg()
-        self.broker.publish(parlay_msg, self.transport.write)
-
-        # ack the remote device if it expects it
-        if ack_expected:
-            self.transport.write(str(_escape_packet(ack_nak_message(sequence_num, True))))
-
-        # also send it to discovery listener locally
-        self._discovery_listener(msg)
-'''
-
 
 
 class CommandInfo:
@@ -799,13 +821,6 @@ class SerialLEDItem(LineItem):
 	def __init__(self, led_index, item_id, name, protocol):
 		LineItem.__init__(self, item_id, name, protocol)
 		self._led_index = led_index
-
-	@parlay_command()
-	def light(self):
-		self.send_raw_data(1)
-	@parlay_command()
-	def dim(self):
-		self.send_raw_data(2)
 
 if __name__ == "__main__":
 	start()
