@@ -1,6 +1,18 @@
+"""
+
+PCOM_Message.py
+
+This is a message class that represents a middle ground between the high level JSON message and low level serial message.
+
+Variables in this class will serve as storage points for the information inside of each message. The variables
+are accessed using properties (@property and @setter decorators).
+
+There are two key functions in this class (from_dict_msg() and to_dict_msg()) which handle the
+conversion to and from a JSON message.
+
+"""
 
 from copy import deepcopy
-from enums import MsgDataType, MsgType, MsgStatus, BaseCommands, ServiceIDs, is_valid_enum_value, name_from_enum
 from parlay.protocols.utils import message_id_generator
 import serial_encoding
 
@@ -86,13 +98,6 @@ class PCOMMessage(object):
             return cls._lookup_map[service_id]
 
         return service_id
-
-    @classmethod
-    def is_error(self):
-        if MsgStatus.STATUS_ERROR_FIRST < self.status:
-            return False
-        else:
-            return True
 
     @classmethod
     def from_dict_msg(cls, dict_msg):
@@ -195,10 +200,6 @@ class PCOMMessage(object):
 
     @to.setter
     def to(self, value):
-        if value is not None and not ServiceIDs.is_valid_service_id(value):
-            raise ValueError("to {} is out of allowed range {} to {}".format(hex(value),
-                                                                             hex(ServiceIDs.MIN_SERVICE_ID),
-                                                                             hex(ServiceIDs.MAX_SERVICE_ID)))
         self._to = value
 
     @property
@@ -207,11 +208,8 @@ class PCOMMessage(object):
 
     @from_.setter
     def from_(self, value):
-        if value is not None and not ServiceIDs.is_valid_service_id(value):
-            raise ValueError("from_ {} is out of allowed range {} to {}".format(hex(value),
-                                                                                hex(ServiceIDs.MIN_SERVICE_ID),
-                                                                                hex(ServiceIDs.MAX_SERVICE_ID)))
         self._from_ = value
+        
     @property
     def msg_status(self):
         return self._msg_status
@@ -307,19 +305,3 @@ class PCOMMessage(object):
         self._event = None
         self._status = value
         self._command = None
-
-    def get_command_event_status(self):
-        if self._command is not None:
-            return self._command
-        elif self._status is not None:
-            return self._status
-        else:
-            return self._event
-
-    def set_command_event_status(self, val):
-        if self._msg_type == MsgType.COMMAND:
-            self.command = val
-        elif self._msg_type == MsgType.COMMAND_RESPONSE:
-            self.status = val
-        elif self._msg_type == MsgType.SYSTEM_EVENT:
-            self.event = val

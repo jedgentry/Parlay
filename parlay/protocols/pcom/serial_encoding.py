@@ -1,5 +1,11 @@
 """
-The serial_encoding module is a collection of helper methods and lookups for the PCOM binary serial protocol.
+
+Serial_encoding.py
+
+A collection of helper functions that aid in the packing and unpacking of binary data as part
+of the PCOM Serial Protocol.
+
+
 """
 
 import struct
@@ -8,7 +14,7 @@ import sys
 
 from parlay.enum import enum
 
-import service_message
+import pcom_message
 
 FORMAT_STRING_TABLE = {
 
@@ -173,10 +179,10 @@ def get_unpack_format(input_format, data):
 
 
 
-def encode_service_message(msg):
+def encode_pcom_message(msg):
     """
     Build the base binary message without the data sections
-    :type msg: service_msg.ServiceMessage
+    :type msg: PCOMMessage
     """
 
     # Bytes [0:1]   Event ID (Unique ID of event)
@@ -353,7 +359,7 @@ def sub_category(msg, category):
 
 
 
-def decode_service_message(binary_msg):
+def decode_pcom_message(binary_msg):
     """
     Build the json message from the binary version
     :type binary_msg: str
@@ -365,7 +371,7 @@ def decode_service_message(binary_msg):
         raise Exception('binary message less than minimum size', binary_msg)
 
 
-    msg = service_message.ServiceMessage()
+    msg = pcom_message.PCOMMessage()
 
     # Unpack the header
 
@@ -539,7 +545,7 @@ def unstuff_packet(packet):
 
     data = packet[4: packet_len]
 
-    dict_msg = None if (is_ack or is_nak) else decode_service_message(buffer(data))
+    dict_msg = None if (is_ack or is_nak) else decode_pcom_message(buffer(data))
 
     return sequence_num, ack_expected, is_ack, is_nak, dict_msg
 

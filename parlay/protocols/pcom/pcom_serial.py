@@ -1,3 +1,14 @@
+"""
+
+PCOM_Serial.py
+
+This protocol enables Parlay to interact with embedded devices. This class handles the passing of messages
+between Parlay and embedded devices.
+
+
+"""
+
+
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import defer
@@ -6,15 +17,12 @@ from twisted.internet import defer
 from parlay import parlay_command, start
 # Testing
 from parlay.protocols.serial_line import ASCIILineProtocol, LineItem
-from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 
+from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
 from parlay.protocols.utils import message_id_generator, timeout, MessageQueue, TimeoutError, delay
-
-from enums import MsgType
-
 from serial.tools import list_ports
-import service_message
+import pcom_message
 from serial_encoding import *
 from collections import namedtuple
 import struct
@@ -205,14 +213,14 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
 
 
-        # Turn it into a service message that we can understand.
-        s = service_message.ServiceMessage.from_dict_msg(message)
+        # Turn it into a pcom message that we can understand.
+        s = pcom_message.PCOMMessage.from_dict_msg(message)
         s.data, s.format_string = self._get_data_format(s)
         print "DATA:", s.data
         print "FORMAT: ", s.format_string
 
         # Serialize the message and prepare for protocol wrapping.
-        packet = encode_service_message(s)
+        packet = encode_pcom_message(s)
         need_ack = True
 
         # Get the next sequence number and then wrap the protocol with
@@ -246,7 +254,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         We need did this function to fire the deferred objects based on the msg we receive.
         If the message ID matches an ID in the dictionary, fire the deferred.
 
-        :type msg service_message.ServiceMessage
+        :type msg PCOMMessage
 
         """
         # Return if there aren't any IDs left
@@ -760,8 +768,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :param ack_expected: Is an ack expected to this message?
         :param is_ack : Is this an ack?
         :param is_nak: Is this a nak?
-        :param msg: The service message (if it is one and not an ack/nak)
-        :type msg : service_message.SSComServiceMessage
+        :param msg: The pcom message (if it is one and not an ack/nak)
+        :type msg : PCOMMessage
         """
 
         if is_ack:
