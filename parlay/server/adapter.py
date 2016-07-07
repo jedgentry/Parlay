@@ -4,14 +4,15 @@ import sys
 
 class Adapter(object):
     """
-    Am Adapter is different from a normal parlay protocol. It is not meant to connect Parlay to an external system.
-    It is only meant to connect an item to the broker and can not instantiated dynamically
-    from the UI or scripts. It is tightly coupled to the item/broker and only supports publish/subscribe
+    Adapters connect outside systems to the Broker.  The Broker *only* connects with Adapters.
+    Adapters handle opening protocols in their system, discovery of their system and
+    relaying pub/sub messages to the broker.
+    Currently the supported adapters are: Websocket and Pyadapter
     """
 
     def __init__(self):
         self._items = getattr(self, '_items', [])  # default to [] if a subclass hasn't set it
-        self._reactor = getattr(self, 'reactor', reactor)
+        self.reactor = getattr(self, 'reactor', reactor)
         self._connected = defer.Deferred()
 
         self.open_protocols = []  # list of protocols that *ARE* open
@@ -40,17 +41,33 @@ class Adapter(object):
         """
         Return a list of protocols that could potentially be opened.
         Return a deferred if this is not ready yet
+        :rtype defer.Deferred
         """
         raise NotImplementedError()
 
     def get_open_protocols(self):
         raise NotImplementedError()
 
+    def open_protocol(self, protocol_name, protocol_args):
+        """
+        open the protocol with the name protocol_name or raise a LookupError if
+        there is no such protocol by that name
+        :raise LookupError
+        :arg protocol_name : The name of the protocol to open
+        :arg protocol_args : A dict of key value pairs for the opening arguments
+        :type protocol_name : str
+        :type protocol_args : dict
+        :rtype defer.Deferred
+        """
+        #NOTE: Closing a protocol is done from the Protocol.close() function
+        raise LookupError()
+
     def discover(self, force):
         """
         Return the discovery (or a deferred) for all protocols and items attached to this adapter
         :type force bool
         :param force True if this requested discover action wants to clear any caches and do a fresh discover.
+        :rtype defer.Deferred
         """
         raise NotImplementedError()
 
@@ -62,7 +79,8 @@ class PyAdapter(Adapter):
 
     def __init__(self, broker):
         self._broker = broker
-        self.open_protocols = []  # list of protocols that could potentially be opened
+        self.reactor = broker.reactor
+        self.open_protocols = []  # list of protocols that are currently open
         self._discovery_cache = {}  # dict: K->V = Protocol -> discovery
 
         super(PyAdapter, self).__init__()
@@ -73,14 +91,14 @@ class PyAdapter(Adapter):
     def subscribe(self, fn, **kwargs):
         self._broker.subscribe(fn, **kwargs)
 
-    def track_protocol(self, protocol):
+    def track_open_protocol(self, protocol):
         """
         track the given protocol for discovery
         """
         if protocol not in self.open_protocols:
             self.open_protocols.append(protocol)
 
-    def untrack_protocol(self, protocol):
+    def untrack_open_protocol(self, protocol):
         """
         Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
         """
@@ -111,6 +129,35 @@ class PyAdapter(Adapter):
         :return:
         """
         return self.open_protocols
+
+    def open_protocol(self, protocol_name, open_params):
+        """
+        open the protocol with the name protocol_name or raise a LookupError if
+        there is no such protocol by that name
+        :raise LookupError
+        :arg protocol_name : The name of the protocol to open
+        :arg open_params : A dict of key value pairs for the opening arguments
+        :type protocol_name : str
+        :type open_params : dict
+        """
+        # make sure we know about the protocol
+        if protocol_name not in ProtocolMeta.protocol_registry:
+            raise LookupError(str(protocol_name)+" not in protocol registry. Is there a typo?")
+
+        else:
+            # we have the protocol! open it
+            protocol_class = ProtocolMeta.protocol_registry[protocol_name]
+            d = defer.maybeDeferred(protocol_class.open, self, **open_params)
+
+            # append to list on success
+            def ok(p):
+                if p is not None:
+                    self.track_open_protocol(p)
+                return p
+
+            d.addCallback(ok)
+            return d
+
 
     def discover(self, force):
         """

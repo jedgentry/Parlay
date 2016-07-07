@@ -21,6 +21,7 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
         WebSocketServerProtocol.__init__(self)
         self._discovery_response_defer = None
         self._protocol_response_defer = None
+        self._open_protocol_response_defer = None
 
 
     def onClose(self, wasClean, code, reason):
@@ -46,7 +47,7 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
                 # discovery!
                 # get skeleton
                 discovery = msg['CONTENTS'].get('discovery', [])
-                self._discovery_response_defer.callback([discovery])
+                self._discovery_response_defer.callback(discovery)
                 self._discovery_response_defer = None
             # if we're waiting for a protocol list and its a protocol response
             elif self._protocol_response_defer is not None and \
@@ -55,6 +56,7 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
                 protocol_list = msg['CONTENTS'].get('protocol_list', [])
                 self._protocol_response_defer.callback(protocol_list)
                 self._protocol_response_defer = None
+
 
             # else its just a regular message, publish it.
             else:
@@ -81,7 +83,7 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
                 self._discovery_response_defer.callback({})
                 self._discovery_response_defer = None
 
-        self.broker._reactor.callLater(10, timeout)
+        self.broker.reactor.callLater(10, timeout)
 
         return self._discovery_response_defer
 
@@ -103,7 +105,7 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
                 self._protocol_response_defer.callback({})
                 self._protocol_response_defer = None
 
-        self.broker._reactor.callLater(2, timeout)
+        self.broker.reactor.callLater(2, timeout)
 
         return self._protocol_response_defer
 

@@ -57,7 +57,7 @@ def local_item(auto_connect=False):
             """
             result = orig_init(self, *args, **kwargs)
             protocol_obj = LocalItemProtocol(self)
-            Broker.get_instance().pyadapter.track_protocol(protocol_obj)
+            Broker.get_instance().pyadapter.track_open_protocol(protocol_obj)
             self._local_protocol = protocol_obj
             return result
         cls.__init__ = new_init
@@ -91,7 +91,7 @@ class LocalItemProtocol(BaseProtocol):
     @classmethod
     def open_for_obj(cls, item_obj):
         protocol_obj = LocalItemProtocol(item_obj)
-        Broker.get_instance().pyadapter.track_protocol(protocol_obj)
+        Broker.get_instance().pyadapter.track_open_protocol(protocol_obj)
         return protocol_obj
 
     @classmethod

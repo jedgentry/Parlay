@@ -427,7 +427,7 @@ class ParlayCommandItem(ParlayStandardItem):
 
         # run discovery to init everything for a first time
         # call it immediately after init
-        self._adapter._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+        self._adapter.reactor.callLater(0, ParlayCommandItem.get_discovery, self)
 
 
 

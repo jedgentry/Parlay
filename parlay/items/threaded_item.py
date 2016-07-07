@@ -44,7 +44,7 @@ class ThreadedItem(BaseItem):
 
     def __init__(self, item_id, name, reactor=None, adapter=None):
         BaseItem.__init__(self, item_id, name, adapter=adapter)
-        self._reactor = self._adapter._reactor if reactor is None else reactor
+        self._reactor = self._adapter.reactor if reactor is None else reactor
         self._msg_listeners = []
         self._system_errors = []
         self._system_events = []
