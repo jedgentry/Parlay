@@ -1,5 +1,5 @@
 """
-The serial_encoding module is a collection of helper methods and lookups for the SSCOM binary serial protocol.
+The serial_encoding module is a collection of helper methods and lookups for the PCOM binary serial protocol.
 """
 
 import struct
@@ -9,42 +9,6 @@ import sys
 from parlay.enum import enum
 
 import service_message
-
-
-ServiceMessageType = enum(
-    "Command",
-    "Redirected Command",
-    "Command Response",
-    "Send Data",
-    "Receive Data",
-    "Reset",
-    "Abort",
-    "Timer",
-    "System Event",
-    "State Return Type",
-    "Log Type"
-)
-
-BufferDataType = enum(
-    'DATA_NONE',
-    'DATA_8',
-    'DATA_8S',
-    'DATA_16',
-    'DATA_16S',
-    'DATA_32',
-    'DATA_32S',
-    'DATA_64',
-    'DATA_64S',
-    'DATA_FLOAT',
-    'DATA_DOUBLE',
-    'DATA_ASCII',
-    'DATA_UNICODE',
-    'DATA_COM_SVC_MSG',
-    'DATA_STR',
-    'DATA_FLEX_TYPE',
-    #not an enum type, just the total size of the enum
-    'DATA_TYPE_MAX'
-)
 
 FORMAT_STRING_TABLE = {
 
@@ -63,68 +27,6 @@ FORMAT_STRING_TABLE = {
     's':   1
 
 }
-
-#Lookup table from our ENUM to pack string
-#call this with the list of values, and you'll get a buffer back that has been packed
-#in binary form
-BufferDataCTypePack = [lambda data: bytearray()] * BufferDataType.DATA_TYPE_MAX
-BufferDataCTypePack[BufferDataType.DATA_NONE]       = lambda data: bytearray()
-BufferDataCTypePack[BufferDataType.DATA_8]          = lambda data: pack_little_endian('B', data)
-BufferDataCTypePack[BufferDataType.DATA_8S]         = lambda data: pack_little_endian('b', data)
-BufferDataCTypePack[BufferDataType.DATA_16]         = lambda data: pack_little_endian('H', data)
-BufferDataCTypePack[BufferDataType.DATA_16S]        = lambda data: pack_little_endian('h', data)
-BufferDataCTypePack[BufferDataType.DATA_32]         = lambda data: pack_little_endian('I', data)
-BufferDataCTypePack[BufferDataType.DATA_32S]        = lambda data: pack_little_endian('i', data)
-BufferDataCTypePack[BufferDataType.DATA_64]         = lambda data: pack_little_endian('Q', data)
-BufferDataCTypePack[BufferDataType.DATA_64S]        = lambda data: pack_little_endian('q', data)
-BufferDataCTypePack[BufferDataType.DATA_FLOAT]      = lambda data: pack_little_endian('f', data)
-BufferDataCTypePack[BufferDataType.DATA_DOUBLE]     = lambda data: pack_little_endian('d', data)
-BufferDataCTypePack[BufferDataType.DATA_ASCII]      = lambda data: bytearray(data[0], encoding="ascii")
-BufferDataCTypePack[BufferDataType.DATA_UNICODE]    = lambda data: bytearray(data[0], encoding="utf8")
-BufferDataCTypePack[BufferDataType.DATA_COM_SVC_MSG]= lambda data : pack_svc_msg(data)
-#Turn it into a list of NULL terminaed strings
-BufferDataCTypePack[BufferDataType.DATA_STR]        = lambda data: bytearray(chr(0x0).join(data) + chr(0x0))
-
-
-#lookup for data sizes per units in bytes (needed for FLEX messages)
-BufferDataTypeByteSize = [1] * BufferDataType.DATA_TYPE_MAX
-BufferDataTypeByteSize[BufferDataType.DATA_8]          = 1
-BufferDataTypeByteSize[BufferDataType.DATA_8S]         = 1
-BufferDataTypeByteSize[BufferDataType.DATA_16]         = 2
-BufferDataTypeByteSize[BufferDataType.DATA_16S]        = 2
-BufferDataTypeByteSize[BufferDataType.DATA_32]         = 4
-BufferDataTypeByteSize[BufferDataType.DATA_32S]        = 4
-BufferDataTypeByteSize[BufferDataType.DATA_64]         = 8
-BufferDataTypeByteSize[BufferDataType.DATA_64S]        = 8
-BufferDataTypeByteSize[BufferDataType.DATA_FLOAT]      = 4
-BufferDataTypeByteSize[BufferDataType.DATA_DOUBLE]     = 8
-BufferDataTypeByteSize[BufferDataType.DATA_ASCII]      = 1
-BufferDataTypeByteSize[BufferDataType.DATA_UNICODE]    = 1
-
-BufferDataTypeByteSize[BufferDataType.DATA_STR]        = 1
-
-
-#Lookup table from our ENUM to UNpack string
-#call this with the list of values, and you'll get a buffer back that has been packed
-#in binary form
-BufferDataCTypeUnpack = [lambda data: data] * BufferDataType.DATA_TYPE_MAX
-BufferDataCTypeUnpack[BufferDataType.DATA_NONE]       = lambda data: None
-BufferDataCTypeUnpack[BufferDataType.DATA_8]          = lambda data: struct.unpack('<' + 'B' * len(data), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_8S]         = lambda data: struct.unpack('<' + 'b' * len(data), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_16]         = lambda data: struct.unpack('<' + 'H' * (len(data)/2), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_16S]        = lambda data: struct.unpack('<' + 'h' * (len(data)/2), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_32]         = lambda data: struct.unpack('<' + 'I' * (len(data)/4), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_32S]        = lambda data: struct.unpack('<' + 'i' * (len(data)/4), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_64]         = lambda data: struct.unpack('<' + 'Q' * (len(data)/8), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_64S]        = lambda data: struct.unpack('<' + 'q' * (len(data)/8), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_FLOAT]      = lambda data: struct.unpack('<' + 'f' * (len(data)/4), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_DOUBLE]     = lambda data: struct.unpack('<' + 'd' * (len(data)/8), data)
-BufferDataCTypeUnpack[BufferDataType.DATA_ASCII]      = lambda data: [data]
-BufferDataCTypeUnpack[BufferDataType.DATA_UNICODE]    = lambda data: [data]
-BufferDataCTypeUnpack[BufferDataType.DATA_COM_SVC_MSG]= lambda data: [data]
-#Turn from a list of NULL terminated strings
-BufferDataCTypeUnpack[BufferDataType.DATA_STR]        = lambda data: data.split(chr(0x0))
-BufferDataCTypeUnpack[BufferDataType.DATA_FLEX_TYPE]  = lambda data: _decode_flex_type(data)
 
 
 
@@ -148,10 +50,10 @@ OrderSubTypes = enum(
 )
 
 OrderResponseSubTypes = enum(
-    'Order Complete',
-    'Property Stream',
-    'In Progress',
-    'State change'
+    'OrderComplete',
+    'PropertyStream',
+    'InProgress',
+    'StateChange'
 )
 
 NotificationSubTypes = enum(
@@ -198,6 +100,10 @@ TYPE_NAK = 0x30
 TYPE_NO_ACK_REQ = 0x40
 TYPE_ACK_REQ = 0x80
 
+SUBTYPE_MASK = 0x0f
+TYPE_MASK = 0xf0
+
+order_map = {0: "COMMAND", 1: "GET", 2: "SET", 3: "STREAM", 4: "ABORT"}
 
 def deserialize_type(type_byte):
 
@@ -227,6 +133,17 @@ def deserialize_type(type_byte):
 
 
     return msg_type
+
+def deserialize_subtype(type_byte):
+    serial_subtype = type_byte & SUBTYPE_MASK
+    serial_msg_type = type_byte & TYPE_MASK
+    r_subtype = None
+
+    if serial_msg_type == MessageType.Order:
+        r_subtype = order_map[serial_subtype]
+
+
+
 
 
 def ack_nak_message(sequence_num, is_ack):
@@ -275,7 +192,7 @@ def encode_service_message(msg):
                              serialize_msg_attrs(msg))
 
     if msg.format_string:
-        payload += struct.pack("s", msg.format_string)
+        payload += struct.pack("%ds" % len(msg.format_string), msg.format_string)
 
     # NULL terminate the format_string,
     # or if there isn't a format_string we just
@@ -288,7 +205,6 @@ def encode_service_message(msg):
     if msg.data:
         msg.data = cast_data(msg.format_string, msg.data)
         payload += struct.pack(msg.format_string, *msg.data)
-        payload += struct.pack("B", 0)
 
     return payload
 
@@ -301,8 +217,13 @@ def cast_data(fmt_string, data):
                 result.append(int(data[index]))
             elif i in "fd":
                 result.append(float(data[index]))
+            elif i is "s":
+                pass
             else:
                 raise Exception("Unhandled data type")
+
+            index+=1
+
 
     return result
 
@@ -432,7 +353,7 @@ def sub_category(msg, category):
 
 
 
-def decode_service_message(binary_msg, msg_len):
+def decode_service_message(binary_msg):
     """
     Build the json message from the binary version
     :type binary_msg: str
@@ -448,9 +369,8 @@ def decode_service_message(binary_msg, msg_len):
 
     # Unpack the header
 
-    msg.msg_id, msg.from_, msg.to, msg.response_req, msg.msg_type, msg.attributes \
+    msg.msg_id, msg.from_, msg.to, msg.response_code, msg.msg_type, msg.attributes \
         = struct.unpack("<HHHHBB", binary_msg[0:PACKET_HEADER_SIZE])
-
 
     # TODO: Is str() necessary here?
     # Extract the format string
@@ -461,7 +381,6 @@ def decode_service_message(binary_msg, msg_len):
     # If the format string only contains the NULL byte
     # our data and format_string should be empty
     if format_string_length == 1:
-        print "NOTE: Format string length was 1"
         msg.format_string = ''
         msg.data = []
         return msg
@@ -470,6 +389,8 @@ def decode_service_message(binary_msg, msg_len):
     msg.format_string, = struct.unpack("<%ds" % format_string_length, format_string)
     msg.format_string = translate_fmt_str(msg.format_string, binary_msg[format_string_end_index+1:])
 
+    #Strip NULL byte
+    msg.format_string = msg.format_string[:-1]
     # Extract the data
 
     data_len = msg_length - (format_string_length+PACKET_HEADER_SIZE)
@@ -477,9 +398,7 @@ def decode_service_message(binary_msg, msg_len):
     receive_format = "<"+msg.format_string
     # NOTE: There is a comma here because struct.unpack() returns a tuple
     msg.data = struct.unpack(receive_format, binary_msg[format_string_end_index+1:])
-    #hex_print(msg.data)
 
-    # msg.data = struct.unpack(">%ds" % data_len, binary_msg[format_string_end_index+1:])
 
     return msg
 
@@ -498,6 +417,7 @@ def get_str_len(bin_data):
             count += 1
         else:
             return count + 1 # Include NULL byte
+    raise Exception("Format string wasn't NULL terminated")
 
 def translate_fmt_str(fmt_str, bin_data):
     '''
@@ -555,14 +475,6 @@ def pack_little_endian(type_string, list):
 def hex_print(buf):
     print [hex(ord(x)) for x in buf]
 
-def pack_svc_msg(data):
-    #TODO: pack entire service messages into payload.
-    return data
-    #raise NotImplementedError()
-
-def pack_flex_data(data):
-    #TODO: Do we need to pack flex data?
-    raise NotImplementedError()
 
 
 def wrap_packet(packet, sequence_num, use_ack):
@@ -627,7 +539,7 @@ def unstuff_packet(packet):
 
     data = packet[4: packet_len]
 
-    dict_msg = None if (is_ack or is_nak) else decode_service_message(buffer(data), packet_len-4)
+    dict_msg = None if (is_ack or is_nak) else decode_service_message(buffer(data))
 
     return sequence_num, ack_expected, is_ack, is_nak, dict_msg
 
@@ -682,60 +594,6 @@ def checksum_calc(msg):
         for b in msg:
             checksum = (checksum + b) & 0xff
         return checksum
-
-
-
-
-def _decode_flex_type(data):
-    header_data, payload = data.split(b'\x00', 1)
-    header_data = bytearray(header_data)
-    headers = []  # python struct string for .unpack
-    for h in header_data:
-        data_type = h & 0xF
-        num_elements = (h >> 4) & 0xF
-        headers.append((data_type, num_elements))
-
-    result = []
-
-    for h in headers:
-        if h[0] == BufferDataType.DATA_STR:  # if it's a string we need to count the # of \0s
-            split = payload.split(b'\x00', h[1])  # split up to n \0s
-            payload = split[-1]  # last index is rest of string
-            result.extend(split[:-1])
-        else:
-            size = BufferDataTypeByteSize[h[0]] * h[1]  # byte size * num_elements
-            chunk = payload[0:size]
-            payload = payload[size:]
-            result.extend(BufferDataCTypeUnpack[h[0]](chunk))
-
-    return result
-
-
-if __name__ == "__main__":
-    import json
-    import serial
-    #msg = msg = {'to': 0, 'from': 0, 'command': 0x32, 'message_id': 100, 'message_info': 0,
-    #    'payload': {"type": "DATA_8S", 'data': [-3,-2,-1,0,1,2,3,4,5,6,7,8,9,10]},
-    #    'message_type': "Command" }
-
-    msg = msg = {'to': 0, 'from': 65280, 'command': 0x32, 'message_id': 100, 'message_info': 0,
-        'message_type': "Command" }
-    print "Msg:", msg
-    binary_msg = encode_service_message(msg)
-
-
-    s = serial.Serial("/dev/ttyUSB0", baudrate=57600, timeout=1)
-    print "Binary: ", [hex(ord(x)) for x in binary_msg]
-    binary_msg = wrap_packet(binary_msg, 1, True)
-    print "Stuffed: ", [hex(x) for x in binary_msg]
-    print "Unstuffed: ", unstuff_packet(binary_msg)[4]
-    s.write(binary_msg)
-
-    resp = s.read(size=200)
-    print "resp", [hex(ord(s)) for s in resp]
-
-    #dict_msg = decode_service_message(buffer(unstuff_packet(binary_msg)[4]))
-    #print "Dict: ", dict_msg
 
 
 
