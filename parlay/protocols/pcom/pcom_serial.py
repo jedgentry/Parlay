@@ -191,10 +191,17 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             # If the message type is a "PROPERTY" there should be
             # a "PROPERTY" entry in the "CONTENTS" that has the property ID
 
-            if msg.to in self._property_map:
+            action = msg.contents.get('ACTION', None)
+
+            if action != None:
+                data = []
+                format = ''
+
+            elif msg.to in self._property_map:
                 property = self._property_map[msg.to][msg.contents['PROPERTY']]
                 format = property.format
                 data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
+
 
         return (data, format)
 

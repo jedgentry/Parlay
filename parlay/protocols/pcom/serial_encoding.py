@@ -11,6 +11,8 @@ of the PCOM Serial Protocol.
 import struct
 import array
 import sys
+from enums import MessageCategory, OrderSubType, ResponseSubType, NotificationSubType, OrderCommandOption,    \
+                    OrderPropertyOption, ResponseCommandOption, ResponsePropertyOption, NotificationOptions
 
 from parlay.enum import enum
 
@@ -106,8 +108,13 @@ TYPE_NAK = 0x30
 TYPE_NO_ACK_REQ = 0x40
 TYPE_ACK_REQ = 0x80
 
-SUBTYPE_MASK = 0x0f
-TYPE_MASK = 0xf0
+CATEGORY_MASK = 0xc0
+SUB_TYPE_MASK = 0x30
+OPTION_MASK = 0xf0
+
+CATEGORY_SHIFT = 6
+SUB_TYPE_SHIFT = 4
+OPTION_SHIFT = 0
 
 order_map = {0: "COMMAND", 1: "GET", 2: "SET", 3: "STREAM", 4: "ABORT"}
 
@@ -274,13 +281,13 @@ def serialize_msg_type(msg):
     :return:
     '''
 
-    cat = category(msg)
-    sub_type = sub_category(msg, cat)
+    cat = get_category(msg)
+    sub_type = get_sub_type(msg, cat)
+    option = get_option(msg, cat, sub_type)
 
-    return (cat << 4) | sub_type
+    return (cat << CATEGORY_SHIFT) | (sub_type << SUB_TYPE_SHIFT) | (option << OPTION_SHIFT)
 
-
-def category(message):
+def get_category(message):
 
     m_type = message.msg_type
 
@@ -293,7 +300,7 @@ def category(message):
     else:
         raise Exception('Unhandled message type!')
 
-def sub_category(msg, category):
+def get_sub_type(msg, category):
     '''
     Extracts the subcategory from the parameter msg
 
@@ -302,55 +309,65 @@ def sub_category(msg, category):
 
     # Possibly use dictionaries to map
 
-    Notifications = {'ERROR' : 0, 'WARNING': 1, 'INFO': 2}
-    Order_Responses = {'COMMAND': 0,
-                       'PROPERTY': 0,
-                       'STREAM': 1}
 
     type = msg.msg_type
-    status = msg.msg_status
-    if category == MessageType.Order:
+    if category == MessageCategory.Order:
 
         if type == 'COMMAND':
 
-            return OrderSubTypes.Command
+            return OrderSubType.Command
 
         elif type == 'PROPERTY':
 
-            if msg.contents['ACTION'] == "SET":
-
-                return OrderSubTypes.Set_Property
-
-            elif msg.contents['ACTION'] == "GET":
-
-                return OrderSubTypes.Get_Property
-
-        elif type == 'STREAM':
-
-                return OrderSubTypes.Stream
-
-        # NOTE: Need to handle abort, not sure when
-        # the abort subcategory should be used
+            return OrderSubType.Property
 
     elif category == MessageType.Order_Response:
 
-        if type == 'COMMAND' or type == 'PROPERTY':
+        if msg.contents.has_key("RESULT"):
 
-            return OrderSubTypes.Order_Complete
+            return ResponseSubType.Command
 
-        elif type == 'STREAM':
+        else:
 
-            return OrderSubTypes.Property_Stream
-
-        elif status == 'PROGRESS':
-
-            return OrderSubTypes.In_Progress
+            return ResponseSubType.Property
 
         # NOTE: Need to handle change state
 
     elif category == MessageType.Notification:
 
-        return Notifications[status]
+        return NotificationSubType.Info
+
+
+def get_option(msg, cat, sub_type):
+
+    if cat == MessageCategory.Order:
+        if sub_type == OrderSubType.Command:
+            return OrderCommandOption.Normal
+        elif sub_type == OrderSubType.Property:
+
+            if msg.contents["ACTION"] == "GET":
+                return OrderPropertyOption.Get_Property
+            elif msg.contents["ACTION"] == "SET":
+                return OrderPropertyOption.Set_Property
+            else:
+                raise Exception("Unsupported option")
+
+    elif cat == MessageCategory.OrderResponse:
+        if sub_type == ResponseSubType.Command:
+            # Change logic to handle inprogress commands
+            return ResponseCommandOption.Complete
+        elif sub_type == ResponseSubType.Property:
+            if msg.contents.has_key("VALUE"):
+                return ResponsePropertyOption.Get_Response
+            else:
+                return ResponsePropertyOption.Set_Response
+
+    elif cat== MessageCategory.Notification:
+        raise Exception("Notifications aren't supported yet")
+
+    else:
+
+        raise Exception("Unhandled category")
 
 
 
