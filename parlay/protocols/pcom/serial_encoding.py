@@ -101,7 +101,7 @@ ESCAPE_BYTE_STR = b'\x10'
 
 PACKET_TYPE_MASK = 0xf0
 PACKET_SEQ_MASK = 0x0f
-PACKET_HEADER_SIZE = 10
+PACKET_HEADER_SIZE = 12
 
 TYPE_ACK = 0x20
 TYPE_NAK = 0x30
@@ -198,7 +198,7 @@ def encode_pcom_message(msg):
     # Bytes [10:N]  Format string (Null terminated data structure description (0 for no data))
     # Bytes [N+1:M] Data in the form of bytes[10:N]. Size must match format string
 
-    payload = struct.pack("<HHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), serialize_msg_type(msg),
+    payload = struct.pack("<HHHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), msg.msg_status, serialize_msg_type(msg),
                              serialize_msg_attrs(msg))
 
     if msg.format_string:
@@ -390,8 +390,8 @@ def decode_pcom_message(binary_msg):
 
     # Unpack the header
 
-    msg.msg_id, msg.from_, msg.to, msg.response_code, msg.msg_type, msg.attributes \
-        = struct.unpack("<HHHHBB", binary_msg[0:PACKET_HEADER_SIZE])
+    msg.msg_id, msg.from_, msg.to, msg.response_code, msg.msg_status, msg.msg_type, msg.attributes \
+        = struct.unpack("<HHHHHBB", binary_msg[0:PACKET_HEADER_SIZE])
 
     # Extract the format string
     format_string_end_index = str(binary_msg).find('\0', PACKET_HEADER_SIZE)

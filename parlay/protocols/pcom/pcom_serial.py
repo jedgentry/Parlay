@@ -193,14 +193,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
             action = msg.contents.get('ACTION', None)
 
-            if action != None:
+            if action == "GET":
                 data = []
                 format = ''
+            elif action == "SET":
+                if msg.to in self._property_map:
+                    property = self._property_map[msg.to][msg.contents['PROPERTY']]
+                    format = property.format
+                    data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
+                    data = cast_data(format, data)
 
-            elif msg.to in self._property_map:
-                property = self._property_map[msg.to][msg.contents['PROPERTY']]
-                format = property.format
-                data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
 
 
         return (data, format)
@@ -582,7 +584,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         print "Running discovery on subsystem: ", subsystem_id
 
         response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
-        item_name = str(response.data[0][:-1])
+        item_name = str(response.data[0])
 
         parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)
 
@@ -610,7 +612,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             command_output_desc = yield self.get_command_output_parameter_desc(item_id, command_id)
             self._command_map[item_id][command_id] = CommandInfo(command_input_format, command_input_param_names)
 
-            command_dropdowns.append((command_name[:-1], command_id))
+            command_dropdowns.append((command_name, command_id))
 
             for parameter in command_input_param_names:
                 local_subfields.append(parlay_item.create_field(parameter, INPUT_TYPES.STRING))
@@ -792,7 +794,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         elif is_nak:
             return  # ignore, the timeout will happen and handle a resend
 
-        parlay_msg = msg.to_dict_msg()
+        parlay_msg = msg.to_dict_msg(self._property_map)
         print "---> Message to be published: ", parlay_msg
         self.broker.publish(parlay_msg, self.transport.write)
 
@@ -842,6 +844,6 @@ class SerialLEDItem(LineItem):
 		self._led_index = led_index
 
 if __name__ == "__main__":
-	start()
+	start(open_browser=False)
 
 

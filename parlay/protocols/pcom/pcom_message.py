@@ -15,6 +15,7 @@ conversion to and from a JSON message.
 from copy import deepcopy
 from parlay.protocols.utils import message_id_generator
 import serial_encoding
+from enums import *
 
 OPTION_MASK = 0x0f
 OPTION_SHIFT = 0
@@ -111,7 +112,9 @@ class PCOMMessage(object):
 
         response_req = dict_msg['TOPICS'].get("RESPONSE_REQ", False)
 
-        msg_status = dict_msg['TOPICS'].get("MSG_STATUS", "INFO")
+        # msg_status = dict_msg['TOPICS'].get("MSG_STATUS", "INFO")
+
+        msg_status = 0
         tx_type = dict_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
         contents = dict_msg['CONTENTS']
@@ -124,64 +127,63 @@ class PCOMMessage(object):
     def _is_response_req(self):
         '''
         If the msg is an order a response is expected.
-        TODO: Change '0' to constant for order.
         :return:
         '''
 
-        return (self.msg_type & 0xf0) == serial_encoding.MessageType.Order
+        return (self.category()) == MessageCategory.Order
 
-    def to_dict_msg(self):
+    def to_dict_msg(self, property_map):
         msg = {'TOPICS': {}, 'CONTENTS': {}}
         msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
         msg['TOPICS']['MSG_ID'] = self.msg_id
         msg['TOPICS']['RESPONSE_REQ'] = self._is_response_req()
+        msg['TOPICS']['TX_TYPE'] = "DIRECT"
 
-        m_type = self.msg_type >> 4
-        m_subtype = self.msg_type & 0x0f
+        msg_category = self.category()
+        msg_sub_type = self.sub_type()
+        msg_option = self.option()
 
-        if m_type == serial_encoding.MessageType.Order:
-            if m_subtype == serial_encoding.OrderSubTypes.Command:
-                msg['TOPICS']['MSG_TYPE'] = "COMMAND"
-                msg['CONTENTS']['COMMAND'] = self.response_req
-            elif m_subtype == serial_encoding.OrderSubTypes.Get_Property:
-                msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
-                msg['CONTENTS']['PROPERTY'] = self.response_req
-                msg['CONTENTS']['ACTION'] = "GET"
-            elif m_subtype == serial_encoding.OrderSubTypes.Set_Property:
-                msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
-                msg['CONTENTS']['PROPERTY'] = self.response_req
-                msg['CONTENTS']['ACTION'] = "SET"
-            elif m_subtype == serial_encoding.OrderSubTypes.Stream_Property:
-                msg['TOPICS']['MSG_TYPE'] = "STREAM"
-                msg['CONTENTS']['STREAM'] = self.response_req
-            elif m_subtype == serial_encoding.OrderSubTypes.Abort:
-                raise Exception("Aborts aren't handled yet")
+        if msg_category == MessageCategory.Order:
+            if msg_sub_type == OrderSubType.Command:
+                if msg_option == OrderCommandOption.Normal:
+                    msg['TOPICS']['MSG_TYPE'] = "COMMAND"
+                    msg['CONTENTS']['COMMAND'] = self.response_code
+            elif msg_sub_type == OrderSubType.Property:
+                msg['TOPICS']['MSG_TYPE'] == "PROPERTY"
+                msg['CONTENTS']['PROPERTY'] = property_map[self.from_][self.response_code].name
+                if msg_option == OrderPropertyOption.Get_Property:
+                    msg['CONTENTS']['ACTION'] = "GET"
+                elif msg_option == OrderPropertyOption.Set_Property:
+                    msg['CONTENTS']['ACTION'] = "SET"
+                    msg['CONTENTS']['VALUE'] = self.data[0] # TODO: Support no data
+                elif msg_option == OrderPropertyOption.Stream_On:
+                    raise Exception("Stream not implemented yet")
+                elif msg_option == OrderPropertyOption.Stream_Off:
+                    raise Exception("Stream not implemented yet")
             else:
-                raise Exception("Unhandled message subtype {}", m_subtype)
+                raise Exception("Unhandled message subtype {}", msg_sub_type)
 
-        elif m_type == serial_encoding.MessageType.Order_Response:
+        elif msg_category == MessageCategory.Order_Response:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
-            msg['CONTENTS']['STATUS'] = self.response_req
-            if m_subtype == serial_encoding.OrderResponseSubTypes.OrderComplete:
-                msg['TOPICS']["MSG_STATUS"] = "OK"
-            elif m_subtype == serial_encoding.OrderResponseSubTypes.PropertyStream:
-                raise Exception("Property streams aren't handled yet")
-            elif m_subtype == serial_encoding.OrderResponseSubTypes.InProgress:
-                raise Exception("In progress state not handled yet")
-            elif m_subtype == serial_encoding.OrderResponseSubTypes.StateChange:
-                raise Exception("State change unhandled")
+            if msg_sub_type == ResponseSubType.Command:
+                if msg_option == ResponseCommandOption.Complete:
+                    msg['CONTENTS']['RESULT'] = self.data # Maybe need to change to tuple or something
+                elif msg_option == ResponseCommandOption.Inprogress:
+                    raise Exception("Inprogress not supported yet")
+            elif msg_sub_type == ResponseSubType.Property:
+                msg['CONTENTS']['ACTION'] = "RESPONSE"
+                msg['CONTENTS']['PROPERTY'] = self.response_code # TODO
+                if msg_option == ResponsePropertyOption.Get_Response:
+                    msg['CONTENTS']['VALUE'] = self.data[0] # TODO: support empty data
+                elif msg_option == ResponsePropertyOption.Set_Response:
+                    pass # NOTE: set responses do not have a 'value' field
+                elif msg_option == ResponsePropertyOption.Stream_Response:
+                    raise Exception("Stream responses not supported yet")
 
-        elif m_type == serial_encoding.MessageType.Notification:
+        elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
             msg['CONTENTS']['EVENT'] = self.response_req
-            if m_subtype == serial_encoding.NotificationSubTypes.Error_Notice:
-                msg['TOPICS']
-            elif m_subtype == serial_encoding.NotificationSubTypes.Warning_Notice:
-                raise Exception("Unhandled")
-            elif m_subtype == serial_encoding.NotificationSubTypes.Data:
-                raise Exception("Unhandled")
-
 
         return msg
 
@@ -296,12 +298,10 @@ class PCOMMessage(object):
             self.priority = value & 0x01
 
     @property
-    def status(self):
-        return self._status
+    def msg_status(self):
+        return self._msg_status
 
 
-    @status.setter
-    def status(self, value):
-        self._event = None
-        self._status = value
-        self._command = None
+    @msg_status.setter
+    def msg_status(self, value):
+        self._msg_status = value

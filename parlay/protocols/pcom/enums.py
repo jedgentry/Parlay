@@ -1,5 +1,13 @@
 from parlay.enum import enum
 
+CATEGORY_MASK = 0xc0
+SUB_TYPE_MASK = 0x30
+OPTION_MASK = 0xf0
+
+CATEGORY_SHIFT = 6
+SUB_TYPE_SHIFT = 4
+OPTION_SHIFT = 0
+
 MessageCategory = enum(
     'Order',
     'Order_Response',
