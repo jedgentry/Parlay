@@ -18,7 +18,7 @@ import functools
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
-BROKER_VERSION = "0.1.0"
+BROKER_VERSION = "0.2.0"
 
 
 class Broker(object):
