@@ -7,7 +7,7 @@ from parlay.server.broker import Broker
 from twisted.internet import reactor
 from twisted.web.client import Agent, readBody
 from twisted.web.http_headers import Headers
-
+import base64
 
 
 
@@ -33,7 +33,7 @@ class CloudLink(parlay.ParlayCommandItem):
             Headers({'User-Agent': ['Twisted Web Client Example']}),
             None)
         request.addCallback(lambda response: readBody(response))
-
+        request.addCallback(lambda html: base64.b64encode(html.encode("zlib")))
         return request
 
 if __name__ == "__main__":
