@@ -6,13 +6,6 @@ parlay
     :undoc-members:
     :show-inheritance:
 
-parlay.enum module
-------------------
-
-.. automodule:: parlay.enum
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 Subpackages
 -----------

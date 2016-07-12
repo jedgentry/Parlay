@@ -54,8 +54,7 @@ class MSG_STATUS(object):
     WARNING = "WARNING"
     INFO = "INFO"
     OK = "OK"
-    ACK = 'ACK'
-
+    PROGRESS = 'PROGRESS'
 
 class BaseItem(object):
     """
@@ -65,8 +64,8 @@ class BaseItem(object):
     def __init__(self, item_id, name, adapter=None):
         self.item_id = item_id
         self.item_name = name
-        """:type Adapter"""
-        self._adapter = adapter if adapter is not None else Broker.get_instance()
+        """:type Adapter"""  # use the default pyadapter if no specific adapter was chosen
+        self._adapter = adapter if adapter is not None else Broker.get_instance().pyadapter
         self.children = []  # child items
 
         # subscribe on_message to be called whenever we get a message *to* us

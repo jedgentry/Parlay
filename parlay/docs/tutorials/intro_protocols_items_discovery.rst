@@ -28,7 +28,7 @@ by the built-in User Interface and by Parlay scripts:
   graphed in the User Interface
 
 For more detailed instructions on creating your own logical items, see
-`Local Items <local_items>`__.
+:doc:`local_items`.
 
 Protocols
 ---------
@@ -46,7 +46,7 @@ supports many common transport layers out-of-the-box, so it is unlikely
 that you will need to write a custom Transport.
 
 For more detailed instructions on creating your own protocols for
-external devices, see `Custom Protocols <custom_protocols>`__.
+external devices, see :doc:`custom_protocols`.
 
 Discovery
 ---------
@@ -54,7 +54,7 @@ Discovery
 One of the most powerful features of Parlay is discovery: finding out
 what items are connected (and how they are connected) in real time,
 rather than hard-coding them up-front. For example, you can write a
-`script <intro_scripting>`__ that sends various commands to a
+`script <intro_scripting.html>`__ that sends various commands to a
 serial motor controller item with the ID of "Motor1". You can plug that
 motor controller into any COM port on your PC, or even write a simulator
 in python that simulates the communication with that motor controller.

@@ -14,7 +14,7 @@ class ReactorImpl(ReactorWrapper):
 
 _reactor_stub = ReactorImpl()
 #make sure the Broker is using US as the reactor
-Broker.get_instance()._reactor = _reactor_stub
+Broker.get_instance().reactor = _reactor_stub
 
 class ReactorMixin(object):
     """

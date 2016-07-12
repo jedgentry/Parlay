@@ -29,14 +29,6 @@ class ParlayStandardItem(ThreadedItem):
         self._datastreams = {}
         self.item_type = None
 
-        # default msg ids are 32 bit ints between 100 and 65535
-        self._msg_id_generator = message_id_generator(65535, 100)
-
-    def subscribe(self, _fn, **kwargs):
-        return self._adapter.subscribe(_fn, **kwargs)
-
-    def publish(self, msg):
-        return self._adapter.publish(msg)
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
@@ -71,31 +63,34 @@ class ParlayStandardItem(ThreadedItem):
         else:
             self._content_fields.append(discovery)
 
-    def add_property(self, name, attr_name=None, input=INPUT_TYPES.STRING, read_only=False, write_only=False):
+    def add_property(self, id, attr_name=None, input=INPUT_TYPES.STRING, read_only=False, write_only=False, name=None):
         """
         Add a property to this Item.
-        name : The name of the property
-        attr_name = the name of the attr to set in 'self' when setting and getting (None if same as name)
-        read_only = Read only
-        write_only = write_only
+        :param id : the id of the name
+        :param name : The name of the property (defaults to ID)
+        :param attr_name = the name of the attr to set in 'self' when setting and getting (None if same as name)
+        :param read_only = Read only
+        :param write_only = write_only
         """
+        name = name if name is not None else id
         attr_name = attr_name if attr_name is not None else name  # default
                                                 # attr_name isn't needed for discovery, but for lookup
-        self._properties[name] = {"NAME": name, "ATTR_NAME": attr_name, "INPUT": input,
+        self._properties[id] = {"PROPERTY": id, "PROPERTY_NAME": name, "ATTR_NAME": attr_name, "INPUT": input,
                                   "READ_ONLY": read_only, "WRITE_ONLY": write_only}  # add to internal list
 
-    def add_datastream(self, name, attr_name=None, units=""):
+    def add_datastream(self, id, attr_name=None, units="", name=None):
         """
         Add a datastream to this Item.
-
-        :param name: The name of the datastream
+        :param id : The id of the stream
+        :param name: The name of the datastream (defaults to id)
         :param attr_name: the name of the attr to set in 'self' when setting and getting (same as name if None)
         :param units: units of streaming value that will be reported during discovery
         """
+        name = name if name is not None else id
         attr_name = attr_name if attr_name is not None else name  # default
 
         # attr_name isn't needed for discovery, but for lookup
-        self._datastreams[name] = {"NAME": name, "ATTR_NAME": attr_name, "UNITS": units}  # add to internal list
+        self._datastreams[id] = {"STREAM": id, "STREAM_NAME": name, "ATTR_NAME": attr_name, "UNITS": units}  # add to internal list
 
     def clear_fields(self):
         """
@@ -118,8 +113,8 @@ class ParlayStandardItem(ThreadedItem):
         discovery = BaseItem.get_discovery(self)
         discovery["TOPIC_FIELDS"] = self._topic_fields
         discovery["CONTENT_FIELDS"] = self._content_fields
-        discovery["PROPERTIES"] = sorted([x for x in self._properties.values()], key=lambda v: v['NAME'])
-        discovery["DATASTREAMS"] = sorted([x for x in self._datastreams.values()], key=lambda v: v['NAME'])
+        discovery["PROPERTIES"] = sorted([x for x in self._properties.values()], key=lambda v: v['PROPERTY'])
+        discovery["DATASTREAMS"] = sorted([x for x in self._datastreams.values()], key=lambda v: v['STREAM'])
 
         if self.item_type is not None:
             discovery["TYPE"] = self.item_type
@@ -133,7 +128,7 @@ class ParlayStandardItem(ThreadedItem):
         contents is a dictionary of contents to send
         """
         if msg_id is None:
-            msg_id = self._msg_id_generator.next()
+            msg_id = self._message_id_generator.next()
         if contents is None:
             contents = {}
         if from_ is None:
@@ -201,10 +196,23 @@ class ParlayProperty(object):
     """
     A convenience class for creating properties of ParlayCommandItems.
 
-    Example Usage::
+    **Example: How to define a property**::
 
         class MyItem(ParlayCommandItem):
             self.x = ParlayProperty(default=0, val_type=int)
+
+            def __init__(self, item_id, item_name):
+                ParlayCommandItem.__init__(self, item_id, item_name)
+            ...
+
+    **Example: How to access a property from a script**::
+
+        setup()
+        discover()
+        my_item = get_item_by_name("MyItem")
+        original_value = my_item.x
+        my_item.x = 5
+
     """
 
     def __init__(self, default=None, val_type=None, read_only=False, write_only=False,
@@ -212,7 +220,7 @@ class ParlayProperty(object):
         """
         Init method for the ParlayProperty class
 
-        :param default : an inital value for the property
+        :param default : an initial value for the property
         :param val_type : the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type
         on set and throw an exception if it couldn't be coerced
         :param read_only : Set to true to make read only
@@ -257,7 +265,7 @@ class ParlayDatastream(object):
 
     Example Usage::
 
-        class MyItem(ParlayCommandItem):
+        class Balloon(ParlayCommandItem):
             self.altitude = ParlayDatastream(default=0, units="ft")
     """
 
@@ -317,8 +325,50 @@ class BadStatusError(Exception):
 
 class ParlayCommandItem(ParlayStandardItem):
     """
-    This is a parlay item that takes commands, with arguments.
+    This is a Parlay Item that defines functions that serve as commands,
+    with arguments.
+
+    This class enables you to use the :func:`~parlay_standard.parlay_command` decorator over your
+    command functions.  Then, those functions will be available as commands
+    that can be called from the user interface, scripts, or by other items.
+
+    **Example: How to define a class as a ParlayCommandItem**::
+
+        from parlay import local_item, ParlayCommandItem, parlay_command
+
+        @local_item()
+        class MotorSimulator(ParlayCommandItem):
+
+            def __init__(self, item_id, item_name):
+                self.coord = 0
+                ParlayCommandItem.__init__(self, item_id, item_name)
+
+            @parlay_command
+            def move_to_coordinate(self, coordinate)
+                self.coord = coordinate
+
+    **Example: How to instantiate an item from the above definition**::
+
+        import parlay
+        from motor_sim import MotorSimulator
+
+        MotorSimulator("motor1", "motor 1")  # motor1 will be discoverable
+        parlay.start()
+
+
+    **Example: How to interact with the instantiated item from a Parlay script**::
+
+        # script_move_motor.py
+
+        setup()
+        discover()
+        motor_sim = get_item_by_name("motor 1")
+        motor_sim.move_to_coordinate(500)
+
     """
+
+    #! change this to have a custom subsystem ID for the entire Python subsystem
+    SUBSYSTEM_ID = "python"
 
     # id generator for auto numbering class instances
     __ID_GEN = message_id_generator(2**32, 1)
@@ -332,7 +382,7 @@ class ParlayCommandItem(ParlayStandardItem):
         :rtype : object
         """
         if item_id is None:
-            item_id = self.__class__.__name__ + " " + str(ParlayCommandItem.__ID_GEN.next())
+            item_id = ParlayCommandItem.SUBSYSTEM_ID + "." + self.__class__.__name__ + "." + str(ParlayCommandItem.__ID_GEN.next())
 
         if name is None:
             name = self.__class__.__name__
@@ -372,7 +422,7 @@ class ParlayCommandItem(ParlayStandardItem):
 
         # run discovery to init everything for a first time
         # call it immediately after init
-        self._adapter._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+        self._adapter.reactor.callLater(0, ParlayCommandItem.get_discovery, self)
 
 
 
@@ -445,40 +495,40 @@ class ParlayCommandItem(ParlayStandardItem):
         # handle property messages
         if msg_type == "PROPERTY":
             action = contents.get('ACTION', "")
-            property_name = str(contents.get('PROPERTY', ""))
+            property_id = str(contents.get('PROPERTY', ""))
             try:
                 if action == 'SET':
                     assert 'VALUE' in contents  # we need a value to set!
-                    setattr(self, self._properties[property_name]["ATTR_NAME"], contents['VALUE'])
-                    self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE"})
+                    setattr(self, self._properties[property_id]["ATTR_NAME"], contents['VALUE'])
+                    self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE"})
                     return True
                 elif action == "GET":
-                    val = getattr(self, self._properties[property_name]["ATTR_NAME"])
-                    self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE", "VALUE": val})
+                    val = getattr(self, self._properties[property_id]["ATTR_NAME"])
+                    self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "VALUE": val})
                     return True
             except Exception as e:
-                self.send_response(msg, {"PROPERTY": property_name, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
+                self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
                                    msg_status=MSG_STATUS.ERROR)
 
         # handle data stream messages
         if msg_type == "STREAM":
             try:
-                stream_name = str(contents["STREAM"])
+                stream_id = str(contents["STREAM"])
                 remove = contents.get("STOP", False)
                 requester = topics["FROM"]
 
                 def sample(stream_value):
                     self.send_message(to=requester, msg_type=MSG_TYPES.STREAM, contents={'VALUE': stream_value},
-                                      extra_topics={"STREAM": stream_name})
+                                      extra_topics={"STREAM": stream_id})
 
                 if remove:
                     # if we've been asked to unsubscribe
                     # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
-                    self.__class__.__dict__[stream_name].stop(self, requester)
+                    self.__class__.__dict__[stream_id].stop(self, requester)
                 else:
                     #listen in if we're subscribing
                     # access the stream object through the class's __dict__ so we don't just end up calling the __get__()
-                    self.__class__.__dict__[stream_name].listen(self, sample, requester)
+                    self.__class__.__dict__[stream_id].listen(self, sample, requester)
 
 
             except Exception as e:
@@ -493,12 +543,22 @@ class ParlayCommandItem(ParlayStandardItem):
             try:
                 method = self._commands[command]
                 arg_names = method._parlay_fn.func_code.co_varnames[1: method._parlay_fn.func_code.co_argcount]  # remove 'self'
+                # add the defaults to the msg if they're not overwritten
+                defaults = method._parlay_fn.func_defaults if method._parlay_fn.func_defaults is not None else []
+                # cut params to only the last x (defaults are always at the end of the signature)
+                params = arg_names
+                params = params[len(params) - len(defaults):]
+                default_lookup = dict(zip(params, defaults))
+                for k,v in default_lookup.iteritems():
+                    if k not in msg["CONTENTS"] or msg["CONTENTS"][k] is None:
+                        msg["CONTENTS"][k] = v
+
                 kws = {k: msg["CONTENTS"][k] for k in arg_names}
                 try:
                     # do any type conversions (default to whatever we were sent if no conversions)
                     kws = {k: method._parlay_arg_conversions[k](v) if k in method._parlay_arg_conversions
                                                                    else v for k, v in kws.iteritems()}
-                except ValueError as e:
+                except (ValueError, TypeError) as e:
                     self.send_response(msg, contents={"DESCRIPTION": e.message, "ERROR": "BAD TYPE"},
                                        msg_status=MSG_STATUS.ERROR)
                     return None
@@ -507,8 +567,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 def run_command():
                     return method(**kws)
 
-                self.send_response(msg, msg_status=MSG_STATUS.ACK)
-                self.send_response(msg, msg_status=MSG_STATUS.ACK)
+                self.send_response(msg, msg_status=MSG_STATUS.PROGRESS)
 
                 result = defer.maybeDeferred(run_command)
                 result.addCallback(lambda r: self.send_response(msg, {"RESULT": r}))
@@ -584,15 +643,15 @@ class ParlayStandardScriptProxy(object):
         Proxy class for a parlay property
         """
 
-        def __init__(self, name, item_proxy, blocking_set=True):
-            self._name = name
+        def __init__(self, id, item_proxy, blocking_set=True):
+            self._id = id
             self._item_proxy = item_proxy
             # do we want to block on a set until we get the ACK?
             self._blocking_set = blocking_set
 
         def __get__(self, instance, owner):
             msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
-                                            direct=True, response_req=True, PROPERTY=self._name, ACTION="GET")
+                                            direct=True, response_req=True, PROPERTY=self._id, ACTION="GET")
             resp = instance._script.send_parlay_message(msg)
             # return the VALUE of the response
             return resp["CONTENTS"]["VALUE"]
@@ -600,7 +659,7 @@ class ParlayStandardScriptProxy(object):
         def __set__(self, instance, value):
             msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
                                             direct=True, response_req=self._blocking_set,
-                                            PROPERTY=self._name, ACTION="SET", VALUE=value)
+                                            PROPERTY=self._id, ACTION="SET", VALUE=value)
             # Wait until we're sure its set
             resp = instance._script.send_parlay_message(msg)
 
@@ -612,8 +671,8 @@ class ParlayStandardScriptProxy(object):
         Proxy class for a parlay stream
         """
 
-        def __init__(self, name, item_proxy, rate):
-            self._name = name
+        def __init__(self, id, item_proxy, rate):
+            self._id = id
             self._item_proxy = item_proxy
             self._val = None
             self._rate = rate
@@ -624,7 +683,7 @@ class ParlayStandardScriptProxy(object):
             item_proxy._script.add_listener(self._update_val_listener)
 
             msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
-                                            direct=True, response_req=False, STREAM=self._name, RATE=rate)
+                                            direct=True, response_req=False, STREAM=self._id, RATE=rate)
             item_proxy._script.send_parlay_message(msg)
 
         def attach_listener(self, listener):
@@ -648,7 +707,7 @@ class ParlayStandardScriptProxy(object):
             Script listener that will update the val whenever we get a stream update
             """
             topics, contents = msg["TOPICS"], msg['CONTENTS']
-            if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._name \
+            if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._id \
                     and 'VALUE' in contents:
                 new_val = contents["VALUE"]
                 self._listener(new_val)
@@ -723,11 +782,15 @@ class ParlayStandardScriptProxy(object):
 
         # properties
         for prop in discovery.get("PROPERTIES", []):
-            setattr(self, prop['NAME'], ParlayStandardScriptProxy.PropertyProxy(prop['NAME'], self))
+            property_id = prop["PROPERTY"]
+            property_name = prop["PROPERTY_NAME"] if "PROPERTY_NAME" in prop else property_id
+            setattr(self, property_name, ParlayStandardScriptProxy.PropertyProxy(property_id, self))
 
         # streams
         for stream in discovery.get("DATASTREAMS", []):
-            setattr(self, stream['NAME'], ParlayStandardScriptProxy.StreamProxy(stream['NAME'], self,
+            stream_id = stream["STREAM"]
+            stream_name = stream["STREAM_NAME"] if "STREAM_NAME" in stream else stream_id
+            setattr(self, stream_name, ParlayStandardScriptProxy.StreamProxy(stream_id, self,
                                                                                 self.datastream_update_rate_hz))
 
     def send_parlay_command(self, command, **kwargs):
@@ -815,7 +878,7 @@ class CommandHandle(object):
 
             status = topics.get("MSG_STATUS", None)
             msg_type = topics.get("MSG_TYPE", None)
-            if msg_type == MSG_TYPES.RESPONSE and status != MSG_STATUS.ACK:
+            if msg_type == MSG_TYPES.RESPONSE and status != MSG_STATUS.PROGRESS:
                 #  if it's a response but not an ack, then we're done
                 self._done = True
 
@@ -837,7 +900,7 @@ class CommandHandle(object):
         Called from a scripts thread. Blocks until the message is complete.
         """
 
-        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.ACK and
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.PROGRESS and
                                         msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
 
         return msg["CONTENTS"]["RESULT"]
@@ -846,5 +909,5 @@ class CommandHandle(object):
         """
         Called from a scripts thread. Blocks until the message is ackd
         """
-        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.ACK and
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.PROGRESS and
                                         msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)

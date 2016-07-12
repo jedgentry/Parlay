@@ -37,7 +37,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         p = cls(port)
         cls.delimiter = str(delimiter).decode("string_escape")
 
-        SerialPort(p, port, broker._reactor, baudrate=baudrate)
+        SerialPort(p, port, broker.reactor, baudrate=baudrate)
 
         return p
 
