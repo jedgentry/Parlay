@@ -208,8 +208,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         return (data, format)
 
 
-
-
     @defer.inlineCallbacks
     def _send_message_down_transport(self, message):
         """
@@ -502,16 +500,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             self.broker.subscribe(self.add_message_to_queue, TO=item_id)
             self._command_map[item_id] = {}
             self._property_map[item_id] = {}
-            self._command_map[item_id][GET_ITEM_NAME] = CommandInfo("",[])
-            self._command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [])
-            self._command_map[item_id][GET_COMMAND_IDS] = CommandInfo("",[])
-            self._command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("",[])
-            self._command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command id"])
-            self._command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command id"])
-            self._command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command id"])
-            self._command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command id"])
-            self._command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property id"])
-            self._command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property id"])
+            self._command_map[item_id][GET_ITEM_NAME] = CommandInfo("",[], ["Item name"])
+            self._command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
+            self._command_map[item_id][GET_COMMAND_IDS] = CommandInfo("",[], ["Command IDs"])
+            self._command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("",[], ["Property IDs"])
+            self._command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command id"], ["Command name"])
+            self._command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command id"], ["Command input format"])
+            self._command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command id"], ["Command input names"])
+            self._command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command id"], ["Command output names"])
+            self._command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property id"], ["Property name"])
+            self._command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property id"], ["Property type"])
 
 
         # TODO: Explain this in comments
@@ -610,7 +608,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             command_input_format = yield self.get_command_input_param_format(item_id, command_id)
             command_input_param_names = yield self.get_command_input_param_names(item_id, command_id)
             command_output_desc = yield self.get_command_output_parameter_desc(item_id, command_id)
-            self._command_map[item_id][command_id] = CommandInfo(command_input_format, command_input_param_names)
+            self._command_map[item_id][command_id] = CommandInfo(command_input_format, command_input_param_names, command_output_desc)
 
             command_dropdowns.append((command_name, command_id))
 
@@ -794,7 +792,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         elif is_nak:
             return  # ignore, the timeout will happen and handle a resend
 
-        parlay_msg = msg.to_dict_msg(self._property_map)
+        parlay_msg = msg.to_dict_msg(self._property_map, self._command_map)
         print "---> Message to be published: ", parlay_msg
         self.broker.publish(parlay_msg, self.transport.write)
 
@@ -832,10 +830,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
 class CommandInfo:
 
-    def __init__(self, fmt, parameters):
+    def __init__(self, fmt, parameters, output_names):
 
         self.fmt = fmt
         self.params = parameters
+        self.output_names = output_names
 
 class SerialLEDItem(LineItem):
 

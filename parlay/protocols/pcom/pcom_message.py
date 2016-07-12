@@ -26,6 +26,9 @@ SUB_TYPE_SHIFT = 4
 CATEGORY_MASK = 0xc0
 CATEGORY_SHIFT = 6
 
+DISCOVERY_MESSAGES = [GET_ITEM_NAME, GET_ITEM_TYPE, GET_COMMAND_IDS, GET_PROPERTY_IDS, GET_COMMAND_NAME,
+                      GET_COMMAND_INPUT_PARAM_FORMAT, GET_COMMAND_INPUT_PARAM_NAMES, GET_COMMAND_OUTPUT_PARAM_DESC,
+                      GET_PROPERTY_NAME, GET_PROPERTY_TYPE, GET_SUBSYSTEMS]
 class PCOMMessage(object):
 
     # maps the TO/FROm name to ints, and from ints back to names
@@ -132,7 +135,14 @@ class PCOMMessage(object):
 
         return (self.category()) == MessageCategory.Order
 
-    def to_dict_msg(self, property_map):
+    def _is_order(self):
+        '''
+        If the message is an order return True, if not return False
+        :return:
+        '''
+
+
+    def to_dict_msg(self, property_map, command_map):
         msg = {'TOPICS': {}, 'CONTENTS': {}}
         msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
@@ -166,9 +176,15 @@ class PCOMMessage(object):
 
         elif msg_category == MessageCategory.Order_Response:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
+            msg['CONTENTS']['STATUS'] = self.msg_status
+            msg['TOPICS']['MSG_STATUS'] = "OK"
             if msg_sub_type == ResponseSubType.Command:
                 if msg_option == ResponseCommandOption.Complete:
-                    msg['CONTENTS']['RESULT'] = self.data # Maybe need to change to tuple or something
+                    print "RESPONSE CODE:", self.response_code
+                    if self.response_code not in DISCOVERY_MESSAGES:
+                        msg['CONTENTS']['RESULT'] = dict(zip(command_map[self.from_][self.response_code].output_names, self.data)) # Maybe need to change to tuple or something
+                    else:
+                        msg['CONTENTS']['RESULT'] = {}
                 elif msg_option == ResponseCommandOption.Inprogress:
                     raise Exception("Inprogress not supported yet")
             elif msg_sub_type == ResponseSubType.Property:
@@ -186,6 +202,8 @@ class PCOMMessage(object):
             msg['CONTENTS']['EVENT'] = self.response_req
 
         return msg
+
+
 
     def category(self):
         return (self.msg_type & CATEGORY_MASK) >> CATEGORY_SHIFT
