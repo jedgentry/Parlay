@@ -88,7 +88,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         protocol = PCOM_Serial(broker)
 
-        SerialPort(protocol, port, broker.reactor, baudrate=57600)
+        SerialPort(protocol, port, broker.reactor, baudrate=baudrate)
 
         return protocol
 
