@@ -1,54 +1,44 @@
-========================================
-Welcome to the documentation for Parlay!
-========================================
+====================
+Parlay Documentation
+====================
 
 Parlay is a software tool that makes it easier to develop and test embedded devices.
 
-.. _install:
+Promenade Software, the company that created Parlay, specializes in developing
+software for safety-critical industries, such as medical devices, aerospace, and
+automotive.  Parlay was built to streamline development and testing of embedded
+software.
 
-Installation
-------------
+What is Parlay?
+---------------
+Parlay is a development framework that provides:
 
-See :doc:`install` for instructions on installing Parlay on your machine.
+  * a publish/subscribe message router called the Broker
+  * pre-built components to connect to devices over serial, TCP/IP, ModBus, GPIB and more
+  * a built-in browser-based user interface to poke and prod connected items
+  * dead-simple scripting framework to write testing and development scripts in Python
 
+At the heart of Parlay is the broker, which provides publish/subscribe message
+routing between items.
 
+Parlay serves a web application that provides a poke & prod user interface to all
+connected items.  Via the user interface, users can send commands to and view responses
+from items, change item properties, and graph item datastreams.  This user interface
+can be accessible over a network for development and testing, or served securely in
+production for remote diagnostics and service.
 
-.. _tutorials:
-
-Tutorials
----------
-These tutorials will walk you through the basics of the Parlay system.
-
-.. toctree::
-    :maxdepth: 1
-
-    tutorials/hello_world
-    tutorials/overview_architecture
-    tutorials/intro_protocols_items_discovery
-    tutorials/intro_scripting
-    tutorials/case_study_serial_dc_motor_controller
-
-
-.. _api:
-
-API Documentation
------------------
-
-.. toctree::
-    :maxdepth: 1
-    :glob:
-
-    apidoc/parlay
-    apidoc/parlay.utils
-    apidoc/parlay_full
+Once items are connected to the broker, they are easily accessible from the user interface,
+scripts, and any other item.
 
 
-.. _specs:
-
-Specifications
---------------
+Documentation Contents
+----------------------
 
 .. toctree::
-    :maxdepth: 1
+    :maxdepth: 2
+    
+    install
+    tutorials/tutorials
+    apidoc/apidoc
+    specs/specs
 
-    specs/parlay_standard_item_comms_spec

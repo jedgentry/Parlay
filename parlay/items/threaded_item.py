@@ -44,7 +44,7 @@ class ThreadedItem(BaseItem):
 
     def __init__(self, item_id, name, reactor=None, adapter=None):
         BaseItem.__init__(self, item_id, name, adapter=adapter)
-        self._reactor = self._adapter._reactor if reactor is None else reactor
+        self._reactor = self._adapter.reactor if reactor is None else reactor
         self._msg_listeners = []
         self._system_errors = []
         self._system_events = []
@@ -60,6 +60,11 @@ class ThreadedItem(BaseItem):
         self.add_listener(self._discovery_request_listener)
 
         self._adapter.subscribe(self._discovery_broadcast_listener, type='DISCOVERY_BROADCAST')
+
+
+    # we need to overrite publish so we can register our callback for broker type messages
+    def publish(self, msg):
+        self._adapter.publish(msg, self._runListeners)
 
     def _discovery_broadcast_listener(self, msg):
         """

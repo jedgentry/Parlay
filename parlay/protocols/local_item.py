@@ -11,10 +11,33 @@ LOCAL_ITEM_CLASSES = {}
 
 def local_item(auto_connect=False):
     """
-    A class decorator that registers a class as independent.
+    A class decorator for python Items that are not part of an external protocol.
+
+    Local items are self-contained, and do not communicate over external protocols, for
+    example a serial port.  They are typically used for simulators or pure python computation
+    items.
 
     :param auto_connect: whether to automatically connect to the Parlay broker when the item is created.
     :return: decorator function
+
+    **Example usage of local_item decorator**::
+
+        # motor_sim.py
+
+        @local_item()
+        class MotorSimulator(ParlayCommandItem):
+
+            def __init__(self, item_id, item_name):
+                ...
+
+    **Example usage of defined local item**::
+
+        import parlay
+        from motor_sim import MotorSimulator
+
+        MotorSimulator("motor1", "motor 1")  # motor1 will be discoverable
+        parlay.start()
+
     """
     def decorator(cls):
         """
@@ -33,9 +56,8 @@ def local_item(auto_connect=False):
             Call the original ctor and then pass self to a new local protocol and append it to the broker
             """
             result = orig_init(self, *args, **kwargs)
-            broker = Broker.get_instance()
             protocol_obj = LocalItemProtocol(self)
-            broker.track_protocol(protocol_obj)
+            Broker.get_instance().pyadapter.track_open_protocol(protocol_obj)
             self._local_protocol = protocol_obj
             return result
         cls.__init__ = new_init
@@ -68,9 +90,8 @@ class LocalItemProtocol(BaseProtocol):
 
     @classmethod
     def open_for_obj(cls, item_obj):
-        broker = Broker.get_instance()
         protocol_obj = LocalItemProtocol(item_obj)
-        broker.track_protocol(protocol_obj)
+        Broker.get_instance().pyadapter.track_open_protocol(protocol_obj)
         return protocol_obj
 
     @classmethod

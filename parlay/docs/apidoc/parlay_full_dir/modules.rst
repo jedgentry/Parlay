@@ -1,7 +1,4 @@
-..
-==
-
 .. toctree::
-   :maxdepth: 5
+    :maxdepth: 5
 
-   parlay
+    parlay

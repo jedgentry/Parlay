@@ -31,7 +31,7 @@ class AdapterMixin(object):
 
             adapter.Adapter.__init__(self)
 
-        def publish(self, msg):
+        def publish(self, msg, callback=None):
             """
             :type msg dict
             """

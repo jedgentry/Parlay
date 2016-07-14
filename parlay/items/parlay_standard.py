@@ -29,11 +29,6 @@ class ParlayStandardItem(ThreadedItem):
         self._datastreams = {}
         self.item_type = None
 
-    def subscribe(self, _fn, **kwargs):
-        return self._adapter.subscribe(_fn, **kwargs)
-
-    def publish(self, msg):
-        return self._adapter.publish(msg)
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
@@ -201,10 +196,23 @@ class ParlayProperty(object):
     """
     A convenience class for creating properties of ParlayCommandItems.
 
-    Example Usage::
+    **Example: How to define a property**::
 
         class MyItem(ParlayCommandItem):
             self.x = ParlayProperty(default=0, val_type=int)
+
+            def __init__(self, item_id, item_name):
+                ParlayCommandItem.__init__(self, item_id, item_name)
+            ...
+
+    **Example: How to access a property from a script**::
+
+        setup()
+        discover()
+        my_item = get_item_by_name("MyItem")
+        original_value = my_item.x
+        my_item.x = 5
+
     """
 
     def __init__(self, default=None, val_type=None, read_only=False, write_only=False,
@@ -212,7 +220,7 @@ class ParlayProperty(object):
         """
         Init method for the ParlayProperty class
 
-        :param default : an inital value for the property
+        :param default : an initial value for the property
         :param val_type : the python type of the value. e.g. str, int, list, etc. The value will be coerced to this type
         on set and throw an exception if it couldn't be coerced
         :param read_only : Set to true to make read only
@@ -257,7 +265,7 @@ class ParlayDatastream(object):
 
     Example Usage::
 
-        class MyItem(ParlayCommandItem):
+        class Balloon(ParlayCommandItem):
             self.altitude = ParlayDatastream(default=0, units="ft")
     """
 
@@ -317,7 +325,46 @@ class BadStatusError(Exception):
 
 class ParlayCommandItem(ParlayStandardItem):
     """
-    This is a parlay item that takes commands, with arguments.
+    This is a Parlay Item that defines functions that serve as commands,
+    with arguments.
+
+    This class enables you to use the :func:`~parlay_standard.parlay_command` decorator over your
+    command functions.  Then, those functions will be available as commands
+    that can be called from the user interface, scripts, or by other items.
+
+    **Example: How to define a class as a ParlayCommandItem**::
+
+        from parlay import local_item, ParlayCommandItem, parlay_command
+
+        @local_item()
+        class MotorSimulator(ParlayCommandItem):
+
+            def __init__(self, item_id, item_name):
+                self.coord = 0
+                ParlayCommandItem.__init__(self, item_id, item_name)
+
+            @parlay_command
+            def move_to_coordinate(self, coordinate)
+                self.coord = coordinate
+
+    **Example: How to instantiate an item from the above definition**::
+
+        import parlay
+        from motor_sim import MotorSimulator
+
+        MotorSimulator("motor1", "motor 1")  # motor1 will be discoverable
+        parlay.start()
+
+
+    **Example: How to interact with the instantiated item from a Parlay script**::
+
+        # script_move_motor.py
+
+        setup()
+        discover()
+        motor_sim = get_item_by_name("motor 1")
+        motor_sim.move_to_coordinate(500)
+
     """
 
     #! change this to have a custom subsystem ID for the entire Python subsystem
@@ -375,7 +422,7 @@ class ParlayCommandItem(ParlayStandardItem):
 
         # run discovery to init everything for a first time
         # call it immediately after init
-        self._adapter._reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+        self._adapter.reactor.callLater(0, ParlayCommandItem.get_discovery, self)
 
 
 
