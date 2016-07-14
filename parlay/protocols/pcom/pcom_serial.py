@@ -778,6 +778,6 @@ class SerialLEDItem(LineItem):
 		self._led_index = led_index
 
 if __name__ == "__main__":
-	start(open_browser=False)
+	start()
 
 
