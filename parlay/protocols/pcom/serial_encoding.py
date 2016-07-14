@@ -11,8 +11,7 @@ of the PCOM Serial Protocol.
 import struct
 import array
 import sys
-from enums import MessageCategory, OrderSubType, ResponseSubType, NotificationSubType, OrderCommandOption,    \
-                    OrderPropertyOption, ResponseCommandOption, ResponsePropertyOption, NotificationOptions
+from enums import *
 
 from parlay.enum import enum
 
@@ -37,87 +36,6 @@ FORMAT_STRING_TABLE = {
 }
 
 
-
-MessagePriority = enum(
-    'Normal',
-    'High'
-)
-
-MessageType = enum(
-    'Order',
-    'Order_Response',
-    'Notification'
-)
-
-OrderSubTypes = enum(
-    'Command',
-    'Get_Property',
-    'Set_Property',
-    'Stream_Property',
-    'Abort'
-)
-
-OrderResponseSubTypes = enum(
-    'OrderComplete',
-    'PropertyStream',
-    'InProgress',
-    'StateChange'
-)
-
-NotificationSubTypes = enum(
-    'Error_Notice',
-    'Warning_Notice',
-    'Data'
-)
-
-ResponseExpected = enum(
-    'Yes',
-    'No'
-)
-
-LoggingInfo = enum(
-    'System Info',
-    'Trace',
-    'Debug',
-    'Command Error',
-    'Warning',
-    'Error',
-    'Critical Error')
-
-CategoryMap = {
-    'COMMAND': MessageType.Order,
-    'PROPERTY': MessageType.Order,
-    'RESPONSE': MessageType.Order_Response,
-    'EVENT': MessageType.Notification
-}
-
-START_BYTE = 0x02
-END_BYTE = 0x03
-ESCAPE_BYTE = 0x10
-
-START_BYTE_STR = b'\x02'
-END_BYTE_STR  = b'\x03'
-ESCAPE_BYTE_STR = b'\x10'
-
-PACKET_TYPE_MASK = 0xf0
-PACKET_SEQ_MASK = 0x0f
-PACKET_HEADER_SIZE = 12
-
-TYPE_ACK = 0x20
-TYPE_NAK = 0x30
-TYPE_NO_ACK_REQ = 0x40
-TYPE_ACK_REQ = 0x80
-
-CATEGORY_MASK = 0xc0
-SUB_TYPE_MASK = 0x30
-OPTION_MASK = 0xf0
-
-CATEGORY_SHIFT = 6
-SUB_TYPE_SHIFT = 4
-OPTION_SHIFT = 0
-
-order_map = {0: "COMMAND", 1: "GET", 2: "SET", 3: "STREAM", 4: "ABORT"}
-
 def deserialize_type(type_byte):
 
     '''
@@ -131,12 +49,12 @@ def deserialize_type(type_byte):
 
     msg_type = ""
 
-    if category == MessageType.Order:
-        if sub_type == OrderSubTypes.Command:
+    if category == MessageCategory.Order:
+        if sub_type == OrderSubType.Command:
             msg_type = "COMMAND"
         else:
             msg_type = "PROPERTY"
-    elif category == MessageType.Order_Response:
+    elif category == MessageCategory.Order_Response:
         msg_type = "RESPONSE"
     elif category == MessageType.Notification:
         msg_type = "EVENT"
@@ -152,7 +70,7 @@ def deserialize_subtype(type_byte):
     serial_msg_type = type_byte & TYPE_MASK
     r_subtype = None
 
-    if serial_msg_type == MessageType.Order:
+    if serial_msg_type == MessageCategory.Order:
         r_subtype = order_map[serial_subtype]
 
 
@@ -187,16 +105,51 @@ def encode_pcom_message(msg):
     """
     Build the base binary message without the data sections
     :type msg: PCOMMessage
-    """
 
-    # Bytes [0:1]   Event ID (Unique ID of event)
-    # Bytes [2:3]   Source ID
-    # Bytes [4:5]   Destination ID
-    # Bytes [6:7]   Order/response code (Command ID, property ID, or status code depending on event type)
-    # Bytes [8]     Type (Type and subtype of event)
-    # Bytes [9]     Attributes (Event attributes)
-    # Bytes [10:N]  Format string (Null terminated data structure description (0 for no data))
-    # Bytes [N+1:M] Data in the form of bytes[10:N]. Size must match format string
+
+    Bytes [0:1]   Event ID (Unique ID of event)
+    Bytes [2:3]   Source ID
+    Bytes [4:5]   Destination ID
+    Bytes [6:7]   Order/response code (Command ID, property ID, or status code depending on event type)
+    Bytes [8:9]   Message Status
+    Bytes [10]     Type (Type and subtype of event)
+    Bytes [11]     Attributes (Event attributes)
+    Bytes [12:N]  Format string (Null terminated data structure description (0 for no data))
+    Bytes [N+1:M] Data in the form of bytes[10:N]. Size must match format string
+
+
+    format_string: Describes the structure of the data using a character for each type.
+                                -------------------------------------------------
+                                | Type              | Character     | # bytes   |
+                                |-------------------|---------------|-----------|
+                                | unsigned byte     |    B          |    1      |
+                                |-------------------|---------------|-----------|
+                                | signed byte       |    b          |    1      |
+                                |-------------------|---------------|-----------|
+                                | padding           |    x          |    1      |
+                                |-------------------|---------------|-----------|
+                                | character         |    c          |    1      |
+                                |-------------------|---------------|-----------|
+                                | unsigned short    |    H          |    2      |
+                                |-------------------|---------------|-----------|
+                                | signed short      |    h          |    2      |
+                                |-------------------|---------------|-----------|
+                                | unsigned int      |    I          |    4      |
+                                |-------------------|---------------|-----------|
+                                | signed int        |    i          |    4      |
+                                |-------------------|---------------|-----------|
+                                | unsigned long     |    Q          |    8      |
+                                |-------------------|---------------|-----------|
+                                | signed long       |    q          |    8      |
+                                |-------------------|---------------|-----------|
+                                | float             |    f          |    4      |
+                                |-------------------|---------------|-----------|
+                                | double            |    d          |    8      |
+                                |-------------------|---------------|-----------|
+                                | string            |    s          |    ?      |
+                                |-------------------|---------------|-----------|
+
+    """
 
     payload = struct.pack("<HHHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), msg.msg_status, serialize_msg_type(msg),
                              serialize_msg_attrs(msg))
@@ -223,7 +176,7 @@ def cast_data(fmt_string, data):
     index = 0
     for i in fmt_string:
         if i.isalpha():
-            if i in "bBhHiIlLqQnN":
+            if i in "bBhHiIlLqQnN?":
                 result.append(int(data[index]))
             elif i in "fd":
                 result.append(float(data[index]))
@@ -247,7 +200,8 @@ def serialize_msg_attrs(msg):
     will be sent to the embedded core.
 
     '''
-    return msg.priority | (msg.response_req < 1)
+
+    return 0
 
 def serialize_response_code(message):
     '''
@@ -270,6 +224,12 @@ def serialize_response_code(message):
     elif m_type == 'PROPERTY':
         code = message.contents.get('PROPERTY', None)
 
+    elif m_type == 'STREAM':
+        code = message.contents.get('STREAM', None)
+
+    else:
+        raise Exception("Unhandled response code")
+
     return code
 
 def serialize_msg_type(msg):
@@ -285,18 +245,20 @@ def serialize_msg_type(msg):
     sub_type = get_sub_type(msg, cat)
     option = get_option(msg, cat, sub_type)
 
-    return (cat << CATEGORY_SHIFT) | (sub_type << SUB_TYPE_SHIFT) | (option << OPTION_SHIFT)
+    serial_type= (cat << CATEGORY_SHIFT) | (sub_type << SUB_TYPE_SHIFT) | (option << OPTION_SHIFT)
+
+    return serial_type
 
 def get_category(message):
 
     m_type = message.msg_type
 
-    if m_type == 'COMMAND' or m_type == 'PROPERTY':
-        return MessageType.Order
-    elif m_type == 'EVENT':
-        return MessageType.Notification
-    elif m_type == 'RESPONSE':
-        return MessageType.Order_Response
+    if m_type in ORDER_TYPES:
+        return MessageCategory.Order
+    elif m_type in NOTIFICATION_TYPES:
+        return MessageCategory.Order_Response
+    elif m_type in RESPONSE_TYPES:
+        return MessageCategory.Notification
     else:
         raise Exception('Unhandled message type!')
 
@@ -317,9 +279,12 @@ def get_sub_type(msg, category):
 
             return OrderSubType.Command
 
-        elif type == 'PROPERTY':
+        elif type == 'PROPERTY' or type == 'STREAM':
 
             return OrderSubType.Property
+
+        else:
+            raise Exception("Unsupported type")
 
     elif category == MessageType.Order_Response:
 
@@ -345,10 +310,17 @@ def get_option(msg, cat, sub_type):
             return OrderCommandOption.Normal
         elif sub_type == OrderSubType.Property:
 
-            if msg.contents["ACTION"] == "GET":
+
+            action = msg.contents.get("ACTION", None)
+            stop = msg.contents.get("STOP", None)
+            if action == "GET":
                 return OrderPropertyOption.Get_Property
-            elif msg.contents["ACTION"] == "SET":
+            elif action == "SET":
                 return OrderPropertyOption.Set_Property
+            elif not stop:
+                return OrderPropertyOption.Stream_On
+            elif stop:
+                return OrderPropertyOption.Stream_Off
             else:
                 raise Exception("Unsupported option")
 
@@ -424,6 +396,9 @@ def decode_pcom_message(binary_msg):
     # Remove null byte from all strings in data
     print msg.data
     msg.data = map(lambda s: s[:-1] if isinstance(s, basestring) else s, msg.data)
+
+    # Map booleans to numbers
+    msg.data = map(lambda s: int(s) if type(s) == bool else s, msg.data)
     # It's possible to receive empty strings for parameter requests.
     # In the case that we do receive an empty string we should not store it in data
     msg.data = filter(lambda x: x != '', msg.data)

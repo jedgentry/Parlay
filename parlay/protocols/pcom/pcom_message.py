@@ -16,19 +16,8 @@ from copy import deepcopy
 from parlay.protocols.utils import message_id_generator
 import serial_encoding
 from enums import *
+# from pcom_serial import command_map, property_map
 
-OPTION_MASK = 0x0f
-OPTION_SHIFT = 0
-
-SUB_TYPE_MASK = 0x30
-SUB_TYPE_SHIFT = 4
-
-CATEGORY_MASK = 0xc0
-CATEGORY_SHIFT = 6
-
-DISCOVERY_MESSAGES = [GET_ITEM_NAME, GET_ITEM_TYPE, GET_COMMAND_IDS, GET_PROPERTY_IDS, GET_COMMAND_NAME,
-                      GET_COMMAND_INPUT_PARAM_FORMAT, GET_COMMAND_INPUT_PARAM_NAMES, GET_COMMAND_OUTPUT_PARAM_DESC,
-                      GET_PROPERTY_NAME, GET_PROPERTY_TYPE, GET_SUBSYSTEMS]
 class PCOMMessage(object):
 
     # maps the TO/FROm name to ints, and from ints back to names
@@ -103,8 +92,18 @@ class PCOMMessage(object):
 
         return service_id
 
+
+
+
     @classmethod
     def from_dict_msg(cls, dict_msg):
+
+        """
+        Converts a dictionary message to a PCOM message object
+
+        :param dict_msg: JSON message
+        :return: PCOM message object
+        """
 
         msg_id = dict_msg['TOPICS']['MSG_ID']
 
@@ -121,6 +120,7 @@ class PCOMMessage(object):
         tx_type = dict_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
         contents = dict_msg['CONTENTS']
+
 
         msg = cls(to=to, from_=from_, msg_id=msg_id, response_req=response_req, msg_type=msg_type,
                   msg_status=msg_status, tx_type=tx_type, contents=contents)
@@ -142,7 +142,9 @@ class PCOMMessage(object):
         '''
 
 
-    def to_dict_msg(self, property_map, command_map):
+
+
+    def to_dict_msg(self):
         msg = {'TOPICS': {}, 'CONTENTS': {}}
         msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
@@ -160,17 +162,20 @@ class PCOMMessage(object):
                     msg['TOPICS']['MSG_TYPE'] = "COMMAND"
                     msg['CONTENTS']['COMMAND'] = self.response_code
             elif msg_sub_type == OrderSubType.Property:
-                msg['TOPICS']['MSG_TYPE'] == "PROPERTY"
-                msg['CONTENTS']['PROPERTY'] = property_map[self.from_][self.response_code].name
                 if msg_option == OrderPropertyOption.Get_Property:
+                    msg['TOPICS']['MSG_TYPE'] == "PROPERTY"
+                    msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['ACTION'] = "GET"
                 elif msg_option == OrderPropertyOption.Set_Property:
+                    msg['TOPICS']['MSG_TYPE'] == "PROPERTY"
+                    msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['ACTION'] = "SET"
                     msg['CONTENTS']['VALUE'] = self.data[0] # TODO: Support no data
                 elif msg_option == OrderPropertyOption.Stream_On:
-                    raise Exception("Stream not implemented yet")
+                    raise Exception("Stream on not handled yet")
                 elif msg_option == OrderPropertyOption.Stream_Off:
-                    raise Exception("Stream not implemented yet")
+                    raise Exception("Stream off not handled yet")
+
             else:
                 raise Exception("Unhandled message subtype {}", msg_sub_type)
 
@@ -188,14 +193,20 @@ class PCOMMessage(object):
                 elif msg_option == ResponseCommandOption.Inprogress:
                     raise Exception("Inprogress not supported yet")
             elif msg_sub_type == ResponseSubType.Property:
-                msg['CONTENTS']['ACTION'] = "RESPONSE"
-                msg['CONTENTS']['PROPERTY'] = self.response_code # TODO
+
                 if msg_option == ResponsePropertyOption.Get_Response:
+                    msg['CONTENTS']['ACTION'] = "RESPONSE"
+                    msg['CONTENTS']['PROPERTY'] = self.response_code  # TODO
                     msg['CONTENTS']['VALUE'] = self.data[0] # TODO: support empty data
                 elif msg_option == ResponsePropertyOption.Set_Response:
+                    msg['CONTENTS']['ACTION'] = "RESPONSE"
+                    msg['CONTENTS']['PROPERTY'] = self.response_code  # TODO
                     pass # NOTE: set responses do not have a 'value' field
                 elif msg_option == ResponsePropertyOption.Stream_Response:
-                    raise Exception("Stream responses not supported yet")
+                    msg['TOPICS']['MSG_TYPE'] = "STREAM"
+                    msg['TOPICS']['STREAM'] = self.response_code
+                    msg['CONTENTS']['VALUE'] = self.data[0]
+                    msg['CONTENTS']['RATE'] = 1000
 
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"

@@ -24,33 +24,48 @@ from parlay.protocols.utils import message_id_generator, timeout, MessageQueue, 
 from serial.tools import list_ports
 import pcom_message
 from serial_encoding import *
+from enums import *
 from collections import namedtuple
 import struct
 import time
 
-GET_ITEM_NAME = 1001
-GET_ITEM_TYPE = 1002
-GET_COMMAND_IDS = 1003
-GET_PROPERTY_IDS = 1004
-GET_COMMAND_NAME = 1010
-GET_COMMAND_INPUT_PARAM_FORMAT = 1011
-GET_COMMAND_INPUT_PARAM_NAMES = 1012
-GET_COMMAND_OUTPUT_PARAM_DESC = 1013
-GET_PROPERTY_NAME = 1020
-GET_PROPERTY_TYPE = 1021
+# Store a map of Item IDs -> Command ID -> Command Objects
+# Command objects will store the parameter -> format mapping
+command_map = {}
+
+# Store a map of properties. We must keep track of a
+# name -> format mapping in order to serialize data
+property_map = {}
+
+# NOTE: These are global because the serial_encoding.py and
+# pcom_message.py modules need access to them. Since they will
+# be large maps we do not want to pass them as parameters.
+
+# A namedtuple representing the information of each property.
+# This information will be retrieved during discovery.
+# name = string representing the name of the property
+# format = format describing the type of property.
+# Eg. If the property were a floating point value it would be 'f'
 
 PropertyData = namedtuple('PropertyData', 'name format')
+
+
 class PCOM_Serial(BaseProtocol, LineReceiver):
 
-    # Command code is 0x00 for discovery
-
+    # Constant number of retries before another message is sent out
+    # after not receiving an ACK
     NUM_RETRIES = 3
+
+    # The item ID of the protocol during discovery.
     DISCOVERY_SERVICE_CODE = 0xfefe
 
 
     # The minimum event ID. Some event IDs may need to be reserved
     # in the future.
     MIN_EVENT_ID = 0
+
+    # The number of bits reserved for the event ID in the serialized
+    # event protocol. Eg. if two bytes are reserved this number should be 16.
     NUM_EVENT_ID_BITS = 16
 
     # Number of bits we have for sequence number
@@ -72,7 +87,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         port = port[0] if isinstance(port, list) else port
 
         protocol = PCOM_Serial(broker)
-        print "Serial Port constructed with port " + str(port)
+
         SerialPort(protocol, port, broker.reactor, baudrate=57600)
 
         return protocol
@@ -104,7 +119,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     def __init__(self, broker):
         """
         :param broker: The Broker singleton that will route messages
-        :param system_ids: A list of system_ids that are connected, or None to do a discovery
 
         """
 
@@ -113,14 +127,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # the UI
         self.items = []
         self.item_ids = []
-
-        # Store a map of Item IDs -> Command ID -> Command Objects
-        # Command objects will store the parameter -> format mapping
-        self._command_map = {}
-
-        # Store a map of properties. We must keep track of a
-        # name -> format mapping in order to serialize data
-        self._property_map = {}
 
         BaseProtocol.__init__(self)
 
@@ -161,6 +167,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # back via asynchronous communication.
         self._ack_deferred = defer.Deferred()
 
+
     def _get_data_format(self, msg):
         '''
         Takes a msg and does the appropriate table lookup to obtain the
@@ -179,10 +186,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         if msg.msg_type == "COMMAND":
             # If the message type is "COMMAND" there should be an
             # entry in the 'CONTENTS' table for the command ID
-            if msg.to in self._command_map:
+            if msg.to in command_map:
                 # TODO: Check if s.contents['COMMAND'] is in the second level of the map
                 # command will be a CommandInfo object that has a list of parameters and format string
-                command = self._command_map[msg.to][msg.contents['COMMAND']]
+                command = command_map[msg.to][msg.contents['COMMAND']]
                 format = command.fmt
                 for param in command.params:
                     data.append(msg.contents[param] if msg.contents[param] is not None else 0)
@@ -197,13 +204,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                 data = []
                 format = ''
             elif action == "SET":
-                if msg.to in self._property_map:
-                    property = self._property_map[msg.to][msg.contents['PROPERTY']]
+                if msg.to in property_map:
+                    property = property_map[msg.to][msg.contents['PROPERTY']]
                     format = property.format
                     data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
                     data = cast_data(format, data)
-
-
 
         return (data, format)
 
@@ -223,9 +228,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # Turn it into a pcom message that we can understand.
         s = pcom_message.PCOMMessage.from_dict_msg(message)
         s.data, s.format_string = self._get_data_format(s)
-        print "DATA:", s.data
-        print "FORMAT: ", s.format_string
-
         # Serialize the message and prepare for protocol wrapping.
         packet = encode_pcom_message(s)
         need_ack = True
@@ -268,7 +270,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         if len(self._discovery_msg_ids) == 0:
             return
 
-        if msg.category() == MessageType.Order_Response and msg.msg_id in self._discovery_msg_ids:
+        if msg.category() == MessageCategory.Order_Response and msg.msg_id in self._discovery_msg_ids:
             # If the message was a response and matched an ID in the dictionary, remove it and fire the
             # corresponding Deferred object.
             self._discovery_msg_ids.pop(msg.msg_id).callback(msg)
@@ -498,18 +500,18 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         print "---> Subscribing to broker"
         for item_id in self.item_ids:
             self.broker.subscribe(self.add_message_to_queue, TO=item_id)
-            self._command_map[item_id] = {}
-            self._property_map[item_id] = {}
-            self._command_map[item_id][GET_ITEM_NAME] = CommandInfo("",[], ["Item name"])
-            self._command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
-            self._command_map[item_id][GET_COMMAND_IDS] = CommandInfo("",[], ["Command IDs"])
-            self._command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("",[], ["Property IDs"])
-            self._command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command id"], ["Command name"])
-            self._command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command id"], ["Command input format"])
-            self._command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command id"], ["Command input names"])
-            self._command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command id"], ["Command output names"])
-            self._command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property id"], ["Property name"])
-            self._command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property id"], ["Property type"])
+            command_map[item_id] = {}
+            property_map[item_id] = {}
+            command_map[item_id][GET_ITEM_NAME] = CommandInfo("",[], ["Item name"])
+            command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
+            command_map[item_id][GET_COMMAND_IDS] = CommandInfo("",[], ["Command IDs"])
+            command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("",[], ["Property IDs"])
+            command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command id"], ["Command name"])
+            command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command id"], ["Command input format"])
+            command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command id"], ["Command input names"])
+            command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command id"], ["Command output names"])
+            command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property id"], ["Property name"])
+            command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property id"], ["Property type"])
 
 
         # TODO: Explain this in comments
@@ -608,7 +610,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             command_input_format = yield self.get_command_input_param_format(item_id, command_id)
             command_input_param_names = yield self.get_command_input_param_names(item_id, command_id)
             command_output_desc = yield self.get_command_output_parameter_desc(item_id, command_id)
-            self._command_map[item_id][command_id] = CommandInfo(command_input_format, command_input_param_names, command_output_desc)
+            command_map[item_id][command_id] = CommandInfo(command_input_format, command_input_param_names, command_output_desc)
 
             command_dropdowns.append((command_name, command_id))
 
@@ -624,11 +626,12 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         for property_id in property_ids:
             property_name = yield self.get_property_name(item_id, property_id)
             property_type = yield self.get_property_type(item_id, property_id)
-            self._property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
+            property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
             print "--> Property name: ", property_name
 
             parlay_item.add_property(property_id, name=property_name)
+            parlay_item.add_datastream(property_id, name=property_name + "_stream")
 
         self.items.append(parlay_item)
 
@@ -660,74 +663,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
         # add the message to the queue
         self._message_queue.add(message)
-
-
-    def _encode_event(self, event_id, from_id, to_id, response_code, event_type, event_attrs, format_string, data=None):
-        '''
-        :param event_id: Identifier that is unique to the event.
-        :param from_id: AKA source ID. This will be the ID of the device in which the event comes from.
-        :param to_id: AKA destination ID. This will be the ID of the device that receives this message.
-        :param response_code: Depending on the type of event, this could be a command ID, property ID, or status code.
-        :param event_type: The type of message. Bits 0-3 are the subtype and bits 4-7 are the category.
-        :param event_attrs: Attributes of the event.
-                            Bit 0 is the priority of the event. A 0 represents normal priority
-                            and a 1 represents a high priority. High priority events are placed in the front of the queue
-                            (eg. an interrupt).
-                            Bit 1 is the response expected. It applies to orders only and is a way to send a command
-                            or property set without getting a response. (0 = response expected, 1 = no response expected).
-
-        :param format_string: Describes the structure of the data using a character for each type.
-                                -------------------------------------------------
-                                | Type              | Character     | # bytes   |
-                                |-------------------|---------------|-----------|
-                                | unsigned byte     |    B          |    1      |
-                                |-------------------|---------------|-----------|
-                                | signed byte       |    b          |    1      |
-                                |-------------------|---------------|-----------|
-                                | padding           |    x          |    1      |
-                                |-------------------|---------------|-----------|
-                                | character         |    c          |    1      |
-                                |-------------------|---------------|-----------|
-                                | unsigned short    |    H          |    2      |
-                                |-------------------|---------------|-----------|
-                                | signed short      |    h          |    2      |
-                                |-------------------|---------------|-----------|
-                                | unsigned int      |    I          |    4      |
-                                |-------------------|---------------|-----------|
-                                | signed int        |    i          |    4      |
-                                |-------------------|---------------|-----------|
-                                | unsigned long     |    Q          |    8      |
-                                |-------------------|---------------|-----------|
-                                | signed long       |    q          |    8      |
-                                |-------------------|---------------|-----------|
-                                | float             |    f          |    4      |
-                                |-------------------|---------------|-----------|
-                                | double            |    d          |    8      |
-                                |-------------------|---------------|-----------|
-                                | string            |    s          |    ?      |
-                                |-------------------|---------------|-----------|
-
-        :param data:
-        :return: Returns a string of bytes
-        '''
-
-
-        # Build the sequence of bytes that is to be sent serially to the Embedded Core Reactor
-
-        buffer = ''
-        buffer += struct.pack("<H", event_id)
-        buffer += struct.pack("<H", from_id)
-        buffer += struct.pack("<H", to_id)
-        buffer += struct.pack("<H", response_code)
-        buffer += struct.pack("<B", event_type)
-        buffer += struct.pack("<B", event_attrs)
-        buffer += struct.pack("<s", format_string)
-
-        # Don't send data if there isn't any to send.
-        if data is not None:
-            buffer += struct.pack("<s", data)
-
-        return buffer
 
     def _p_wrap(self, stream):
         '''
@@ -764,7 +699,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     def rawDataReceived(self, data):
         '''
-        This function is called whenever data appears on the serial port
+        This function is called whenever data appears on the serial port and raw mode is turned on.
         :param data:
         :return:
         '''
@@ -792,7 +727,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         elif is_nak:
             return  # ignore, the timeout will happen and handle a resend
 
-        parlay_msg = msg.to_dict_msg(self._property_map, self._command_map)
+        parlay_msg = msg.to_dict_msg()
         print "---> Message to be published: ", parlay_msg
         self.broker.publish(parlay_msg, self.transport.write)
 
