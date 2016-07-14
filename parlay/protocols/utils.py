@@ -118,7 +118,7 @@ def delay(seconds):
     :return:
     """
     d = defer.Deferred()
-    Broker.get_instance()._reactor.callLater(seconds, lambda: d.callback(None))
+    Broker.get_instance().reactor.callLater(seconds, lambda: d.callback(None))
     return d
 
 
