@@ -23,13 +23,14 @@ ext = '*.c'
 extensions = [Extension(name, [path]) for name, path in find_files(".", ext)]
 
 # wget the dist file and put it in /ui/dist
-response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
-html = response.read()
-if not os.path.exists(UI_LOCATION):
-    os.makedirs(UI_LOCATION)
+if not os.path.exists(UI_LOCATION + "/index.html"):
+  response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
+  html = response.read()
+  if not os.path.exists(UI_LOCATION):
+      os.makedirs(UI_LOCATION)
 
-with open(UI_LOCATION + "/index.html", 'w+') as index_file:
-    index_file.write(html)
+  with open(UI_LOCATION + "/index.html", 'w+') as index_file:
+      index_file.write(html)
 
 files = [os.path.relpath(filename, "parlay")
                              for module_name, filename in find_files(UI_LOCATION, "*")]
