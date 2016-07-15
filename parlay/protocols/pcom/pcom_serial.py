@@ -29,17 +29,7 @@ from collections import namedtuple
 import struct
 import time
 
-# Store a map of Item IDs -> Command ID -> Command Objects
-# Command objects will store the parameter -> format mapping
-command_map = {}
 
-# Store a map of properties. We must keep track of a
-# name -> format mapping in order to serialize data
-property_map = {}
-
-# NOTE: These are global because the serial_encoding.py and
-# pcom_message.py modules need access to them. Since they will
-# be large maps we do not want to pass them as parameters.
 
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
@@ -101,7 +91,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         '''
 
         default_args = BaseProtocol.get_open_params_defaults()
-
         potential_serials =  [port_list[0] for port_list in list_ports.comports()]
         default_args['port'] = potential_serials
         default_args['baudrate'] = [300, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400]
@@ -167,6 +156,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # back via asynchronous communication.
         self._ack_deferred = defer.Deferred()
 
+        # Store discovered item IDs so that we do not push duplicates to the
+        # item requesting the discovery
         self._already_discovered = set()
 
 
@@ -216,6 +207,26 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         return (data, format)
 
+    def send_error_message(self, original_message):
+        """
+        Sends a notification error to the destination ID.
+
+        :param destination_id:
+        :return:
+        """
+
+        INVALID = 0xff
+
+        msg_error = MessageCategory.Order_Response << CATEGORY_SHIFT | (INVALID & SUB_TYPE_MASK)
+
+        error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
+                                             msg_status = STATUS_ERROR, msg_id=original_message.msg_id)
+
+        json_msg = error_msg.to_dict_msg()
+
+        self.broker.publish(json_msg)
+
+
 
     @defer.inlineCallbacks
     def _send_message_down_transport(self, message):
@@ -233,7 +244,12 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         s = pcom_message.PCOMMessage.from_dict_msg(message)
         s.data, s.format_string = self._get_data_format(s)
         # Serialize the message and prepare for protocol wrapping.
-        packet = encode_pcom_message(s)
+        try:
+            packet = encode_pcom_message(s)
+        except:
+            self.send_error_message(original_message=s)
+            defer.returnValue(message)
+
         need_ack = True
 
         # Get the next sequence number and then wrap the protocol with

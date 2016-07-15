@@ -1,7 +1,17 @@
 from parlay.enum import enum
 
 
+# Store a map of Item IDs -> Command ID -> Command Objects
+# Command objects will store the parameter -> format mapping
+command_map = {}
 
+# Store a map of properties. We must keep track of a
+# name -> format mapping in order to serialize data
+property_map = {}
+
+# NOTE: These are global because the serial_encoding.py and
+# pcom_message.py modules need access to them. Since they will
+# be large maps we do not want to pass them as parameters.
 
 GET_SUBSYSTEMS = 0
 GET_ITEM_NAME = 1001
@@ -17,10 +27,12 @@ GET_PROPERTY_TYPE = 1021
 
 # From serial_encoding.py
 
-
 START_BYTE = 0x02
 END_BYTE = 0x03
 ESCAPE_BYTE = 0x10
+
+STATUS_SUCCESS = 0
+STATUS_ERROR = 1
 
 START_BYTE_STR = b'\x02'
 END_BYTE_STR  = b'\x03'
@@ -107,3 +119,25 @@ NotificationOptions = enum(
     'Info',
     'Debug'
 )
+
+STATUS_MAP = {
+    1000 : "PSTATUS_COMMAND_NOT_SUPPORTED",
+    1001 : "PSTATUS_NOT_INITIALIZED",
+    1005 : "PSTATUS_OVERRUN",
+    1006 : "PSTATUS_TIMEOUT",
+    1007 : "PSTATUS_NOT_FOUND",
+    1008 : "PSTATUS_NOT_IMPLEMENTED",
+    1010 : "PSTATUS_INVALID_ITEM",
+    1011 : "PSTATUS_INVALID_PARAMETER",
+    1012 : "PSTATUS_INVALID_EVENT_TYPE",
+    1013 : "PSTATUS_INVALID_POINTER",
+    1014 : "PSTATUS_INVALID_SIZE",
+    1015 : "PSTATUS_INVALID_DATA",
+    1016 : "PSTATUS_INVALID_STATE",
+    1017 : "PSTATUS_INVALID_COMMAND",
+    1020 : "PSTATUS_OS_INIT_ERROR",
+    1021 : "PSTATUS_OS_ERROR",
+    1030 : "PSTATUS_PROPERTY_NOT_SUPPORTED",
+    1031 : "PSTATUS_PROPERTY_NOT_WRITEABLE",
+    1032 : "PSTATUS_STREAM_NOT_SUPPORTED"
+}
