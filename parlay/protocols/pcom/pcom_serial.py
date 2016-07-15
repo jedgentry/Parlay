@@ -167,6 +167,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # back via asynchronous communication.
         self._ack_deferred = defer.Deferred()
 
+        self._already_discovered = set()
+
+
+
 
     def _get_data_format(self, msg):
         '''
@@ -483,16 +487,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # the embedded core should return with each subsystem as a
         # ID, Name pair (eg. (0, "IO_Control_board"))
 
-        subsystems = yield self._get_subsystems()
-        print "SUBSYTESMS", subsystems
+        subsystem_ids = yield self._get_subsystem_ids()
+        print "SUBSYTESMS", subsystem_ids
 
         # Convert subsystem IDs to ints so that we can send them
         # back down the serial line to retrieve their attached item
         # For each subsystem ID, fetch the items attached to it
 
-        for subsystem in subsystems:
-            print "Fetching items from subsystem ID: ", subsystem
-            response = yield self.send_command((1 << 8), "DIRECT")
+        for subsystem_id in subsystem_ids:
+            print "Fetching items from subsystem ID: ", subsystem_id
+            response = yield self.send_command(subsystem_id << 8, "DIRECT")
             self.item_ids = [int(item_id) for item_id in response.data]
 
         print "---> ITEM IDS FOUND: ", self.item_ids
@@ -533,18 +537,18 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
 
     @defer.inlineCallbacks
-    def _get_subsystems(self):
+    def _get_subsystem_ids(self):
         '''
         Sends a broadcast message. A broadcast message goes to the reactor and expects a list of
-        subsystems in return.
+        subsystem_IDs in return.
         :return:
         '''
 
         # NOTE: Multiple messages may be sent back for the subsystem
-        sub_systems = []
+        sub_system_ids = []
         response = yield self._send_broadcast_message()
-        sub_systems.extend(response.data)
-        defer.returnValue(sub_systems)
+        sub_system_ids.append(int(response.data[0]))
+        defer.returnValue(sub_system_ids)
 
     @defer.inlineCallbacks
     def get_discovery(self):
@@ -564,19 +568,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         if self._attached_system_d is not None:
             yield self._attached_system_d
 
-        # Initialize a discovered set. We don't want duplicates.
-        already_discovered = set()
         for item_id in self.item_ids:
-            print "ITEM ID: ", item_id, " in ", self.item_ids
             try:
-                yield self._fetch_system_discovery(item_id, already_discovered)
+                yield self._fetch_system_discovery(item_id)
             except Exception as e:
                 print("Exception while discovering! Skipping system : " + str(item_id) + "\n    " + str(e))
 
         defer.returnValue(BaseProtocol.get_discovery(self))
 
     @defer.inlineCallbacks
-    def _fetch_system_discovery(self, item_id, already_discovered):
+    def _fetch_system_discovery(self, item_id):
 
         # Subsystem ID is the high byte of the item ID
         # Note sure if I'll need this yet.
@@ -587,11 +588,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # the Deferred object's return value.
         # Otherwise add the item ID to the set of already discovered
         # IDs because we are about to discover it!
-        if item_id in already_discovered:
+        if item_id in self._already_discovered:
             defer.returnValue({})
         else:
             # add the item ID to the already_discovered set.
-            already_discovered.add(item_id)
+            self._already_discovered.add(item_id)
 
         discovery = {"Subsystem ID": subsystem_id}
         print "Running discovery on subsystem: ", subsystem_id
