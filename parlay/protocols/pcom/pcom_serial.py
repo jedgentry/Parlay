@@ -502,22 +502,35 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             self.broker.subscribe(self.add_message_to_queue, TO=item_id)
             command_map[item_id] = {}
             property_map[item_id] = {}
-            command_map[item_id][GET_ITEM_NAME] = CommandInfo("",[], ["Item name"])
-            command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
-            command_map[item_id][GET_COMMAND_IDS] = CommandInfo("",[], ["Command IDs"])
-            command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("",[], ["Property IDs"])
-            command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command id"], ["Command name"])
-            command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command id"], ["Command input format"])
-            command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command id"], ["Command input names"])
-            command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command id"], ["Command output names"])
-            command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property id"], ["Property name"])
-            command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property id"], ["Property type"])
+            self.initialize_command_map(item_id)
+
 
 
         # TODO: Explain this in comments
         d = self._attached_system_d
         self._attached_system_d = None
         d.callback(None)
+
+    def initialize_command_map(self, item_id):
+        """
+        Creates the discovery command entries in the command map for the specified item ID.
+        :param item_id: Item ID found during discovery.
+        :return: None
+        """
+        command_map[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
+        command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
+        command_map[item_id][GET_COMMAND_IDS] = CommandInfo("", [], ["Command IDs"])
+        command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("", [], ["Property IDs"])
+        command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command id"], ["Command name"])
+        command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command id"],
+                                                                           ["Command input format"])
+        command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command id"], ["Command input names"])
+        command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command id"], ["Command output names"])
+        command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property id"], ["Property name"])
+        command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property id"], ["Property type"])
+
+        return
+
 
     @defer.inlineCallbacks
     def _get_subsystems(self):
