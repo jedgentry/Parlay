@@ -265,7 +265,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         num_retries_left = self.NUM_RETRIES
         while need_ack and num_retries_left > 0:
             try:
-                ack_sequence_num = yield timeout(self._ack_deferred, .5)
+                ack_sequence_num = yield timeout(self._ack_deferred, 20)
                 if ack_sequence_num == sequence_num:
                     need_ack = False  # we got it, no need to wait
                 else:
