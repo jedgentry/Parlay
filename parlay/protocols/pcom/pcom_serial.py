@@ -220,7 +220,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         msg_error = MessageCategory.Order_Response << CATEGORY_SHIFT | (INVALID & SUB_TYPE_MASK)
 
         error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
-                                             msg_status = STATUS_ERROR, msg_id=original_message.msg_id)
+                                             msg_status = PSTATUS_INVALID_PARAMETER, msg_id=original_message.msg_id)
 
         json_msg = error_msg.to_dict_msg()
 

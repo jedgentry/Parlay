@@ -16,7 +16,6 @@ from copy import deepcopy
 from parlay.protocols.utils import message_id_generator
 import serial_encoding
 from enums import *
-# from pcom_serial import command_map, property_map
 
 class PCOMMessage(object):
 
@@ -92,9 +91,6 @@ class PCOMMessage(object):
 
         return service_id
 
-
-
-
     @classmethod
     def from_dict_msg(cls, dict_msg):
 
@@ -149,12 +145,22 @@ class PCOMMessage(object):
         msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
         msg['TOPICS']['MSG_ID'] = self.msg_id
-        msg['TOPICS']['RESPONSE_REQ'] = self._is_response_req()
         msg['TOPICS']['TX_TYPE'] = "DIRECT"
+
+        if self.msg_status != STATUS_SUCCESS:
+            msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
+            msg['CONTENTS']['STATUS'] = self.msg_status
+            msg['TOPICS']['MSG_STATUS'] = "ERROR"
+            msg['CONTENTS']['DESCRIPTION'] = STATUS_MAP[self.msg_status]
+            msg['TOPICS']['RESPONSE_REQ'] = False
+            return msg
 
         msg_category = self.category()
         msg_sub_type = self.sub_type()
         msg_option = self.option()
+
+        msg['TOPICS']['RESPONSE_REQ'] = self._is_response_req()
+
 
         if msg_category == MessageCategory.Order:
             if msg_sub_type == OrderSubType.Command:
@@ -182,18 +188,18 @@ class PCOMMessage(object):
         elif msg_category == MessageCategory.Order_Response:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
             msg['CONTENTS']['STATUS'] = self.msg_status
-            msg['TOPICS']['MSG_STATUS'] = "OK"
             if msg_sub_type == ResponseSubType.Command:
+                msg['TOPICS']['MSG_STATUS'] = "OK"
                 if msg_option == ResponseCommandOption.Complete:
-                    print "RESPONSE CODE:", self.response_code
-                    if self.response_code not in DISCOVERY_MESSAGES:
-                        msg['CONTENTS']['RESULT'] = dict(zip(command_map[self.from_][self.response_code].output_names, self.data)) # Maybe need to change to tuple or something
+                    item = command_map.get(self.from_, None)
+                    if item:
+                        msg['CONTENTS']['RESULT'] = self._get_result_string(item[self.response_code].output_names, self.data) # Maybe need to change to tuple or something
                     else:
                         msg['CONTENTS']['RESULT'] = {}
                 elif msg_option == ResponseCommandOption.Inprogress:
                     raise Exception("Inprogress not supported yet")
             elif msg_sub_type == ResponseSubType.Property:
-
+                msg['TOPICS']['MSG_STATUS'] = "OK"
                 if msg_option == ResponsePropertyOption.Get_Response:
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
                     msg['CONTENTS']['PROPERTY'] = self.response_code  # TODO
@@ -212,9 +218,25 @@ class PCOMMessage(object):
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
             msg['CONTENTS']['EVENT'] = self.response_req
 
+
         return msg
 
+    def _get_result_string(self, output_param_names, data_list):
+        """
+        Given the output names of a command and a data list, returns a dictionary of output_names -> data
 
+        :param output_param_names: The output names of a command found during discovery
+        :param data_list: The data passed to the protocol from the command
+        :return: a dictionary of output names mapped to their data segments
+        """
+
+        # If the first output parameter is a list then simply return
+        # a all of the data
+        if output_param_names[0][-2:] == "[]":
+            return {output_param_names[0]: self.data}
+        # Otherwise return a map of output names -> data
+        else:
+            return dict(zip(output_param_names, self.data))
 
     def category(self):
         return (self.msg_type & CATEGORY_MASK) >> CATEGORY_SHIFT
@@ -269,14 +291,6 @@ class PCOMMessage(object):
     @format_string.setter
     def format_string(self, value):
         # if value is a string, do a lookup for the int
-        '''
-         if isinstance(value, basestring) and hasattr(MsgDataType, value.upper()):
-            value = getattr(MsgDataType, value.upper())
-        # otherwise, if we're already an int
-        elif not is_valid_enum_value(MsgDataType, value):
-            raise ValueError("{} is not a valid option for MsgDataType".format(value))
-
-            '''
         self._format_string = value
 
     @property
