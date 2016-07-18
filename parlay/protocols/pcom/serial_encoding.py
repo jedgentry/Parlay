@@ -176,14 +176,18 @@ def cast_data(fmt_string, data):
     index = 0
     for i in fmt_string:
         if i.isalpha():
-            if i in "bBhHiIlLqQnN?":
+            if i in "bBhHiIlLqQnN?x": #TODO: Should padding (x) be int?
                 result.append(int(data[index]))
             elif i in "fd":
                 result.append(float(data[index]))
-            elif i is "s":
-                pass
+            elif i in "c":
+                result.append(str(data[index]))
+            elif i in "s":
+                Exception("String unhandled")
             else:
                 raise Exception("Unhandled data type")
+        else:
+            raise Exception("Format string wasn't of type string")
 
             index+=1
 

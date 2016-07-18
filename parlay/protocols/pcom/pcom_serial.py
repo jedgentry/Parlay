@@ -205,6 +205,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                     data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
                     data = cast_data(format, data)
 
+        print "DATA: ", data, "FORMAT: ", format
         return (data, format)
 
     def send_error_message(self, original_message):
