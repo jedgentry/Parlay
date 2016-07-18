@@ -477,6 +477,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         I wrote a function _get_attached_systems() that is called here and also when a discovery takes place.
         :return: None
         '''
+        print "Connection made!"
         self._get_attached_systems()
         return
 
