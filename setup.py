@@ -46,4 +46,7 @@ setup(
     install_requires=["Twisted >=15.0.0",
                       "autobahn >=0.9.0",
                       "service-identity >=14.0.0",
-                      "pyserial < 3.0.0"])
+                      "pyserial < 3.0.0"],
+    extras_require={
+        "secure": ["cryptography>=1.2.1", "pyOpenSSL>=0.15.1", "cffi>=1.5.0"]
+    })

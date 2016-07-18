@@ -1,5 +1,4 @@
 autobahn>=0.11.0
-cffi>=1.5.0
 characteristic>=14.3.0
 enum34>=1.1.2
 idna>=2.0
