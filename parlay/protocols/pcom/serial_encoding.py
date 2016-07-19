@@ -36,43 +36,36 @@ FORMAT_STRING_TABLE = {
 }
 
 
-def deserialize_type(type_byte):
+def p_wrap(stream):
+    """
+    Do the promenade wrap! The promenade protocol looks like:
 
-    '''
+    START BYTE <byte sequence> END BYTE
 
-    Translates the serialized type byte to a JSON message type
+    Where START BYTE and END BYTE are 0x02 and 0x02 (for now at least).
 
-    '''
+    Since there is a possibility of 0x02 and 0x03 appearing in the data stream we must added 0x10 to all
+    0x10, 0x02, 0x03 bytes and 0x10 should be inserted before each "problem" byte.
 
-    # TODO: Handle streams and other response sub types
-    category = type_byte & 0xf0
-    sub_type = type_byte & 0x0f
+    For example
 
-    msg_type = ""
+    stream = 0x03 0x04 0x05 0x06 0x07
+    p_wrap(stream) = 0x02 0x10 0x13 0x04 0x05 0x06 0x07 0x03
 
-    if category == MessageCategory.Order:
-        if sub_type == OrderSubType.Command:
-            msg_type = "COMMAND"
+    :param stream: A raw stream of bytes
+    :return: A bytearray that has been run through the Promenade protocol
+    """
+
+    msg = bytearray()
+    msg.append(START_BYTE)  # START
+    for b in stream:
+        if b in [START_BYTE, ESCAPE_BYTE, END_BYTE]:
+            msg.append(ESCAPE_BYTE)
+            msg.append(b + ESCAPE_BYTE)
         else:
-            msg_type = "PROPERTY"
-    elif category == MessageCategory.Order_Response:
-        msg_type = "RESPONSE"
-    elif category == MessageType.Notification:
-        msg_type = "EVENT"
-
-    else:
-        raise Exception("Unhandled type category")
-
-
-    return msg_type
-
-def deserialize_subtype(type_byte):
-    serial_subtype = type_byte & SUBTYPE_MASK
-    serial_msg_type = type_byte & TYPE_MASK
-    r_subtype = None
-
-    if serial_msg_type == MessageCategory.Order:
-        r_subtype = order_map[serial_subtype]
+            msg.append(b)
+    msg.append(END_BYTE)
+    return msg
 
 
 def ack_nak_message(sequence_num, is_ack):
@@ -86,20 +79,6 @@ def ack_nak_message(sequence_num, is_ack):
 
     type_mask = TYPE_ACK if is_ack else TYPE_NAK
     return bytearray([sequence_num | type_mask, 0x100 - (sequence_num | type_mask), 0, 0])
-
-def get_unpack_format(input_format, data):
-
-    output_format = ""
-    index = 0
-
-    digit_str = ""
-    for char in input_format:
-        if char.isdigit():
-            d
-        else:
-            output_format += char
-
-
 
 
 def encode_pcom_message(msg):
@@ -173,6 +152,10 @@ def encode_pcom_message(msg):
     return payload
 
 def expand_fmt_string(format_string):
+    """
+    :param format_string:
+    :return:
+    """
 
     multiplier = ''
     result = ''
@@ -183,11 +166,18 @@ def expand_fmt_string(format_string):
         else:
             multiplier = 1 if multiplier is '' else int(multiplier)
             result += multiplier * i
-            multiplier = '' # reset multiplier
+            multiplier = ''  # reset multiplier
 
     return result
 
+
 def cast_data(fmt_string, data):
+    """
+    :param fmt_string:
+    :param data:
+    :return:
+    """
+
     result = []
     index = 0
     for i in expand_fmt_string(fmt_string):
@@ -209,24 +199,21 @@ def cast_data(fmt_string, data):
     return result
 
 
-
 def serialize_msg_attrs(msg):
-    '''
-
+    """
     :param msg: A Message object that was translated from a Parlay JSON message
     :return: A byte representing the attributes field of the byte sequence. This
     will be sent to the embedded core.
-
-    '''
+    """
 
     return 0
 
-def serialize_response_code(message):
-    '''
 
+def serialize_response_code(message):
+    """
     :param msg_type: The message type of the dictionary message
     :return:
-    '''
+    """
 
     m_type = message.msg_type
     code = None
@@ -250,14 +237,13 @@ def serialize_response_code(message):
 
     return code
 
+
 def serialize_msg_type(msg):
-
-    '''
+    """
     Converts the message type to a binary sequence.
-
     :param msg:
     :return:
-    '''
+    """
 
     cat = get_category(msg)
     sub_type = get_sub_type(msg, cat)
@@ -267,8 +253,12 @@ def serialize_msg_type(msg):
 
     return serial_type
 
-def get_category(message):
 
+def get_category(message):
+    """
+    :param message:
+    :return:
+    """
     m_type = message.msg_type
 
     if m_type in ORDER_TYPES:
@@ -281,14 +271,13 @@ def get_category(message):
         raise Exception('Unhandled message type!')
 
 def get_sub_type(msg, category):
-    '''
+    """
     Extracts the subcategory from the parameter msg
 
     TODO: Clean this function up!
-    '''
+    """
 
     # Possibly use dictionaries to map
-
 
     type = msg.msg_type
     if category == MessageCategory.Order:
@@ -322,6 +311,13 @@ def get_sub_type(msg, category):
 
 
 def get_option(msg, cat, sub_type):
+    """
+
+    :param msg:
+    :param cat:
+    :param sub_type:
+    :return:
+    """
 
     if cat == MessageCategory.Order:
         if sub_type == OrderSubType.Command:
@@ -360,15 +356,13 @@ def get_option(msg, cat, sub_type):
         raise Exception("Unhandled category")
 
 
-
-
-
 def decode_pcom_message(binary_msg):
     """
     Build a pcom message object from the serialized message
     :type binary_msg: str
     :return : PCOMMessage
     """
+
     msg_length = len(binary_msg)
 
     # ensure the packet is big enough
@@ -424,14 +418,15 @@ def decode_pcom_message(binary_msg):
     print msg.data
     return msg
 
+
 def get_str_len(bin_data):
-    '''
+    """
     Helper function that gets the length of a binary sequence up to
     and including the NULL byte.
 
     :param bin_data: binary byte sequence
     :return: count (including NULL byte) of bytes
-    '''
+    """
 
     count = 0
     for i in bin_data:
@@ -439,11 +434,12 @@ def get_str_len(bin_data):
             count += 1
         else:
             return count + 1 # Include NULL byte
-    raise Exception("Data string wasn't NULL terminated")
+    raise E
+    xception("Data string wasn't NULL terminated")
+
 
 def translate_fmt_str(fmt_str, data):
-    '''
-
+    """
     Given a format string used in the Embedded Core Protocol and a binary message
     returns a format string that may be used in the Python struct library.
 
@@ -458,7 +454,7 @@ def translate_fmt_str(fmt_str, data):
     :param bin_data: Binary sequence of bytes where strings are NULL terminated
     :return: a new format string where 's' is replaced by '<len>s' where len is the length
     of the string represented by 's'.
-    '''
+    """
 
     output_str = ""
     int_holder = ''
@@ -488,7 +484,13 @@ def translate_fmt_str(fmt_str, data):
 
     return output_str
 
+
 def pack_little_endian(type_string, list):
+    """
+    :param type_string:
+    :param list:
+    :return:
+    """
     a = array.array(type_string, list)
     if sys.byteorder != 'little':
         a.byteswap()
@@ -499,8 +501,11 @@ def pack_little_endian(type_string, list):
 # TESTING PURPOSES
 
 def hex_print(buf):
+    """
+    :param buf:
+    :return:
+    """
     print [hex(ord(x)) for x in buf]
-
 
 
 def wrap_packet(packet, sequence_num, use_ack):
@@ -545,6 +550,7 @@ def unstuff_packet(packet):
     Unstuff the packet. Descape and return sequence number, ack_expected, is_ack, and is_nak, dict_msg as a tuple
     dict_msg is the message (if there is one) or None (if it's an ack/nak)
     """
+
     packet = _deescape_packet(packet)
     packet_len = len(packet)
 
@@ -570,36 +576,44 @@ def unstuff_packet(packet):
     return sequence_num, ack_expected, is_ack, is_nak, dict_msg
 
 
-
 def verify_packet(packet):
-    '''
+    """
     Ensures that the packet's sum is zero.
     :param packet:
     :return:
-    '''
+    """
+
     sum = 0
     for i in packet:
         sum += i
 
     return sum & 0xff
 
+
 def _escape_packet(packet):
-        """
-        prepare the packet by adding the start (0x02) stop (0x03) and escape(0x10) characters
-        Add escape char in front of  start, stop and escape
-        """
-        msg = bytearray()
-        msg.append(START_BYTE) # START
-        for b in packet:
-            if b == START_BYTE or b == END_BYTE or b == ESCAPE_BYTE:   # if b is an escape values
-                msg.append(ESCAPE_BYTE)
-                msg.append(b + ESCAPE_BYTE)
-            else:
-                msg.append(b)
-        msg.append(END_BYTE)
-        return msg
+    """
+    Prepare the packet by adding the start (0x02) stop (0x03) and escape(0x10) characters
+    Add escape char in front of  start, stop and escape
+    """
+
+    msg = bytearray()
+    msg.append(START_BYTE) # START
+    for b in packet:
+        if b == START_BYTE or b == END_BYTE or b == ESCAPE_BYTE:   # if b is an escape values
+            msg.append(ESCAPE_BYTE)
+            msg.append(b + ESCAPE_BYTE)
+        else:
+            msg.append(b)
+    msg.append(END_BYTE)
+    return msg
+
 
 def _deescape_packet(packet):
+    """
+    :param packet:
+    :return:
+    """
+
     result = bytearray()
     escaped = False
              #get rid of START and STOP byte
@@ -614,12 +628,16 @@ def _deescape_packet(packet):
 
     return result
 
+
 def checksum_calc(msg):
-        """Calculate the checksum for the given msg """
-        checksum = 0
-        for b in msg:
-            checksum = (checksum + b) & 0xff
-        return checksum
+    """
+    Calculate the checksum for the given msg
+    """
+
+    checksum = 0
+    for b in msg:
+        checksum = (checksum + b) & 0xff
+    return checksum
 
 
 

@@ -13,10 +13,8 @@ from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import defer
 
-# Testing
-from parlay import parlay_command, start
-# Testing
-from parlay.protocols.serial_line import ASCIILineProtocol, LineItem
+from parlay import start
+
 
 from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
@@ -28,8 +26,6 @@ from enums import *
 from collections import namedtuple
 import struct
 import time
-
-
 
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
@@ -49,7 +45,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     # The item ID of the protocol during discovery.
     DISCOVERY_CODE = 0xfefe
 
-
     # The minimum event ID. Some event IDs may need to be reserved
     # in the future.
     MIN_EVENT_ID = 0
@@ -61,17 +56,15 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     # Number of bits we have for sequence number
     SEQ_BITS = 4
 
-
     @classmethod
     def open(cls, broker, port, baudrate):
-        '''
-
+        """
         :param cls: The class object
         :param broker: current broker instance
         :param port: the serial port device to use.
+        :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
-
-        '''
+        '"""
 
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
@@ -84,31 +77,30 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     @classmethod
     def get_open_params_defaults(cls):
-
-        '''
+        """
         Returns a list of parameters defaults. These will be displayed in the UI.
         :return:
-        '''
+        """
 
         default_args = BaseProtocol.get_open_params_defaults()
-        potential_serials =  [port_list[0] for port_list in list_ports.comports()]
+        potential_serials = [port_list[0] for port_list in list_ports.comports()]
         default_args['port'] = potential_serials
         default_args['baudrate'] = [300, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400]
 
         return default_args
 
     def close(self):
-        '''
+        """
         Simply close the connectection
         :return:
-        '''
+        """
+
         self.transport.loseConnection()
         return defer.succeed(None)
 
     def __init__(self, broker):
         """
         :param broker: The Broker singleton that will route messages
-
         """
 
         # A list of items that we will need to discover for.
@@ -151,7 +143,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # 2^SEQ_BITS where SEQ_BITS is a member constant that can easily be changed
         self._seq_num = message_id_generator((2**self.SEQ_BITS))
 
-
         # ACKs should be deferred objects because you want to catch them on the way
         # back via asynchronous communication.
         self._ack_deferred = defer.Deferred()
@@ -160,11 +151,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # item requesting the discovery
         self._already_discovered = set()
 
-
-
-
-    def _get_data_format(self, msg):
-        '''
+    @staticmethod
+    def _get_data_format(msg):
+        """
         Takes a msg and does the appropriate table lookup to obtain the
         format data for the command/property/stream.
 
@@ -173,10 +162,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         :param msg:
         :return:
-        '''
+        """
 
         data = []
-        format = ''
+        fmt = ''
 
         if msg.msg_type == "COMMAND":
             # If the message type is "COMMAND" there should be an
@@ -185,7 +174,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                 # TODO: Check if s.contents['COMMAND'] is in the second level of the map
                 # command will be a CommandInfo object that has a list of parameters and format string
                 command = command_map[msg.to][msg.contents['COMMAND']]
-                format = command.fmt
+                fmt = command.fmt
                 for param in command.params:
                     data.append(msg.contents[param] if msg.contents[param] is not None else 0)
 
@@ -197,32 +186,30 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
             if action == "GET":
                 data = []
-                format = ''
+                fmt = ''
             elif action == "SET":
                 if msg.to in property_map:
-                    property = property_map[msg.to][msg.contents['PROPERTY']]
-                    format = property.format
+                    prop = property_map[msg.to][msg.contents['PROPERTY']]
+                    fmt = prop.format
                     data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
-                    data = cast_data(format, data)
+                    data = cast_data(fmt, data)
 
         print "DATA: ", data, "FORMAT: ", format
-        return (data, format)
+        return data, fmt
 
     def send_error_message(self, original_message):
         """
         Sends a notification error to the destination ID.
 
-        :param destination_id:
+        :param original_message:
         :return:
         """
 
         error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
-                                             msg_status = PSTATUS_INVALID_PARAMETER, msg_id=original_message.msg_id)
+                                             msg_status=PSTATUS_INVALID_PARAMETER, msg_id=original_message.msg_id)
 
         json_msg = error_msg.to_dict_msg()
         self.broker.publish(json_msg)
-
-
 
     @defer.inlineCallbacks
     def _message_queue_handler(self, message):
@@ -234,7 +221,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         :type message dict
         """
-
 
         # Turn it into a pcom message that we can understand.
         s = pcom_message.PCOMMessage.from_dict_msg(message)
@@ -291,27 +277,27 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             # corresponding Deferred object.
             self._discovery_msg_ids.pop(msg.msg_id).callback(msg)
 
-
-    '''
+    """
 
     The following functions aid in the discovery protocol.
     They may be condensed into fewer functions that require
     more parameters, but I thought abstracting each message
     would making understanding the protocol easier.
 
-    '''
+    """
 
     @defer.inlineCallbacks
     def get_property_name(self, to, requested_property_id):
-        '''
+        """
         Sends a message down the serial line requesting the command name of a given command ID,
         used in discovery protocol
         :param to: destination item ID
         :param requested_property_id: property ID that we want to know the name of
         :return: name of the property from Embedded Core
-        '''
+        """
 
-        response = yield self.send_command(to, command_id=GET_PROPERTY_NAME, params=["property id"], data=[requested_property_id])
+        response = yield self.send_command(to, command_id=GET_PROPERTY_NAME, params=["property id"],
+                                           data=[requested_property_id])
 
         # The data in the response message will be a list,
         # the property name should be in the 0th position
@@ -320,15 +306,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     @defer.inlineCallbacks
     def get_command_name(self, to, requested_command_id):
-        '''
-        Sends a message down the serial line requesting the property name of a given property ID,
+        """
+        Sends a messge down the serial line requesting the property name of a given property ID,
         used in discovery protocol
         :param to: destination ID
         :param requested_command_id: command ID that we want to know the name of
         :return: name from Embedded Core
-        '''
+        """
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_NAME, params=["command id"], data=[requested_command_id])
+        response = yield self.send_command(to, command_id=GET_COMMAND_NAME, params=["command id"],
+                                           data=[requested_command_id])
 
         # The data in the response message will be a list,
         # the command name should be in the 0th position
@@ -336,7 +323,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     @defer.inlineCallbacks
     def get_command_input_param_format(self, to, requested_command_id):
-        '''
+        """
         Given a command ID and item ID, sends a message to the item ID requesting
         the format of its input parameters. This functions should return a string
         that describes each parameter. NOTE: variable arrays are indicated with a *.
@@ -345,18 +332,19 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :param to: destination item ID
         :param requested_command_id: command ID that we want the parameter format of
         :return: format string describing input parameters
-        '''
+        """
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command id"], data=[requested_command_id])
+        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command id"],
+                                           data=[requested_command_id])
 
-        print "---> INPURT PARAM FORMAT"
+        print "---> INPUT PARAM FORMAT"
 
-        r_Val = '' if len(response.data) == 0 else response.data[0]
-        defer.returnValue(r_Val)
+        r_val = '' if len(response.data) == 0 else response.data[0]
+        defer.returnValue(r_val)
 
     @defer.inlineCallbacks
     def get_command_input_param_names(self, to, requested_command_id):
-        '''
+        """
         Given an item ID and a command ID, requests the parameter names of the command from the item.
         Returns a list of names (comma delimited) that represent the parameter names.
 
@@ -366,10 +354,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :param to: destination item ID
         :param requested_command_id: command id to find the parameter names of
         :return: a list of parameter names
-        '''
+        """
 
         print "Fetching input parameter names of command ID: ", requested_command_id
-        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command id"], data=[requested_command_id])
+        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command id"],
+                                           data=[requested_command_id])
         print "RAW INPUT NAMES: ", response.data
 
         param_names = [] if len(response.data) == 0 else response.data[0].split(',')
@@ -389,34 +378,32 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :return: a list of parameter names
         """
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command id"], data=[requested_command_id])
+        response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command id"],
+                                           data=[requested_command_id])
         list_of_names = [] if len(response.data) == 0 else response.data[0].split(",")
 
-        "---> PARAMETER DESCRIPTION ", response.data
         defer.returnValue(list_of_names)
-
 
     @defer.inlineCallbacks
     def get_property_type(self, to, requested_property_id):
-        '''
+        """
         Given a property ID, requests the property's type from the item ID.
         Gets back a format string.
 
         :param to: destination item ID
         :param requested_property_id: property ID that we want the type of
         :return: format string describing the type
-        '''
-        response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property id"], data=[requested_property_id])
-        print "PROPERTY TYPE: ", response.data
-        r_Val = '' if len(response.data) == 0 else response.data[0]
-        defer.returnValue(r_Val)
+        """
 
+        response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property id"],
+                                           data=[requested_property_id])
+        print "PROPERTY TYPE: ", response.data
+        r_val = '' if len(response.data) == 0 else response.data[0]
+        defer.returnValue(r_val)
 
     def send_command(self, to, tx_type="DIRECT", command_id=0, msg_status="INFO", response_req=True, params=[], data=[]):
         """
-
         Send a command and return a deferred that will succeed on a response and with the response
-
         """
 
         # Increment the event ID
@@ -447,7 +434,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # If data was given via function arguments we need to pack it
         # into the contents portion of the message to resemble a JSON message.
-        for data_pair in zip(params,data):
+        for data_pair in zip(params, data):
             contents[data_pair[0]] = data_pair[1]
 
         # If we need to wait the result should be a deferred object.
@@ -464,29 +451,29 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         return result
 
     def connectionMade(self):
-        '''
+        """
         The initializer for the protocol. This function is called when a connection to the server
         (broker in our case) has been established. Keep this function LIGHT, it should not take a long time
         to fetch the subsystem and item IDs. The user typically shouldn't notice.
 
         I wrote a function _get_attached_items() that is called here and also when a discovery takes place.
         :return: None
-        '''
+        """
+
         print "Connection made!"
         self._get_attached_items()
         return
 
     @defer.inlineCallbacks
     def _get_attached_items(self):
-        '''
+        """
         Populates self.items with all attached item IDs
         NOTE: This is a subroutine of the discovery process. This method should be lightweight because
         it also going to be called upon connection establishment. We don't want the user waiting around forever
         when their device is connected.
 
         :return:
-
-        '''
+        """
 
         # If we have stored systems, return them first
         while self._attached_item_d is not None:
@@ -501,7 +488,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # ID, Name pair (eg. (0, "IO_Control_board"))
 
         subsystem_ids = yield self._get_subsystem_ids()
-        print "SUBSYTESMS", subsystem_ids
+        print "SUBSYSTEMS:", subsystem_ids
 
         # Convert subsystem IDs to ints so that we can send them
         # back down the serial line to retrieve their attached item
@@ -510,7 +497,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         for subsystem_id in subsystem_ids:
             print "Fetching items from subsystem ID: ", subsystem_id
             response = yield self.send_command(subsystem_id << 8, "DIRECT")
-            self.item_ids = [int(item_id) for item_id in response.data] #TODO: Change to extend() to get all item IDs
+            self.item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
 
         print "---> ITEM IDS FOUND: ", self.item_ids
 
@@ -519,21 +506,21 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             self.broker.subscribe(self.add_message_to_queue, TO=item_id)
             command_map[item_id] = {}
             property_map[item_id] = {}
-            self.initialize_command_map(item_id)
-
-
+            PCOM_Serial.initialize_command_map(item_id)
 
         # TODO: Explain this in comments
         d = self._attached_item_d
         self._attached_item_d = None
         d.callback(None)
 
-    def initialize_command_map(self, item_id):
+    @staticmethod
+    def initialize_command_map(item_id):
         """
         Creates the discovery command entries in the command map for the specified item ID.
         :param item_id: Item ID found during discovery.
         :return: None
         """
+
         command_map[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
         command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
         command_map[item_id][GET_COMMAND_IDS] = CommandInfo("", [], ["Command IDs"])
@@ -548,14 +535,13 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         return
 
-
     @defer.inlineCallbacks
     def _get_subsystem_ids(self):
-        '''
+        """
         Sends a broadcast message. A broadcast message goes to the reactor and expects a list of
         subsystem_IDs in return.
         :return:
-        '''
+        """
 
         # NOTE: Multiple messages may be sent back for the subsystem
         sub_system_ids = []
@@ -566,13 +552,12 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     @defer.inlineCallbacks
     def get_discovery(self):
         """
-
         Hitting the "discovery" button on the UI triggers this generator.
 
         Run a discovery for everything connected to this protocol and return a list of of all connected:
         items, messages, and endpoint types
-
         """
+
         print "----------------------------"
         print "Discovery function started!"
         print "----------------------------"
@@ -591,11 +576,14 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, item_id):
+        """
+        :param item_id:
+        :return:
+        """
 
         # Subsystem ID is the high byte of the item ID
         # Note sure if I'll need this yet.
         subsystem_id = item_id << 8
-
 
         # If the item was already discovered attach nothing to
         # the Deferred object's return value.
@@ -664,9 +652,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         defer.returnValue(discovery)
 
-
-
     def _send_broadcast_message(self):
+        """
+        :return:
+        """
 
         # The item ID of the reactor is 0, which is where we want our broadcast message to go to.
         device_id = 0
@@ -688,48 +677,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         :param message : A parlay dictionary message
         """
+
         # add the message to the queue
         self._message_queue.add(message)
 
-    def _p_wrap(self, stream):
-        '''
-        Do the promenade wrap! The promenade protocol looks like:
-
-        START BYTE <byte sequence> END BYTE
-
-        Where START BYTE and END BYTE are 0x02 and 0x02 (for now at least).
-
-        Since there is a possibility of 0x02 and 0x03 appearing in the data stream we must added 0x10 to all
-        0x10, 0x02, 0x03 bytes and 0x10 should be inserted before each "problem" byte.
-
-        For example
-
-        stream = 0x03 0x04 0x05 0x06 0x07
-        _p_wrap(stream) = 0x02 0x10 0x13 0x04 0x05 0x06 0x07 0x03
-
-        :param stream: A raw stream of bytes
-        :return: A bytearray that has been run through the Promenade protocol
-
-
-        '''
-
-        msg = bytearray()
-        msg.append(START_BYTE) # START
-        for b in stream:
-            if b in [START_BYTE, ESCAPE_BYTE, END_BYTE]:
-                msg.append(ESCAPE_BYTE)
-                msg.append(b + ESCAPE_BYTE)
-            else:
-                msg.append(b)
-        msg.append(END_BYTE)
-        return msg
-
     def rawDataReceived(self, data):
-        '''
+        """
         This function is called whenever data appears on the serial port and raw mode is turned on.
         :param data:
         :return:
-        '''
+        """
 
         raise Exception('Using line received!')
 
@@ -760,29 +717,28 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # If we need to ack, ACK!
         if ack_expected:
-            ack = str(self._p_wrap(ack_nak_message(sequence_num, True)))
+            ack = str(p_wrap(ack_nak_message(sequence_num, True)))
             self.transport.write(ack)
             print "---> ACK MESSAGE SENT"
             print [hex(ord(x)) for x in ack]
 
         # also send it to discovery listener locally
-        #print 'About to call listener'
+        # print 'About to call listener'
         self._discovery_listener(msg)
 
     def lineReceived(self, line):
-        '''
+        """
         If this function is called we have received a <line> on the serial port
         that ended in 0x03.
 
-
         :param line:
         :return:
-        '''
+        """
 
         print "--->Line received was called!"
         print [hex(ord(x)) for x in line]
 
-        #Using byte array so unstuff can use numbers instead of strings
+        # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
         start_byte_index = (line.find(START_BYTE_STR) + 1)
         buf += line
@@ -799,6 +755,6 @@ class CommandInfo:
         self.output_names = output_names
 
 if __name__ == "__main__":
-	start()
+    start()
 
 
