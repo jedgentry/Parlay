@@ -21,7 +21,7 @@ class PCOMMessage(object):
 
     # maps the TO/FROm name to ints, and from ints back to names
     _lookup_map = {}
-    #if we get a string, we need to assign a service ID. Start at 0xfc00 and go to 0xffff
+    #if we get a string, we need to assign a item ID. Start at 0xfc00 and go to 0xffff
     _lookup_id_generator = message_id_generator(0xffff, 0xfc00)
 
     VALID_MESSAGE_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
@@ -63,9 +63,9 @@ class PCOMMessage(object):
         self.attributes = attributes
 
     @classmethod
-    def _get_service_id(cls, name):
+    def _get_item_id(cls, name):
         """
-        Gets a service ID from an item name
+        Gets a item ID from an item name
         """
         # if we're an int we're good
         if type(name) == int:
@@ -75,21 +75,21 @@ class PCOMMessage(object):
             return cls._lookup_map[name]
 
         else:
-            service_id = cls._lookup_id_generator.next()
-            cls._lookup_map[name] = service_id
-            cls._lookup_map[service_id] = name
-            return service_id
+            item_id = cls._lookup_id_generator.next()
+            cls._lookup_map[name] = item_id
+            cls._lookup_map[item_id] = name
+            return item_id
 
     @classmethod
-    def _get_name_from_id(cls, service_id):
+    def _get_name_from_id(cls, item_id):
         """
-        Gets a item name from an service ID
+        Gets a item name from an item ID
         """
         #if we need to look it up, look it up
-        if service_id in cls._lookup_map:
-            return cls._lookup_map[service_id]
+        if item_id in cls._lookup_map:
+            return cls._lookup_map[item_id]
 
-        return service_id
+        return item_id
 
     @classmethod
     def from_dict_msg(cls, dict_msg):
@@ -103,8 +103,8 @@ class PCOMMessage(object):
 
         msg_id = dict_msg['TOPICS']['MSG_ID']
 
-        to = cls._get_service_id(dict_msg['TOPICS']['TO'])
-        from_ = cls._get_service_id(dict_msg['TOPICS']['FROM'])
+        to = cls._get_item_id(dict_msg['TOPICS']['TO'])
+        from_ = cls._get_item_id(dict_msg['TOPICS']['FROM'])
 
         msg_type = dict_msg['TOPICS']['MSG_TYPE']
 
@@ -112,7 +112,7 @@ class PCOMMessage(object):
 
         # msg_status = dict_msg['TOPICS'].get("MSG_STATUS", "INFO")
 
-        msg_status = 0
+        msg_status = 0 #TODO: FIX THIS
         tx_type = dict_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
         contents = dict_msg['CONTENTS']

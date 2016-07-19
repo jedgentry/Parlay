@@ -41,6 +41,7 @@ def deserialize_type(type_byte):
     '''
 
     Translates the serialized type byte to a JSON message type
+
     '''
 
     # TODO: Handle streams and other response sub types
@@ -167,29 +168,42 @@ def encode_pcom_message(msg):
     # to the payload.
     if msg.data:
         msg.data = cast_data(msg.format_string, msg.data)
-        payload += struct.pack(msg.format_string, *msg.data)
+        payload += struct.pack(translate_fmt_str(msg.format_string, msg.data), *msg.data)
 
     return payload
+
+def expand_fmt_string(format_string):
+
+    multiplier = ''
+    result = ''
+
+    for i in format_string:
+        if i.isdigit():
+            multiplier += i
+        else:
+            multiplier = 1 if multiplier is '' else int(multiplier)
+            result += multiplier * i
+            multiplier = '' # reset multiplier
+
+    return result
 
 def cast_data(fmt_string, data):
     result = []
     index = 0
-    for i in fmt_string:
+    for i in expand_fmt_string(fmt_string):
         if i.isalpha():
             if i in "bBhHiIlLqQnN?x": #TODO: Should padding (x) be int?
                 result.append(int(data[index]))
             elif i in "fd":
                 result.append(float(data[index]))
-            elif i in "c":
+            elif i in "sc":
                 result.append(str(data[index]))
-            elif i in "s":
-                Exception("String unhandled")
             else:
                 raise Exception("Unhandled data type")
         else:
             raise Exception("Format string wasn't of type string")
 
-            index+=1
+        index+=1
 
 
     return result
@@ -385,11 +399,11 @@ def decode_pcom_message(binary_msg):
     msg.format_string, = struct.unpack("<%ds" % format_string_length, format_string)
 
     # The embedded serial message will have a format where string lengths are variable,
-    # for example 'hSb'. The unpack() method requires string lengths to be specified, so we need
+    # for example 'hsb'. The unpack() method requires string lengths to be specified, so we need
     # to translate the format string from the embedded message to something that unpack can understand like 'h12sb'
     receive_format = "<" + translate_fmt_str(msg.format_string, binary_msg[format_string_end_index+1:])
 
-    #Strip NULL byte
+    # Strip NULL byte from format string
     msg.format_string = msg.format_string[:-1]
 
     # NOTE: Struct unpack returns a tuple, which will be cast to a list
@@ -399,10 +413,11 @@ def decode_pcom_message(binary_msg):
 
     # Remove null byte from all strings in data
     print msg.data
-    msg.data = map(lambda s: s[:-1] if isinstance(s, basestring) else s, msg.data)
+    msg.data = map(lambda s: s[:-1] if isinstance(s, basestring) and s.endswith('\x00') else s, msg.data)
 
-    # Map booleans to numbers
+    # Map booleans to numbers until UI handles booleans correctly.
     msg.data = map(lambda s: int(s) if type(s) == bool else s, msg.data)
+
     # It's possible to receive empty strings for parameter requests.
     # In the case that we do receive an empty string we should not store it in data
     msg.data = filter(lambda x: x != '', msg.data)
@@ -426,7 +441,7 @@ def get_str_len(bin_data):
             return count + 1 # Include NULL byte
     raise Exception("Data string wasn't NULL terminated")
 
-def translate_fmt_str(fmt_str, bin_data):
+def translate_fmt_str(fmt_str, data):
     '''
 
     Given a format string used in the Embedded Core Protocol and a binary message
@@ -448,6 +463,10 @@ def translate_fmt_str(fmt_str, bin_data):
     output_str = ""
     int_holder = ''
     index = 0
+    is_binary = True
+
+    if type(data) == list:
+        is_binary = False
 
     for char in fmt_str:
 
@@ -456,11 +475,11 @@ def translate_fmt_str(fmt_str, bin_data):
 
         if char.isalpha():
             if char is 's':
-                count = get_str_len(bin_data[index:])
+                count = get_str_len(data[index:]) if is_binary else len(data[index])+1
                 output_str += str(count)
             else:
                 multiplier = 1 if len(int_holder) == 0 else int(int_holder)
-                count = FORMAT_STRING_TABLE[char] * multiplier
+                count = FORMAT_STRING_TABLE[char] * multiplier if is_binary else multiplier
                 int_holder = ''
 
             index += count

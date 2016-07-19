@@ -47,7 +47,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     NUM_RETRIES = 3
 
     # The item ID of the protocol during discovery.
-    DISCOVERY_SERVICE_CODE = 0xfefe
+    DISCOVERY_CODE = 0xfefe
 
 
     # The minimum event ID. Some event IDs may need to be reserved
@@ -66,9 +66,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     def open(cls, broker, port, baudrate):
         '''
 
-        :param cls: The class object (supplied by system)
-        :param broker: current broker instance (supplied by system)
-        :param port: the serial port device to use. On linux, something like/dev/ttyUSB0
+        :param cls: The class object
+        :param broker: current broker instance
+        :param port: the serial port device to use.
         :return: returns the instantiated protocol object
 
         '''
@@ -136,11 +136,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # the constant NUM_EVENT_ID_BITS can easily be changed to accommodate this.
         self._event_id_generator = message_id_generator((2**self.NUM_EVENT_ID_BITS))
 
-        # From parlay.utils, calls _send_message_down_transport() whenever
+        # From parlay.utils, calls _message_queue_handler() whenever
         # a new message is added to the MessageQueue object
-        self._message_queue = MessageQueue(self._send_message_down_transport)
+        self._message_queue = MessageQueue(self._message_queue_handler)
 
-        self._attached_system_d = None
+        self._attached_item_d = None
 
         # Dictionary that maps ID # to Deferred object
         self._discovery_msg_ids = {}
@@ -216,21 +216,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        INVALID = 0xff
-
-        msg_error = MessageCategory.Order_Response << CATEGORY_SHIFT | (INVALID & SUB_TYPE_MASK)
-
         error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
                                              msg_status = PSTATUS_INVALID_PARAMETER, msg_id=original_message.msg_id)
 
         json_msg = error_msg.to_dict_msg()
-
         self.broker.publish(json_msg)
 
 
 
     @defer.inlineCallbacks
-    def _send_message_down_transport(self, message):
+    def _message_queue_handler(self, message):
         """
         This is the callback function given to the MessageQueue object that is called
         whenever a new message is added to the queue.
@@ -267,14 +262,14 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             try:
                 ack_sequence_num = yield timeout(self._ack_deferred, 20)
                 if ack_sequence_num == sequence_num:
-                    need_ack = False  # we got it, no need to wait
+                    need_ack = False
                 else:
                     print "Wrong Seq Num? ", ack_sequence_num, "!=", sequence_num
             except TimeoutError:
                 # retry
                 print "RETRY"
-                self._ack_deferred = defer.Deferred()  # set up a new one
-                self.transport.write(packet)  # try again
+                self._ack_deferred = defer.Deferred()
+                self.transport.write(packet)
                 num_retries_left -= 1
 
         defer.returnValue(message)
@@ -440,7 +435,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                 "RESPONSE_REQ": response_req,
                 "MSG_STATUS": msg_status,
                 # NOTE: Change this to handle sending and receiving across subsystems.
-                "FROM": self.DISCOVERY_SERVICE_CODE,
+                "FROM": self.DISCOVERY_CODE,
                 "TO": to
 
         }
@@ -474,31 +469,31 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         (broker in our case) has been established. Keep this function LIGHT, it should not take a long time
         to fetch the subsystem and item IDs. The user typically shouldn't notice.
 
-        I wrote a function _get_attached_systems() that is called here and also when a discovery takes place.
+        I wrote a function _get_attached_items() that is called here and also when a discovery takes place.
         :return: None
         '''
         print "Connection made!"
-        self._get_attached_systems()
+        self._get_attached_items()
         return
 
     @defer.inlineCallbacks
-    def _get_attached_systems(self):
+    def _get_attached_items(self):
         '''
-        A generator that returns all attached system IDs
+        Populates self.items with all attached item IDs
         NOTE: This is a subroutine of the discovery process. This method should be lightweight because
         it also going to be called upon connection establishment. We don't want the user waiting around forever
         when their device is connected.
 
-        :return: All attached system IDs
+        :return:
 
         '''
 
         # If we have stored systems, return them first
-        while self._attached_system_d is not None:
-            yield self._attached_system_d
+        while self._attached_item_d is not None:
+            yield self._attached_item_d
 
         # Create a new deferred object because this is an asynchronous operation.
-        self._attached_system_d = defer.Deferred()
+        self._attached_item_d = defer.Deferred()
 
         # The first part of the discovery protocol
         # is to fetch all subsystems. The reactor inside of
@@ -515,7 +510,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         for subsystem_id in subsystem_ids:
             print "Fetching items from subsystem ID: ", subsystem_id
             response = yield self.send_command(subsystem_id << 8, "DIRECT")
-            self.item_ids = [int(item_id) for item_id in response.data]
+            self.item_ids = [int(item_id) for item_id in response.data] #TODO: Change to extend() to get all item IDs
 
         print "---> ITEM IDS FOUND: ", self.item_ids
 
@@ -529,8 +524,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
 
         # TODO: Explain this in comments
-        d = self._attached_system_d
-        self._attached_system_d = None
+        d = self._attached_item_d
+        self._attached_item_d = None
         d.callback(None)
 
     def initialize_command_map(self, item_id):
@@ -582,20 +577,20 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         print "Discovery function started!"
         print "----------------------------"
 
-        # If there is a deferred system, yield that first
-        if self._attached_system_d is not None:
-            yield self._attached_system_d
+        # If there is a deferred item, yield that first
+        if self._attached_item_d is not None:
+            yield self._attached_item_d
 
         for item_id in self.item_ids:
             try:
-                yield self._fetch_system_discovery(item_id)
+                yield self._get_item_discovery_info(item_id)
             except Exception as e:
-                print("Exception while discovering! Skipping system : " + str(item_id) + "\n    " + str(e))
+                print("Exception while discovering! Skipping item : " + str(item_id) + "\n    " + str(e))
 
         defer.returnValue(BaseProtocol.get_discovery(self))
 
     @defer.inlineCallbacks
-    def _fetch_system_discovery(self, item_id):
+    def _get_item_discovery_info(self, item_id):
 
         # Subsystem ID is the high byte of the item ID
         # Note sure if I'll need this yet.
@@ -802,12 +797,6 @@ class CommandInfo:
         self.fmt = fmt
         self.params = parameters
         self.output_names = output_names
-
-class SerialLEDItem(LineItem):
-
-	def __init__(self, led_index, item_id, name, protocol):
-		LineItem.__init__(self, item_id, name, protocol)
-		self._led_index = led_index
 
 if __name__ == "__main__":
 	start()
