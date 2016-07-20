@@ -4,6 +4,7 @@
 *.pyc
 *.so
 *.o
+*.log
 parlay/ui
 .DS_Store
 parlay/cached_discovery.json
