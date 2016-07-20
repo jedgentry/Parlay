@@ -5,6 +5,7 @@ import unittest
 from pcom_serial import PCOM_Serial
 from parlay.server.broker import Broker
 
+
 class TestSerialEncoding(unittest.TestCase):
 
     b_msg_id = 20
@@ -19,8 +20,8 @@ class TestSerialEncoding(unittest.TestCase):
 
     b_contents = {"COMMAND": 1001}
     s = PCOMMessage(msg_id=b_msg_id, from_=b_source_id, to= b_destination_id,
-                       response_code=b_order_code, msg_type=b_type, attributes=b_attributes, msg_status=b_status,
-                       data_fmt=b_format_string, data=b_incoming_data, contents=b_contents)
+                    response_code=b_order_code, msg_type=b_type, attributes=b_attributes, msg_status=b_status,
+                    data_fmt=b_format_string, data=b_incoming_data, contents=b_contents)
 
     @unittest.skip("Need to handle updated message status")
     def test_binary_unpacking(self):
@@ -109,12 +110,6 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual(['c', 32], serial_encoding.cast_data("cI", ["c", "32"]))
 
 
-
-
-
-
-
-
 class TestPCOMMessage(unittest.TestCase):
 
     command_msg = {
@@ -171,15 +166,14 @@ class TestPCOMMessage(unittest.TestCase):
         self.protocol._send_message_down_transport(self.command_msg)
 
 
-
-
-
-
 class TestMessagePassing:
+
     def test_commands(self):
         pass
+
     def test_get_properties(self):
         pass
+
     def test_set_properties(self):
         pass
 

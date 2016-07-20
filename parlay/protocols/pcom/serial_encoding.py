@@ -151,6 +151,7 @@ def encode_pcom_message(msg):
 
     return payload
 
+
 def expand_fmt_string(format_string):
     """
     :param format_string:
@@ -193,8 +194,7 @@ def cast_data(fmt_string, data):
         else:
             raise Exception("Format string wasn't of type string")
 
-        index+=1
-
+        index += 1
 
     return result
 
@@ -216,7 +216,6 @@ def serialize_response_code(message):
     """
 
     m_type = message.msg_type
-    code = None
     if m_type == 'COMMAND':
         code = message.contents.get('COMMAND', None)
 
@@ -269,6 +268,7 @@ def get_category(message):
         return MessageCategory.Notification
     else:
         raise Exception('Unhandled message type!')
+
 
 def get_sub_type(msg, category):
     """

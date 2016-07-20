@@ -46,7 +46,6 @@ class PCOMMessage(object):
         self._data = []
         self._response_code = None
 
-
         self.to = to
         self.from_ = from_
         self.msg_id = msg_id
@@ -86,7 +85,6 @@ class PCOMMessage(object):
         Gets a item name from an item ID
         """
 
-        #if we need to look it up, look it up
         if item_id in cls._item_lookup_map:
             return cls._item_lookup_map[item_id]
 
@@ -116,7 +114,6 @@ class PCOMMessage(object):
         tx_type = dict_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
         contents = dict_msg['CONTENTS']
-
 
         msg = cls(to=to, from_=from_, msg_id=msg_id, response_req=response_req, msg_type=msg_type,
                   msg_status=msg_status, tx_type=tx_type, contents=contents)
@@ -164,7 +161,6 @@ class PCOMMessage(object):
 
         msg['TOPICS']['RESPONSE_REQ'] = self._is_response_req()
 
-
         if msg_category == MessageCategory.Order:
             if msg_sub_type == OrderSubType.Command:
                 if msg_option == OrderCommandOption.Normal:
@@ -211,16 +207,16 @@ class PCOMMessage(object):
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
                     msg['CONTENTS']['PROPERTY'] = self.response_code  # TODO
                     pass # NOTE: set responses do not have a 'value' field
-                elif msg_option == ResponsePropertyOption.Stream_Response:
+                elif msg_option == ResponsePropertyOption.Stream_On_Response:
                     msg['TOPICS']['MSG_TYPE'] = "STREAM"
                     msg['TOPICS']['STREAM'] = self.response_code
                     msg['CONTENTS']['VALUE'] = self.data[0]
                     msg['CONTENTS']['RATE'] = 1000
+                    
 
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
             msg['CONTENTS']['EVENT'] = self.response_req
-
 
         return msg
 
@@ -345,7 +341,6 @@ class PCOMMessage(object):
     @property
     def msg_status(self):
         return self._msg_status
-
 
     @msg_status.setter
     def msg_status(self, value):
