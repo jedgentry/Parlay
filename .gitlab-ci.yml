@@ -1,2 +1,0 @@
-job1:
-    script: "cd parlay/ui;npm install;grunt test;"
