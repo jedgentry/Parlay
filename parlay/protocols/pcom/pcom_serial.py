@@ -96,9 +96,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
         :param adapter: The adapter that will serve as an interface for interacting with the broker
         """
-
-        self._testing = False
-
         # A list of items that we will need to discover for.
         # The base protocol will use this dictionary to feed items to
         # the UI
@@ -456,9 +453,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :return: None
         """
 
-        print "Connection made!"
-        if not self._testing:
-            self._get_attached_items()
+        self._get_attached_items()
         return
 
     @defer.inlineCallbacks
