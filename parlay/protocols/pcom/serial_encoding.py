@@ -12,9 +12,6 @@ import struct
 import array
 import sys
 from enums import *
-
-from parlay.enum import enum
-
 import pcom_message
 
 FORMAT_STRING_TABLE = {
@@ -131,8 +128,8 @@ def encode_pcom_message(msg):
 
     """
 
-    payload = struct.pack("<HHHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), msg.msg_status, serialize_msg_type(msg),
-                             serialize_msg_attrs(msg))
+    payload = struct.pack("<HHHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), msg.msg_status,
+                          serialize_msg_type(msg), serialize_msg_attrs(msg))
 
     if msg.format_string:
         payload += struct.pack("%ds" % len(msg.format_string), msg.format_string)
@@ -183,7 +180,7 @@ def cast_data(fmt_string, data):
     index = 0
     for i in expand_fmt_string(fmt_string):
         if i.isalpha():
-            if i in "bBhHiIlLqQnN?x": #TODO: Should padding (x) be int?
+            if i in "bBhHiIlLqQnN?x":  # TODO: Should padding (x) be int?
                 result.append(int(data[index]))
             elif i in "fd":
                 result.append(float(data[index]))
@@ -211,7 +208,7 @@ def serialize_msg_attrs(msg):
 
 def serialize_response_code(message):
     """
-    :param msg_type: The message type of the dictionary message
+    :param message: PCOM message object that we will be serializing
     :return:
     """
 
@@ -248,7 +245,7 @@ def serialize_msg_type(msg):
     sub_type = get_sub_type(msg, cat)
     option = get_option(msg, cat, sub_type)
 
-    serial_type= (cat << CATEGORY_SHIFT) | (sub_type << SUB_TYPE_SHIFT) | (option << OPTION_SHIFT)
+    serial_type = (cat << CATEGORY_SHIFT) | (sub_type << SUB_TYPE_SHIFT) | (option << OPTION_SHIFT)
 
     return serial_type
 
@@ -279,14 +276,14 @@ def get_sub_type(msg, category):
 
     # Possibly use dictionaries to map
 
-    type = msg.msg_type
+    m_type = msg.msg_type
     if category == MessageCategory.Order:
 
-        if type == 'COMMAND':
+        if m_type == 'COMMAND':
 
             return OrderSubType.Command
 
-        elif type == 'PROPERTY' or type == 'STREAM':
+        elif m_type == 'PROPERTY' or m_type == 'STREAM':
 
             return OrderSubType.Property
 
@@ -295,7 +292,7 @@ def get_sub_type(msg, category):
 
     elif category == MessageType.Order_Response:
 
-        if msg.contents.has_key("RESULT"):
+        if "RESULT" in msg.contents:
 
             return ResponseSubType.Command
 
@@ -323,8 +320,6 @@ def get_option(msg, cat, sub_type):
         if sub_type == OrderSubType.Command:
             return OrderCommandOption.Normal
         elif sub_type == OrderSubType.Property:
-
-
             action = msg.contents.get("ACTION", None)
             stop = msg.contents.get("STOP", None)
             if action == "GET":
@@ -343,12 +338,12 @@ def get_option(msg, cat, sub_type):
             # Change logic to handle inprogress commands
             return ResponseCommandOption.Complete
         elif sub_type == ResponseSubType.Property:
-            if msg.contents.has_key("VALUE"):
+            if "VALUE" in msg.contents:
                 return ResponsePropertyOption.Get_Response
             else:
                 return ResponsePropertyOption.Set_Response
 
-    elif cat== MessageCategory.Notification:
+    elif cat == MessageCategory.Notification:
         raise Exception("Notifications aren't supported yet")
 
     else:
@@ -368,7 +363,6 @@ def decode_pcom_message(binary_msg):
     # ensure the packet is big enough
     if msg_length < PACKET_HEADER_SIZE:
         raise Exception('binary message less than minimum size', binary_msg)
-
 
     msg = pcom_message.PCOMMessage()
 
@@ -433,9 +427,8 @@ def get_str_len(bin_data):
         if i is not '\x00':
             count += 1
         else:
-            return count + 1 # Include NULL byte
-    raise E
-    xception("Data string wasn't NULL terminated")
+            return count + 1  # Include NULL byte
+    raise Exception("Data string wasn't NULL terminated")
 
 
 def translate_fmt_str(fmt_str, data):
@@ -451,7 +444,7 @@ def translate_fmt_str(fmt_str, data):
     translate_fmt_str("s", "\x65\x64\x00") --> "3s" because the length of the string is 3 (including NULL byte).
 
     :param fmt_str: A format string where 's' represents a variable length
-    :param bin_data: Binary sequence of bytes where strings are NULL terminated
+    :param data: Binary sequence or list of bytes where strings are NULL terminated
     :return: a new format string where 's' is replaced by '<len>s' where len is the length
     of the string represented by 's'.
     """
@@ -485,13 +478,13 @@ def translate_fmt_str(fmt_str, data):
     return output_str
 
 
-def pack_little_endian(type_string, list):
+def pack_little_endian(type_string, data_list):
     """
     :param type_string:
-    :param list:
+    :param data_list:
     :return:
     """
-    a = array.array(type_string, list)
+    a = array.array(type_string, data_list)
     if sys.byteorder != 'little':
         a.byteswap()
 
@@ -519,7 +512,6 @@ def wrap_packet(packet, sequence_num, use_ack):
 
     NORMAL = 8
     ACK = 2
-    checksum = 0
 
     payload_length = len(packet)
     sequence_byte = sequence_num | (NORMAL << 4) if use_ack else sequence_num | (ACK << 4)
@@ -532,9 +524,6 @@ def wrap_packet(packet, sequence_num, use_ack):
     checksum = (0x100 - checksum_calc(checksum_array)) & 0xff
 
     binary_msg = bytearray([sequence_byte, checksum]) + struct.pack("<H", payload_length & 0xffff) + packet
-
-    #print 'BINARY MSG'
-    #print  "--->", [hex(x) for x in binary_msg]
 
     # If the packet sum is not zero we should raise an exception
     # and not send the packet.
@@ -563,7 +552,6 @@ def unstuff_packet(packet):
     # Read the UART packet header information
     sequence_num = packet[0] & PACKET_SEQ_MASK
     packet_type = (packet[0] & PACKET_TYPE_MASK)
-    payload_length = packet[2] + packet[3]
 
     ack_expected = (packet_type == TYPE_ACK_REQ)
     is_ack = (packet_type == TYPE_ACK)
@@ -571,9 +559,9 @@ def unstuff_packet(packet):
 
     data = packet[4: packet_len]
 
-    dict_msg = None if (is_ack or is_nak) else decode_pcom_message(buffer(data))
+    json_msg = None if (is_ack or is_nak) else decode_pcom_message(buffer(data))
 
-    return sequence_num, ack_expected, is_ack, is_nak, dict_msg
+    return sequence_num, ack_expected, is_ack, is_nak, json_msg
 
 
 def verify_packet(packet):
@@ -582,11 +570,9 @@ def verify_packet(packet):
     :param packet:
     :return:
     """
-
     sum = 0
     for i in packet:
         sum += i
-
     return sum & 0xff
 
 
@@ -616,7 +602,6 @@ def _deescape_packet(packet):
 
     result = bytearray()
     escaped = False
-             #get rid of START and STOP byte
     for b in packet:
         if b == ESCAPE_BYTE:
             escaped = True  # next byte is escaped

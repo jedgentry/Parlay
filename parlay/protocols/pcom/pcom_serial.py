@@ -7,25 +7,19 @@ between Parlay and embedded devices.
 
 
 """
-
-
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import defer
-
-from parlay import start
-
 
 from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
 from parlay.protocols.utils import message_id_generator, timeout, MessageQueue, TimeoutError, delay
 from serial.tools import list_ports
-import pcom_message
+
 from serial_encoding import *
 from enums import *
 from collections import namedtuple
-import struct
-import time
+
 
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
@@ -57,10 +51,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     SEQ_BITS = 4
 
     @classmethod
-    def open(cls, broker, port, baudrate):
+    def open(cls, adapter, port, baudrate):
         """
         :param cls: The class object
-        :param broker: current broker instance
+        :param adapter: current adapter instance used to interface with broker
         :param port: the serial port device to use.
         :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
@@ -69,9 +63,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
 
-        protocol = PCOM_Serial(broker)
+        protocol = PCOM_Serial(adapter)
 
-        SerialPort(protocol, port, broker.reactor, baudrate=baudrate)
+        SerialPort(protocol, port, adapter.reactor, baudrate=baudrate)
 
         return protocol
 
@@ -98,10 +92,12 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         self.transport.loseConnection()
         return defer.succeed(None)
 
-    def __init__(self, broker):
+    def __init__(self, adapter):
         """
-        :param broker: The Broker singleton that will route messages
+        :param adapter: The adapter that will serve as an interface for interacting with the broker
         """
+
+        self._testing = False
 
         # A list of items that we will need to discover for.
         # The base protocol will use this dictionary to feed items to
@@ -120,7 +116,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # The buffer that we will be storing the data that arrives via the serial connection
         self._binary_buffer = bytearray()
 
-        self.broker = broker
+        self.adapter = adapter
 
         # Event IDs are 16-bit (2 byte) numbers so we need a radix
         # of 65535 or 0xFFFF in hex
@@ -208,8 +204,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
                                              msg_status=PSTATUS_INVALID_PARAMETER, msg_id=original_message.msg_id)
 
-        json_msg = error_msg.to_dict_msg()
-        self.broker.publish(json_msg)
+        json_msg = error_msg.to_json_msg()
+        self.adapter.publish(json_msg)
 
     @defer.inlineCallbacks
     def _message_queue_handler(self, message):
@@ -223,7 +219,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
 
         # Turn it into a pcom message that we can understand.
-        s = pcom_message.PCOMMessage.from_dict_msg(message)
+        s = pcom_message.PCOMMessage.from_json_msg(message)
         s.data, s.format_string = self._get_data_format(s)
         # Serialize the message and prepare for protocol wrapping.
         try:
@@ -246,13 +242,13 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         num_retries_left = self.NUM_RETRIES
         while need_ack and num_retries_left > 0:
             try:
-                ack_sequence_num = yield timeout(self._ack_deferred, 20)
+                ack_sequence_num = yield timeout(self._ack_deferred, .5)
                 if ack_sequence_num == sequence_num:
                     need_ack = False
                 else:
                     print "Wrong Seq Num? ", ack_sequence_num, "!=", sequence_num
+
             except TimeoutError:
-                # retry
                 print "RETRY"
                 self._ack_deferred = defer.Deferred()
                 self.transport.write(packet)
@@ -444,7 +440,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             self._discovery_msg_ids[event_id] = result
 
         # Message will be added to event queue and
-        # sent down serial line (via callback function _send_down_transport())
+        # sent down serial line (via callback function _message_queue_handler())
         self._message_queue.add({"TOPICS": topics, "CONTENTS": contents})
 
         # Return the Deferred object if we need to
@@ -461,7 +457,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
 
         print "Connection made!"
-        self._get_attached_items()
+        if not self._testing:
+            self._get_attached_items()
         return
 
     @defer.inlineCallbacks
@@ -487,7 +484,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # the embedded core should return with each subsystem as a
         # ID, Name pair (eg. (0, "IO_Control_board"))
 
-        subsystem_ids = yield self._get_subsystem_ids()
+        #subsystem_ids = yield self._get_subsystem_ids()
+        response = yield self.send_command(to=0x8000, command_id=0, tx_type="BROADCAST")
+        subsystem_ids = [int(response.data[0])]
         print "SUBSYSTEMS:", subsystem_ids
 
         # Convert subsystem IDs to ints so that we can send them
@@ -503,7 +502,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         print "---> Subscribing to broker"
         for item_id in self.item_ids:
-            self.broker.subscribe(self.add_message_to_queue, TO=item_id)
+            self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
             command_map[item_id] = {}
             property_map[item_id] = {}
             PCOM_Serial.initialize_command_map(item_id)
@@ -583,7 +582,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # Subsystem ID is the high byte of the item ID
         # Note sure if I'll need this yet.
-        subsystem_id = item_id << 8
+        subsystem_id = item_id >> 8
 
         # If the item was already discovered attach nothing to
         # the Deferred object's return value.
@@ -703,17 +702,16 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         """
 
         if is_ack:
-            # let everyone know we got the ack and make a new deferred
-            temp = self._ack_deferred   # temp handle
-            self._ack_deferred = defer.Deferred()  # setup a new one for everyone to listen to
-            temp.callback(sequence_num)  # callback and invalidate the old deferred
+            temp = self._ack_deferred
+            self._ack_deferred = defer.Deferred()
+            temp.callback(sequence_num)
             return
         elif is_nak:
             return  # ignore, the timeout will happen and handle a resend
 
-        parlay_msg = msg.to_dict_msg()
+        parlay_msg = msg.to_json_msg()
         print "---> Message to be published: ", parlay_msg
-        self.broker.publish(parlay_msg, self.transport.write)
+        self.adapter.publish(parlay_msg, self.transport.write)
 
         # If we need to ack, ACK!
         if ack_expected:
@@ -723,7 +721,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             print [hex(ord(x)) for x in ack]
 
         # also send it to discovery listener locally
-        # print 'About to call listener'
         self._discovery_listener(msg)
 
     def lineReceived(self, line):
@@ -749,12 +746,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 class CommandInfo:
 
     def __init__(self, fmt, parameters, output_names):
-
         self.fmt = fmt
         self.params = parameters
         self.output_names = output_names
 
-if __name__ == "__main__":
-    start()
 
 

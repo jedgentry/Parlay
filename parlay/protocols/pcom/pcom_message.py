@@ -7,7 +7,7 @@ This is a message class that represents a middle ground between the high level J
 Variables in this class will serve as storage points for the information inside of each message. The variables
 are accessed using properties (@property and @setter decorators).
 
-There are two key functions in this class (from_dict_msg() and to_dict_msg()) which handle the
+There are two key functions in this class (from_json_msg() and to_json_msg()) which handle the
 conversion to and from a JSON message.
 
 """
@@ -40,7 +40,6 @@ class PCOMMessage(object):
         self._response_req = None
         self._msg_status = None
         self._contents = None
-        self._msg_subtype = None
         self._attributes = None
         self._format_string = ''
         self._data = []
@@ -91,29 +90,27 @@ class PCOMMessage(object):
         return item_id
 
     @classmethod
-    def from_dict_msg(cls, dict_msg):
+    def from_json_msg(cls, json_msg):
         """
         Converts a dictionary message to a PCOM message object
 
-        :param dict_msg: JSON message
+        :param json_msg: JSON message
         :return: PCOM message object
         """
 
-        msg_id = dict_msg['TOPICS']['MSG_ID']
+        msg_id = json_msg['TOPICS']['MSG_ID']
 
-        to = cls._get_item_id(dict_msg['TOPICS']['TO'])
-        from_ = cls._get_item_id(dict_msg['TOPICS']['FROM'])
+        to = cls._get_item_id(json_msg['TOPICS']['TO'])
+        from_ = cls._get_item_id(json_msg['TOPICS']['FROM'])
 
-        msg_type = dict_msg['TOPICS']['MSG_TYPE']
+        msg_type = json_msg['TOPICS']['MSG_TYPE']
 
-        response_req = dict_msg['TOPICS'].get("RESPONSE_REQ", False)
+        response_req = json_msg['TOPICS'].get("RESPONSE_REQ", False)
 
-        # msg_status = dict_msg['TOPICS'].get("MSG_STATUS", "INFO")
+        msg_status = 0 # TODO: FIX THIS
+        tx_type = json_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
-        msg_status = 0 #TODO: FIX THIS
-        tx_type = dict_msg['TOPICS'].get('TX_TYPE', "DIRECT")
-
-        contents = dict_msg['CONTENTS']
+        contents = json_msg['CONTENTS']
 
         msg = cls(to=to, from_=from_, msg_id=msg_id, response_req=response_req, msg_type=msg_type,
                   msg_status=msg_status, tx_type=tx_type, contents=contents)
@@ -136,7 +133,7 @@ class PCOMMessage(object):
 
         return
 
-    def to_dict_msg(self):
+    def to_json_msg(self):
         """
         :return:
         """
@@ -207,12 +204,12 @@ class PCOMMessage(object):
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
                     msg['CONTENTS']['PROPERTY'] = self.response_code  # TODO
                     pass # NOTE: set responses do not have a 'value' field
-                elif msg_option == ResponsePropertyOption.Stream_On_Response:
+                elif msg_option == ResponsePropertyOption.Stream_Response:
                     msg['TOPICS']['MSG_TYPE'] = "STREAM"
                     msg['TOPICS']['STREAM'] = self.response_code
                     msg['CONTENTS']['VALUE'] = self.data[0]
                     msg['CONTENTS']['RATE'] = 1000
-                    
+
 
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
