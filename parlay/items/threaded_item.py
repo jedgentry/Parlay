@@ -309,7 +309,7 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        return run_in_broker(lambda: self._sleep(timeout))
+        return run_in_broker(lambda: self._sleep(timeout))()
 
     ####################### The following  must be run from the reactor thread ###################
     #############################   Do not call directly from script thread #####################
