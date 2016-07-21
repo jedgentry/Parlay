@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from setuptools.command.sdist import sdist
 import os
 import fnmatch
 import urllib2
@@ -33,7 +34,13 @@ files = [os.path.relpath(filename, "parlay")
                              for module_name, filename in find_files(UI_LOCATION, "*")]
 
 
-#Custom Setup installer that will wget the UI for us
+class SDistWithDocBuild(sdist):
+    def run(self):
+        import sphinx
+        sphinx.build_main('-b html', 'parlay/docs', 'parlay/docs/_build')
+        sdist.run(self)
+
+
 setup(
     name="parlay",
     version=version,
@@ -48,4 +55,7 @@ setup(
                       "pyserial < 3.0.0"],
     extras_require={
         "secure": ["cryptography>=1.2.1", "pyOpenSSL>=0.15.1", "cffi>=1.5.0", "service-identity >=14.0.0"]
+    },
+    cmdclass={
+        'sdist': SDistWithDocBuild
     })
