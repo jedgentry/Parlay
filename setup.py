@@ -4,7 +4,9 @@ import os
 import fnmatch
 import urllib2
 
+version = "0.2.0"
 UI_VERSION = "0.0.4"
+
 UI_LOCATION = "parlay/ui/dist"
 
 def find_files(directory, pattern):
@@ -39,8 +41,11 @@ files = [os.path.relpath(filename, "parlay")
 #Custom Setup installer that will wget the UI for us
 setup(
     name="parlay",
-    version='0.2.0',
+    version=version,
     description="A framework for developing and testing software for embedded devices",
+    author="Promenade Software, Inc.",
+    author_email="info@promenadesoftware.com",
+    url="https://github.com/PromenadeSoftware/Parlay",
     ext_modules=extensions,
     packages=find_packages(),
     package_data={"parlay": files},  # include ui files
