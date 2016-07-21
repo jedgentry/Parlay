@@ -1,5 +1,4 @@
 from setuptools import setup, find_packages
-from distutils.extension import Extension
 import os
 import fnmatch
 import urllib2
@@ -19,10 +18,6 @@ def find_files(directory, pattern):
                 print "Found: " + _modulename
                 yield _modulename, _filename
 
-
-ext = '*.c'
-
-extensions = [Extension(name, [path]) for name, path in find_files(".", ext)]
 
 # wget the dist file and put it in /ui/dist
 if not os.path.exists(UI_LOCATION + "/index.html"):
@@ -46,7 +41,6 @@ setup(
     author="Promenade Software, Inc.",
     author_email="info@promenadesoftware.com",
     url="https://github.com/PromenadeSoftware/Parlay",
-    ext_modules=extensions,
     packages=find_packages(),
     package_data={"parlay": files},  # include ui files
     install_requires=["Twisted >=15.0.0",
