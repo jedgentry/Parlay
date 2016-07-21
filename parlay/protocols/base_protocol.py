@@ -19,7 +19,7 @@ class BaseProtocol(object):
         self.items = getattr(self, "items", [])
 
     @classmethod
-    def open(cls, broker):
+    def open(cls, adapter):
         """
         Override this with a generic method that will open the protocol.
         The first argument must be the broker, the rest will be parameters that the user can set. Default arguments will
@@ -29,7 +29,7 @@ class BaseProtocol(object):
 
         e.g.
         @classmethod
-        def open(cls, broker, ip, port=8080):
+        def open(cls, adapter, ip, port=8080):
             return protocol(ip,port)
         """
         raise NotImplementedError()
