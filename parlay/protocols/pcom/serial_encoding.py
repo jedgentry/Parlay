@@ -178,8 +178,20 @@ def cast_data(fmt_string, data):
 
     result = []
     index = 0
-    for i in expand_fmt_string(fmt_string):
-        if i.isalpha():
+    expanded_fmt = expand_fmt_string(fmt_string)
+    skip_next = 0
+
+    for fmt_index, i in enumerate(expanded_fmt):
+        if skip_next:
+            skip_next = 0
+            continue
+
+        if i == '*':
+            variable_array = data[index].split(",")
+            new_fmt_str = str(len(variable_array)) + expanded_fmt[fmt_index+1]
+            result.extend(cast_data(expand_fmt_string(new_fmt_str), variable_array))
+            skip_next = 1
+        elif i.isalpha():
             if i in "bBhHiIlLqQnN?x":  # TODO: Should padding (x) be int?
                 result.append(int(data[index]))
             elif i in "fd":
@@ -457,7 +469,16 @@ def translate_fmt_str(fmt_str, data):
     if type(data) == list:
         is_binary = False
 
-    for char in fmt_str:
+    for fmt_index, char in enumerate(fmt_str):
+
+        if char == '*':
+            rest_of_data_len = (len(data) - index)
+            if is_binary:
+                rest_of_data_len /= FORMAT_STRING_TABLE[fmt_str[fmt_index+1]]
+
+            output_str += str(rest_of_data_len)
+            index += rest_of_data_len
+            continue
 
         if char.isdigit():
             int_holder += char

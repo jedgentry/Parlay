@@ -14,10 +14,12 @@ from twisted.internet import defer
 from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
 from parlay.protocols.utils import message_id_generator, timeout, MessageQueue, TimeoutError, delay
+
 from serial.tools import list_ports
 
 from serial_encoding import *
 from enums import *
+
 from collections import namedtuple
 
 
@@ -47,6 +49,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     # event protocol. Eg. if two bytes are reserved this number should be 16.
     NUM_EVENT_ID_BITS = 16
 
+    # Item ID of the embedded reactor
+    EMBD_REACTOR_ID = 0
+    BROADCAST_SUBSYSTEM_ID = 0x8000
+    SUBSYSTEM_SHIFT = 8
+
     # Number of bits we have for sequence number
     SEQ_BITS = 4
 
@@ -62,18 +69,15 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
-
         protocol = PCOM_Serial(adapter)
-
         SerialPort(protocol, port, adapter.reactor, baudrate=baudrate)
-
         return protocol
 
     @classmethod
     def get_open_params_defaults(cls):
         """
         Returns a list of parameters defaults. These will be displayed in the UI.
-        :return:
+        :return: default args: the default arguments provided to the user in the UI
         """
 
         default_args = BaseProtocol.get_open_params_defaults()
@@ -85,7 +89,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     def close(self):
         """
-        Simply close the connectection
+        Simply close the connection
         :return:
         """
 
@@ -100,7 +104,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # The base protocol will use this dictionary to feed items to
         # the UI
         self.items = []
-        self.item_ids = []
+
+        # The list of connected item IDs found in the initial sweep in
+        # connectionMade()
+        self._item_ids = []
 
         BaseProtocol.__init__(self)
 
@@ -142,53 +149,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # Store discovered item IDs so that we do not push duplicates to the
         # item requesting the discovery
-        self._already_discovered = set()
 
-    @staticmethod
-    def _get_data_format(msg):
-        """
-        Takes a msg and does the appropriate table lookup to obtain the
-        format data for the command/property/stream.
+        self._in_progress = False
+        self._discovery_deferred = defer.Deferred()
 
-        Returns a tuple in the form of (data, format)
-        where data is a list and format is a format string.
-
-        :param msg:
-        :return:
-        """
-
-        data = []
-        fmt = ''
-
-        if msg.msg_type == "COMMAND":
-            # If the message type is "COMMAND" there should be an
-            # entry in the 'CONTENTS' table for the command ID
-            if msg.to in command_map:
-                # TODO: Check if s.contents['COMMAND'] is in the second level of the map
-                # command will be a CommandInfo object that has a list of parameters and format string
-                command = command_map[msg.to][msg.contents['COMMAND']]
-                fmt = command.fmt
-                for param in command.params:
-                    data.append(msg.contents[param] if msg.contents[param] is not None else 0)
-
-        elif msg.msg_type == "PROPERTY":
-            # If the message type is a "PROPERTY" there should be
-            # a "PROPERTY" entry in the "CONTENTS" that has the property ID
-
-            action = msg.contents.get('ACTION', None)
-
-            if action == "GET":
-                data = []
-                fmt = ''
-            elif action == "SET":
-                if msg.to in property_map:
-                    prop = property_map[msg.to][msg.contents['PROPERTY']]
-                    fmt = prop.format
-                    data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
-                    data = cast_data(fmt, data)
-
-        print "DATA: ", data, "FORMAT: ", format
-        return data, fmt
+        # self._already_discovered = set()
 
     def send_error_message(self, original_message):
         """
@@ -213,11 +178,11 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         This function does the actual writing to the serial port.
 
         :type message dict
+        :param message: dictionary message received from Parlay
         """
 
-        # Turn it into a pcom message that we can understand.
         s = pcom_message.PCOMMessage.from_json_msg(message)
-        s.data, s.format_string = self._get_data_format(s)
+
         # Serialize the message and prepare for protocol wrapping.
         try:
             packet = encode_pcom_message(s)
@@ -233,20 +198,21 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
         print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+
         # Write to serial line! Good luck packet.
         self.transport.write(packet)
-
         num_retries_left = self.NUM_RETRIES
+
         while need_ack and num_retries_left > 0:
             try:
                 ack_sequence_num = yield timeout(self._ack_deferred, .5)
                 if ack_sequence_num == sequence_num:
                     need_ack = False
                 else:
-                    print "Wrong Seq Num? ", ack_sequence_num, "!=", sequence_num
+                    print "Wrong seq num:", ack_sequence_num, "!=", sequence_num
 
             except TimeoutError:
-                print "RETRY"
+                print "Timeout occurred. Sending packet again..."
                 self._ack_deferred = defer.Deferred()
                 self.transport.write(packet)
                 num_retries_left -= 1
@@ -269,6 +235,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             # If the message was a response and matched an ID in the dictionary, remove it and fire the
             # corresponding Deferred object.
             self._discovery_msg_ids.pop(msg.msg_id).callback(msg)
+
+        return
 
     """
 
@@ -330,8 +298,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command id"],
                                            data=[requested_command_id])
 
-        print "---> INPUT PARAM FORMAT"
-
         r_val = '' if len(response.data) == 0 else response.data[0]
         defer.returnValue(r_val)
 
@@ -349,10 +315,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :return: a list of parameter names
         """
 
-        print "Fetching input parameter names of command ID: ", requested_command_id
         response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command id"],
                                            data=[requested_command_id])
-        print "RAW INPUT NAMES: ", response.data
 
         param_names = [] if len(response.data) == 0 else response.data[0].split(',')
         defer.returnValue(param_names)
@@ -374,7 +338,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command id"],
                                            data=[requested_command_id])
         list_of_names = [] if len(response.data) == 0 else response.data[0].split(",")
-
         defer.returnValue(list_of_names)
 
     @defer.inlineCallbacks
@@ -390,15 +353,23 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property id"],
                                            data=[requested_property_id])
-        print "PROPERTY TYPE: ", response.data
+
         r_val = '' if len(response.data) == 0 else response.data[0]
         defer.returnValue(r_val)
 
     def send_command(self, to, tx_type="DIRECT", command_id=0, msg_status="INFO", response_req=True, params=[], data=[]):
         """
-        Send a command and return a deferred that will succeed on a response and with the response
-        """
+                Send a command and return a deferred that will succeed on a response and with the response
 
+        :param to: destination item ID
+        :param tx_type: DIRECT or BROADCAST
+        :param command_id: ID of the command
+        :param msg_status: status of the message: ERROR, WARNING, INFO, PROGRESS, or OK
+        :param response_req: boolean whether or not a response is required
+        :param params: command parameters
+        :param data: data that corresponds to each parameter
+        :return:
+        """
         # Increment the event ID
         event_id = self._event_id_generator.next()
 
@@ -408,27 +379,25 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # this needs to change in the future.
         # Build the TOPICS portion
         topics = {
-
-                "MSG_ID": event_id,
-                "TX_TYPE": tx_type,
-                "MSG_TYPE": "COMMAND",
-                "RESPONSE_REQ": response_req,
-                "MSG_STATUS": msg_status,
-                # NOTE: Change this to handle sending and receiving across subsystems.
-                "FROM": self.DISCOVERY_CODE,
-                "TO": to
-
+            "MSG_ID": event_id,
+            "TX_TYPE": tx_type,
+            "MSG_TYPE": "COMMAND",
+            "RESPONSE_REQ": response_req,
+            "MSG_STATUS": msg_status,
+            # NOTE: Change this to handle sending and receiving across subsystems.
+            "FROM": self.DISCOVERY_CODE,
+            "TO": to
         }
 
         # Build the CONTENTS portion
         contents = {
-                "COMMAND": command_id,
+            "COMMAND": command_id,
         }
 
         # If data was given via function arguments we need to pack it
         # into the contents portion of the message to resemble a JSON message.
-        for data_pair in zip(params, data):
-            contents[data_pair[0]] = data_pair[1]
+        for parameter, data_val in zip(params, data):
+            contents[parameter] = data_val
 
         # If we need to wait the result should be a deferred object.
         if response_req:
@@ -479,28 +448,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         # the embedded core should return with each subsystem as a
         # ID, Name pair (eg. (0, "IO_Control_board"))
 
-        #subsystem_ids = yield self._get_subsystem_ids()
-        response = yield self.send_command(to=0x8000, command_id=0, tx_type="BROADCAST")
-        subsystem_ids = [int(response.data[0])]
-        print "SUBSYSTEMS:", subsystem_ids
-
-        # Convert subsystem IDs to ints so that we can send them
-        # back down the serial line to retrieve their attached item
-        # For each subsystem ID, fetch the items attached to it
-
-        for subsystem_id in subsystem_ids:
-            print "Fetching items from subsystem ID: ", subsystem_id
-            response = yield self.send_command(subsystem_id << 8, "DIRECT")
-            self.item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
-
-        print "---> ITEM IDS FOUND: ", self.item_ids
-
-        print "---> Subscribing to broker"
-        for item_id in self.item_ids:
-            self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
-            command_map[item_id] = {}
-            property_map[item_id] = {}
-            PCOM_Serial.initialize_command_map(item_id)
+        response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
+        self._subsystem_ids = [int(response.data[0])]
+        print "SUBSYSTEMS:", self._subsystem_ids
 
         # TODO: Explain this in comments
         d = self._attached_item_d
@@ -530,20 +480,6 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         return
 
     @defer.inlineCallbacks
-    def _get_subsystem_ids(self):
-        """
-        Sends a broadcast message. A broadcast message goes to the reactor and expects a list of
-        subsystem_IDs in return.
-        :return:
-        """
-
-        # NOTE: Multiple messages may be sent back for the subsystem
-        sub_system_ids = []
-        response = yield self._send_broadcast_message()
-        sub_system_ids.append(int(response.data[0]))
-        defer.returnValue(sub_system_ids)
-
-    @defer.inlineCallbacks
     def get_discovery(self):
         """
         Hitting the "discovery" button on the UI triggers this generator.
@@ -560,90 +496,188 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         if self._attached_item_d is not None:
             yield self._attached_item_d
 
-        for item_id in self.item_ids:
-            try:
-                yield self._get_item_discovery_info(item_id)
-            except Exception as e:
-                print("Exception while discovering! Skipping item : " + str(item_id) + "\n    " + str(e))
+        if self._in_progress:
+            defer.returnValue(self._discovery_deferred)
 
+        self._in_progress = True
+        self.items = []
+        for subsystem_id in self._subsystem_ids:
+            try:
+                yield self._get_item_discovery_info(subsystem_id)
+            except Exception as e:
+                print("Exception while discovering! Skipping subsystem : " + str(subsystem_id) + "\n    " + str(e))
+
+        self._in_progress = False
         defer.returnValue(BaseProtocol.get_discovery(self))
 
-    @defer.inlineCallbacks
-    def _get_item_discovery_info(self, item_id):
+
+    @staticmethod
+    def command_cb(command_info_list, item_id, command_id, command_dropdowns, command_subfields, parlay_item):
         """
+
+        :param command_info_list:
+        :param item_id:
+        :param command_id:
+        :param command_dropdowns:
+        :param command_subfields:
+        :param parlay_item:
+        :return:
+        """
+
+        local_subfields = []
+
+        c_name = command_info_list[0]
+        c_input_format = command_info_list[1]
+        c_input_names = command_info_list[2]
+        c_output_desc = command_info_list[3]
+
+        command_map[item_id][command_id] = CommandInfo(c_input_format, c_input_names,
+                                                      c_output_desc)
+        command_dropdowns.append((c_name, command_id))
+
+        for parameter in c_input_names:
+            local_subfields.append(parlay_item.create_field(parameter, INPUT_TYPES.STRING))
+
+        command_subfields.append(local_subfields)
+
+
+    @staticmethod
+    def property_cb(property_info_list, item_id, property_id, parlay_item):
+        """
+
+        :param property_info_list:
+        :param item_id:
+        :param property_id:
+        :param parlay_item:
+        :return:
+        """
+
+        property_name = property_info_list[0]
+        property_type = property_info_list[1]
+
+        property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
+
+        parlay_item.add_property(property_id, name=property_name)
+        parlay_item.add_datastream(property_id, name=property_name + "_stream")
+
+
+
+    @defer.inlineCallbacks
+    def _get_item_discovery_info(self, subsystem):
+        """
+        The discovery protocol for the embedded core:
+
+        GET SUBSYSTEMS IDS
+        GET ITEM IDS
+        GET ITEM INFORMATION
+
+        Where ITEM INFORMATION is:
+            GET ITEM NAME
+            GET ITEM TYPE
+            GET COMMAND IDS
+            GET PROPERTY IDS
+
+            For each command:
+                GET COMMAND NAME
+                GET COMMAND INPUT PARAM FORMAT
+                GET COMMAND INPUT PARAM NAMES
+                GET COMMAND OUTPUT PARAM DESCRIPTION
+
+            For each property:
+                GET PROPERTY NAME
+                GET PROPERTY TYPE
+
         :param item_id:
         :return:
         """
 
         # Subsystem ID is the high byte of the item ID
-        # Note sure if I'll need this yet.
-        subsystem_id = item_id >> 8
+        subsystem_id = subsystem
 
         # If the item was already discovered attach nothing to
         # the Deferred object's return value.
         # Otherwise add the item ID to the set of already discovered
         # IDs because we are about to discover it!
-        if item_id in self._already_discovered:
-            defer.returnValue({})
-        else:
-            # add the item ID to the already_discovered set.
-            self._already_discovered.add(item_id)
+
+        # if item_id in self._already_discovered:
+        #     defer.returnValue({})
+        # else:
+        #     # add the item ID to the already_discovered set.
+        #     self._already_discovered.add(item_id)
 
         discovery = {"Subsystem ID": subsystem_id}
         print "Running discovery on subsystem: ", subsystem_id
 
-        response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
-        item_name = str(response.data[0])
+        # Convert subsystem IDs to ints so that we can send them
+        # back down the serial line to retrieve their attached item
+        # For each subsystem ID, fetch the items attached to it
 
-        parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)
+        print "Fetching items from subsystem ID: ", subsystem_id
+        response = yield self.send_command(subsystem_id << self.SUBSYSTEM_SHIFT, "DIRECT")
+        self._item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
 
-        response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
+        print "---> ITEM IDS FOUND: ", self._item_ids
 
-        item_type = str(response.data[0])
-        response = yield self.send_command(item_id, command_id=GET_COMMAND_IDS, tx_type="DIRECT")
+        for item_id in self._item_ids:
+            self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
+            command_map[item_id] = {}
+            property_map[item_id] = {}
+            PCOM_Serial.initialize_command_map(item_id)
 
-        command_ids = response.data
+        for item_id in self._item_ids:
+            response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
+            item_name = str(response.data[0])
 
-        command_dropdowns = []
-        command_subfields = []
-        parlay_item.add_field('COMMAND', INPUT_TYPES.DROPDOWN,
-                              dropdown_options=command_dropdowns,
-                              dropdown_sub_fields=command_subfields)
+            parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)
 
-        for command_id in command_ids:
-            # Loop through the command IDs and build the Parlay Item object
-            # for each one
+            response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
 
-            local_subfields = []
-            command_name = yield self.get_command_name(item_id, command_id)
-            command_input_format = yield self.get_command_input_param_format(item_id, command_id)
-            command_input_param_names = yield self.get_command_input_param_names(item_id, command_id)
-            command_output_desc = yield self.get_command_output_parameter_desc(item_id, command_id)
-            command_map[item_id][command_id] = CommandInfo(command_input_format, command_input_param_names, command_output_desc)
+            item_type = str(response.data[0])
+            response = yield self.send_command(item_id, command_id=GET_COMMAND_IDS, tx_type="DIRECT")
 
-            command_dropdowns.append((command_name, command_id))
+            command_ids = response.data
 
-            for parameter in command_input_param_names:
-                local_subfields.append(parlay_item.create_field(parameter, INPUT_TYPES.STRING))
+            command_dropdowns = []
+            command_subfields = []
 
-            command_subfields.append(local_subfields)
+            parlay_item.add_field('COMMAND', INPUT_TYPES.DROPDOWN,
+                                  dropdown_options=command_dropdowns,
+                                  dropdown_sub_fields=command_subfields)
 
-        response = yield self.send_command(item_id, command_id=GET_PROPERTY_IDS, tx_type="DIRECT")
+            discovered_command = defer.DeferredList([])
 
-        property_ids = response.data
+            for command_id in command_ids:
+                # Loop through the command IDs and build the Parlay Item object
+                # for each one
 
-        for property_id in property_ids:
-            property_name = yield self.get_property_name(item_id, property_id)
-            property_type = yield self.get_property_type(item_id, property_id)
-            property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
+                command_name = self.get_command_name(item_id, command_id)
+                command_input_format = self.get_command_input_param_format(item_id, command_id)
+                command_input_param_names = self.get_command_input_param_names(item_id, command_id)
+                command_output_desc = self.get_command_output_parameter_desc(item_id, command_id)
 
-            print "--> Property name: ", property_name
+                discovered_command = defer.gatherResults([command_name, command_input_format, command_input_param_names, command_output_desc])
+                discovered_command.addCallback(PCOM_Serial.command_cb, item_id=item_id, command_id=command_id,
+                                               command_subfields=command_subfields, command_dropdowns=command_dropdowns,
+                                               parlay_item=parlay_item)
 
-            parlay_item.add_property(property_id, name=property_name)
-            parlay_item.add_datastream(property_id, name=property_name + "_stream")
+            yield discovered_command
 
-        self.items.append(parlay_item)
+            response = yield self.send_command(item_id, command_id=GET_PROPERTY_IDS, tx_type="DIRECT")
+            property_ids = response.data
 
+            discovered_property = defer.DeferredList([])
+
+            for property_id in property_ids:
+                property_name = self.get_property_name(item_id, property_id)
+                property_type = self.get_property_type(item_id, property_id)
+
+                discovered_property = defer.gatherResults([property_name, property_type])
+                discovered_property.addCallback(PCOM_Serial.property_cb, item_id=item_id, property_id=property_id,
+                                                parlay_item=parlay_item)
+
+            yield discovered_property
+
+            self.items.append(parlay_item)
         defer.returnValue(discovery)
 
     def _send_broadcast_message(self):
@@ -651,15 +685,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        # The item ID of the reactor is 0, which is where we want our broadcast message to go to.
-        device_id = 0
-
-        destination_id = device_id
-
         # The subsystem ID for the broadcast message is 0x80
         # The high byte of the destination ID is the subsystem ID, so we should insert
         # 0x80 into the high byte.
-        destination_id += 0x8000
+        destination_id = self.BROADCAST_SUBSYSTEM_ID + self.EMBD_REACTOR_ID
 
         # The response code, event type, event attributes, and format string are all zero for a
         # broadcast message

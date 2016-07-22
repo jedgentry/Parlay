@@ -12,10 +12,10 @@ conversion to and from a JSON message.
 
 """
 
-from copy import deepcopy
 from parlay.protocols.utils import message_id_generator
 import serial_encoding
 from enums import *
+
 
 class PCOMMessage(object):
 
@@ -90,6 +90,52 @@ class PCOMMessage(object):
         return item_id
 
     @classmethod
+    def _get_data_format(cls, msg):
+        """
+        Takes a msg and does the appropriate table lookup to obtain the
+        format data for the command/property/stream.
+
+        Returns a tuple in the form of (data, format)
+        where data is a list and format is a format string.
+
+        :param msg:
+        :return:
+        """
+
+        data = []
+        fmt = ''
+
+        if msg.msg_type == "COMMAND":
+            # If the message type is "COMMAND" there should be an
+            # entry in the 'CONTENTS' table for the command ID
+            if msg.to in command_map:
+                # TODO: Check if s.contents['COMMAND'] is in the second level of the map
+                # command will be a CommandInfo object that has a list of parameters and format string
+                command = command_map[msg.to][msg.contents['COMMAND']]
+                fmt = command.fmt
+                for param in command.params:
+                    data.append(msg.contents[param] if msg.contents[param] is not None else 0)
+
+        elif msg.msg_type == "PROPERTY":
+            # If the message type is a "PROPERTY" there should be
+            # a "PROPERTY" entry in the "CONTENTS" that has the property ID
+
+            action = msg.contents.get('ACTION', None)
+
+            if action == "GET":
+                data = []
+                fmt = ''
+            elif action == "SET":
+                if msg.to in property_map:
+                    prop = property_map[msg.to][msg.contents['PROPERTY']]
+                    fmt = prop.format
+                    data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
+                    data = serial_encoding.cast_data(fmt, data)
+
+        print "DATA: ", data, "FORMAT: ", format
+        return data, fmt
+
+    @classmethod
     def from_json_msg(cls, json_msg):
         """
         Converts a dictionary message to a PCOM message object
@@ -107,7 +153,7 @@ class PCOMMessage(object):
 
         response_req = json_msg['TOPICS'].get("RESPONSE_REQ", False)
 
-        msg_status = 0 # TODO: FIX THIS
+        msg_status = 0  # TODO: FIX THIS
         tx_type = json_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
         contents = json_msg['CONTENTS']
@@ -115,6 +161,7 @@ class PCOMMessage(object):
         msg = cls(to=to, from_=from_, msg_id=msg_id, response_req=response_req, msg_type=msg_type,
                   msg_status=msg_status, tx_type=tx_type, contents=contents)
 
+        msg.data, msg.format_string = cls._get_data_format(msg)
         return msg
 
     def _is_response_req(self):
