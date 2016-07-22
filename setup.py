@@ -33,6 +33,12 @@ if not os.path.exists(UI_LOCATION + "/index.html"):
 files = [os.path.relpath(filename, "parlay")
                              for module_name, filename in find_files(UI_LOCATION, "*")]
 
+here = os.path.abspath(os.path.dirname(__file__))
+readme = ""
+with open(os.path.join(here, 'README.md')) as f:
+    readme = f.read()
+
+
 def _build_docs():
     """
     Use sphinx to generate html documentation from rst doc files
@@ -53,9 +59,11 @@ setup(
     name="parlay",
     version=version,
     description="A framework for developing and testing software for embedded devices",
+    long_description=readme,
     author="Promenade Software, Inc.",
     author_email="info@promenadesoftware.com",
     url="https://github.com/PromenadeSoftware/Parlay",
+    license="GPLv3",
     packages=find_packages(),
     package_data={"parlay": files},  # include ui files
     install_requires=["Twisted >=15.0.0",
@@ -64,6 +72,16 @@ setup(
     extras_require={
         "secure": ["cryptography>=1.2.1", "pyOpenSSL>=0.15.1", "cffi>=1.5.0", "service-identity >=14.0.0"]
     },
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Developers',
+        'Topic :: Software Development :: Embedded Systems',
+        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+        'Programming Language :: Python :: 2.7',
+    ],
+    keywords='embedded device broker medical',
+    zip_safe=False,
+    test_suite='parlay/tests',
     cmdclass={
         'sdist': SDistWithDocBuild
     })
