@@ -33,11 +33,19 @@ if not os.path.exists(UI_LOCATION + "/index.html"):
 files = [os.path.relpath(filename, "parlay")
                              for module_name, filename in find_files(UI_LOCATION, "*")]
 
+def _build_docs():
+    """
+    Use sphinx to generate html documentation from rst doc files
+
+    Intended for use during creation of distribution packages
+    """
+    import sphinx
+    sphinx.build_main(['-b html', 'parlay/docs', 'parlay/docs/_build/html'])
+
 
 class SDistWithDocBuild(sdist):
     def run(self):
-        import sphinx
-        sphinx.build_main('-b html', 'parlay/docs', 'parlay/docs/_build')
+        _build_docs()
         sdist.run(self)
 
 
