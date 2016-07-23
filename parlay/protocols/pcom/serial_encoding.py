@@ -151,8 +151,15 @@ def encode_pcom_message(msg):
 
 def expand_fmt_string(format_string):
     """
-    :param format_string:
-    :return:
+    Expands the format string to use preexisting logic to cast the data
+    accordingly.
+
+    Example usage:
+
+    expand_fmt_string("3H") --> "HHH"
+
+    :param format_string: string of format chars from the format string table
+    :return: format string that has been expanded from the condensed form.
     """
 
     multiplier = ''
@@ -169,11 +176,42 @@ def expand_fmt_string(format_string):
     return result
 
 
+def str_to_bool(bool_string):
+    """
+    Helper function to convert strings to boolean for casting purposes
+    :param bool_string: boolean in string format, eg. "False" , or "True"
+    :return: bool value
+    """
+    return bool_string.lower().strip() in ("yes", "true", "1")
+
+
 def cast_data(fmt_string, data):
     """
-    :param fmt_string:
-    :param data:
-    :return:
+    Returns a list of data casted according to the format string to prepare for
+    packing.
+
+    When using the struct library the data that is going to be packed must
+    match the type of the format string character that it maps to.
+
+    Eg.
+
+    struct.pack("?", True)
+
+    requires a boolean. The data received from the JSON message is a string, so
+    we need to use this funtion to map it to the correct type.
+
+    Example usage:
+
+    cast_data("*B", ["12, 13, 14"]) --> [12, 13, 14]
+    cast_data("Hs", ["12", "test"] --> [12, "test"]
+
+    The return list will be sent to struct.pack()
+
+    :param fmt_string: String of format characters from format string table
+    :param data: List of strings representing the data that will be sent down
+    the serial line
+    :return: List of data that is now casted to the correct type according to
+    the format string
     """
 
     result = []
@@ -192,14 +230,19 @@ def cast_data(fmt_string, data):
             result.extend(cast_data(expand_fmt_string(new_fmt_str), variable_array))
             skip_next = 1
         elif i.isalpha():
-            if i in "bBhHiIlLqQnN?x":  # TODO: Should padding (x) be int?
-                result.append(int(data[index]))
+            if i in "bBhHiIlLqQnNx":  # TODO: Should padding (x) be int?
+                data_to_append = int(data[index], 0) if isinstance(data[index], basestring) else int(data[index])
+                result.append(data_to_append)
             elif i in "fd":
                 result.append(float(data[index]))
-            elif i in "sc":
+            elif i in "s":
                 result.append(str(data[index]))
+            elif i in "c":
+                result.append(str(data[index]).strip())
             else:
                 raise Exception("Unhandled data type")
+        elif i == '?':
+            result.append(str_to_bool(data[index]))
         else:
             raise Exception("Format string wasn't of type string")
 
@@ -224,24 +267,14 @@ def serialize_response_code(message):
     :return:
     """
 
+    VALID_MSG_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
+
     m_type = message.msg_type
-    if m_type == 'COMMAND':
-        code = message.contents.get('COMMAND', None)
 
-    elif m_type == 'EVENT':
-        code = message.contents.get('EVENT', None)
-
-    elif m_type == 'STATUS' or m_type == 'RESPONSE':
-        code = message.contents.get('STATUS', None)
-
-    elif m_type == 'PROPERTY':
-        code = message.contents.get('PROPERTY', None)
-
-    elif m_type == 'STREAM':
-        code = message.contents.get('STREAM', None)
-
+    if m_type in VALID_MSG_TYPES:
+        code = message.contents.get("STATUS" if m_type == "RESPONSE" else m_type, None)
     else:
-        raise Exception("Unhandled response code")
+        raise Exception("Response code could not be generated for message type: " + m_type)
 
     return code
 
@@ -249,7 +282,7 @@ def serialize_response_code(message):
 def serialize_msg_type(msg):
     """
     Converts the message type to a binary sequence.
-    :param msg:
+    :param msg: PCOM Message
     :return:
     """
 
@@ -264,8 +297,13 @@ def serialize_msg_type(msg):
 
 def get_category(message):
     """
-    :param message:
-    :return:
+    Gets the serial category of the PCOM Message..
+    0 -- Order
+    1 -- Order Response
+    2 -- Notification
+
+    :param message: PCOM Message that we want the category of
+    :return: Category of the PCOM message, will be a number between 0-2.
     """
     m_type = message.msg_type
 
@@ -281,51 +319,54 @@ def get_category(message):
 
 def get_sub_type(msg, category):
     """
-    Extracts the subcategory from the parameter msg
+    Extracts the sub type of the PCOM message passed as the parameter
+    msg
 
-    TODO: Clean this function up!
+    :param msg: PCOM message that we will be getting the sub type of
+    :param category: category of the PCOM message that we want the subtype of
+    :return: the subtype of the message (will be a number between 0-4)
     """
-
-    # Possibly use dictionaries to map
 
     m_type = msg.msg_type
     if category == MessageCategory.Order:
 
         if m_type == 'COMMAND':
-
             return OrderSubType.Command
-
         elif m_type == 'PROPERTY' or m_type == 'STREAM':
-
             return OrderSubType.Property
-
         else:
             raise Exception("Unsupported type")
 
-    elif category == MessageType.Order_Response:
-
+    elif category == MessageCategory.Order_Response:
         if "RESULT" in msg.contents:
-
             return ResponseSubType.Command
-
         else:
-
             return ResponseSubType.Property
 
         # NOTE: Need to handle change state
-
-    elif category == MessageType.Notification:
-
+    elif category == MessageCategory.Notification:
         return NotificationSubType.Info
 
 
 def get_option(msg, cat, sub_type):
     """
 
-    :param msg:
-    :param cat:
-    :param sub_type:
-    :return:
+    Returns the option portion of the message type.
+
+    When serializing the message type (1 byte) the format follows:
+
+    bytes[6:7] -- category
+    bytes[4:5] -- sub type
+    bytes[0:3] -- option
+
+    Given a PCOM Message, and the message's sub type and category
+    this function will return the corresponding option so that
+    it may be serialized
+
+    :param msg: PCOM Message we will be getting the option of
+    :param cat: category of the PCOM message
+    :param sub_type: sub type of the PCOM message
+    :return: the option of the message (will be a number between 0-4)
     """
 
     if cat == MessageCategory.Order:

@@ -132,7 +132,7 @@ class PCOMMessage(object):
                     data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
                     data = serial_encoding.cast_data(fmt, data)
 
-        print "DATA: ", data, "FORMAT: ", format
+        print "DATA: ", data, "FORMAT: ", fmt
         return data, fmt
 
     @classmethod
@@ -212,11 +212,11 @@ class PCOMMessage(object):
                     msg['CONTENTS']['COMMAND'] = self.response_code
             elif msg_sub_type == OrderSubType.Property:
                 if msg_option == OrderPropertyOption.Get_Property:
-                    msg['TOPICS']['MSG_TYPE'] == "PROPERTY"
+                    msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
                     msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['ACTION'] = "GET"
                 elif msg_option == OrderPropertyOption.Set_Property:
-                    msg['TOPICS']['MSG_TYPE'] == "PROPERTY"
+                    msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
                     msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['ACTION'] = "SET"
                     msg['CONTENTS']['VALUE'] = self.data[0] # TODO: Support no data
