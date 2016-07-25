@@ -89,8 +89,8 @@ def encode_pcom_message(msg):
     Bytes [4:5]   Destination ID
     Bytes [6:7]   Order/response code (Command ID, property ID, or status code depending on event type)
     Bytes [8:9]   Message Status
-    Bytes [10]     Type (Type and subtype of event)
-    Bytes [11]     Attributes (Event attributes)
+    Bytes [10]    Type (Type and subtype of event)
+    Bytes [11]    Attributes (Event attributes)
     Bytes [12:N]  Format string (Null terminated data structure description (0 for no data))
     Bytes [N+1:M] Data in the form of bytes[10:N]. Size must match format string
 

@@ -245,11 +245,11 @@ class PCOMMessage(object):
                 msg['TOPICS']['MSG_STATUS'] = "OK"
                 if msg_option == ResponsePropertyOption.Get_Response:
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
-                    msg['CONTENTS']['PROPERTY'] = self.response_code  # TODO
+                    msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['VALUE'] = self.data[0] # TODO: support empty data
                 elif msg_option == ResponsePropertyOption.Set_Response:
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
-                    msg['CONTENTS']['PROPERTY'] = self.response_code  # TODO
+                    msg['CONTENTS']['PROPERTY'] = self.response_code
                     pass # NOTE: set responses do not have a 'value' field
                 elif msg_option == ResponsePropertyOption.Stream_Response:
                     msg['TOPICS']['MSG_TYPE'] = "STREAM"

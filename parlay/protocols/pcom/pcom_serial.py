@@ -1,12 +1,13 @@
 """
 
-PCOM_Serial.py
+pcom_serial.py
 
 This protocol enables Parlay to interact with embedded devices. This class handles the passing of messages
 between Parlay and embedded devices.
 
 
 """
+
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import defer
@@ -32,7 +33,7 @@ from collections import namedtuple
 PropertyData = namedtuple('PropertyData', 'name format')
 
 
-class PCOM_Serial(BaseProtocol, LineReceiver):
+class PCOMSerial(BaseProtocol, LineReceiver):
 
     # Constant number of retries before another message is sent out
     # after not receiving an ACK
@@ -69,7 +70,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
-        protocol = PCOM_Serial(adapter)
+        protocol = PCOMSerial(adapter)
         SerialPort(protocol, port, adapter.reactor, baudrate=baudrate)
         return protocol
 
@@ -153,18 +154,17 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         self._in_progress = False
         self._discovery_deferred = defer.Deferred()
 
-        # self._already_discovered = set()
-
-    def send_error_message(self, original_message):
+    def send_error_message(self, original_message, message_status):
         """
         Sends a notification error to the destination ID.
 
-        :param original_message:
+        :param original_message: PCOM Message object that holds the IDs of the sender and receiver
+        :param message_status: Message status code that translates to an error message.
         :return:
         """
 
         error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
-                                             msg_status=PSTATUS_INVALID_PARAMETER, msg_id=original_message.msg_id)
+                                             msg_status=message_status, msg_id=original_message.msg_id)
 
         json_msg = error_msg.to_json_msg()
         self.adapter.publish(json_msg)
@@ -187,7 +187,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         try:
             packet = encode_pcom_message(s)
         except:
-            self.send_error_message(original_message=s)
+            self.send_error_message(original_message=s, message_status=PSTATUS_ENCODING_ERROR)
             defer.returnValue(message)
 
         need_ack = True
@@ -197,7 +197,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         sequence_num = self._seq_num.next()
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
         # Write to serial line! Good luck packet.
         self.transport.write(packet)
@@ -496,6 +496,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
         if self._attached_item_d is not None:
             yield self._attached_item_d
 
+        # If we were already in the process of a discovery we should
+        # return a deferred object.
         if self._in_progress:
             defer.returnValue(self._discovery_deferred)
 
@@ -508,19 +510,28 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                 print("Exception while discovering! Skipping subsystem : " + str(subsystem_id) + "\n    " + str(e))
 
         self._in_progress = False
+
+        # At this point self.items should be populated with
+        # the ParlayStandardItem objects that represent the items we discovered.
+        # By calling BaseProtocol's get_discovery() function we can get that information
+        # to the adapter and furthermore to the broker.
         defer.returnValue(BaseProtocol.get_discovery(self))
 
 
     @staticmethod
     def command_cb(command_info_list, item_id, command_id, command_dropdowns, command_subfields, parlay_item):
         """
+        Callback function used to update the command map and parlay item dropdown menu when the command info
+        is retrieved from the embedded device during discovery. This function is called using gatherResults
+        which will only callback once all deferreds have been fired.
 
-        :param command_info_list:
-        :param item_id:
-        :param command_id:
-        :param command_dropdowns:
-        :param command_subfields:
-        :param parlay_item:
+        :param command_info_list: Stores the command name, command input format, command input names
+        and command output description. This information will be used to populate the ParlayStandardItem.
+        :param item_id: 2 byte item ID of the ParlayStandardItem we will be populating
+        :param command_id: 2 byte command ID of the command we have the information for
+        :param command_dropdowns: dropdown field for the ParlayStandardItem
+        :param command_subfields: subfields for each dropdown option of the ParlayStandardItem
+        :param parlay_item: ParlayStandardItem that we will be updating
         :return:
         """
 
@@ -545,10 +556,13 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     def property_cb(property_info_list, item_id, property_id, parlay_item):
         """
 
-        :param property_info_list:
-        :param item_id:
-        :param property_id:
-        :param parlay_item:
+        Callback function that populates the ParlayStandardItem parlay_item with
+        the designated property information.
+
+        :param property_info_list: Property name and property type obtained from the embedded device
+        :param item_id: 2 byte item ID that we will be populating the ParlayStandardItem of
+        :param property_id: 2 byte property ID that represents the property we will updating
+        :param parlay_item: ParlayStandardItem object
         :return:
         """
 
@@ -622,7 +636,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
             command_map[item_id] = {}
             property_map[item_id] = {}
-            PCOM_Serial.initialize_command_map(item_id)
+            PCOMSerial.initialize_command_map(item_id)
 
         for item_id in self._item_ids:
             response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
@@ -656,7 +670,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                 command_output_desc = self.get_command_output_parameter_desc(item_id, command_id)
 
                 discovered_command = defer.gatherResults([command_name, command_input_format, command_input_param_names, command_output_desc])
-                discovered_command.addCallback(PCOM_Serial.command_cb, item_id=item_id, command_id=command_id,
+                discovered_command.addCallback(PCOMSerial.command_cb, item_id=item_id, command_id=command_id,
                                                command_subfields=command_subfields, command_dropdowns=command_dropdowns,
                                                parlay_item=parlay_item)
 
@@ -672,7 +686,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
                 property_type = self.get_property_type(item_id, property_id)
 
                 discovered_property = defer.gatherResults([property_name, property_type])
-                discovered_property.addCallback(PCOM_Serial.property_cb, item_id=item_id, property_id=property_id,
+                discovered_property.addCallback(PCOMSerial.property_cb, item_id=item_id, property_id=property_id,
                                                 parlay_item=parlay_item)
 
             yield discovered_property
@@ -682,6 +696,8 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     def _send_broadcast_message(self):
         """
+        Sends broadcast message to the broadcast subsystem ID stored in
+        self.BROADCAST_SUBSYSTEM_ID
         :return:
         """
 
@@ -696,7 +712,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
     def add_message_to_queue(self, message):
         """
-        This will send a packet down the serial line. Subscribe to messages using the broker
+        This will send a packet down the serial line. Subscribe to messages using the adapter
 
         :param message : A parlay dictionary message
         """
@@ -707,6 +723,9 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     def rawDataReceived(self, data):
         """
         This function is called whenever data appears on the serial port and raw mode is turned on.
+        Since this protocol uses line receiving, this function should never be called, so raise an
+        excpetion if it is.
+
         :param data:
         :return:
         """
@@ -716,7 +735,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
     def _on_packet(self, sequence_num, ack_expected, is_ack, is_nak, msg):
         """
         This will get called with every new serial packet.
-        The parameters are the expanded tuple gicen from unstuff_packet
+        The parameters are the expanded tuple given from unstuff_packet
         :param sequence_num: the sequence number of the received packet
         :param ack_expected: Is an ack expected to this message?
         :param is_ack : Is this an ack?
@@ -731,7 +750,7 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
             temp.callback(sequence_num)
             return
         elif is_nak:
-            return  # ignore, the timeout will happen and handle a resend
+            return  # Ignore, timeout should handle the resend.
 
         parlay_msg = msg.to_json_msg()
         print "---> Message to be published: ", parlay_msg
@@ -768,6 +787,10 @@ class PCOM_Serial(BaseProtocol, LineReceiver):
 
 
 class CommandInfo:
+    """
+    CommandInfo is class used to store the information of the commands
+    received from the embedded device.
+    """
 
     def __init__(self, fmt, parameters, output_names):
         self.fmt = fmt
