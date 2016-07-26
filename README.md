@@ -48,12 +48,12 @@ Parlay requires [PyWin32](https://sourceforge.net/projects/pywin32/files/pywin32
 
 For users familiar with python, the easiest way to install Parlay is with pip:
 ```
-c:\> pip install git+https://github.com/PromenadeSoftware/Parlay.git
+c:\> pip install parlay
 ```
 
 On linux you might need the sudo command :
 ```
-~$ sudo pip install git+https://github.com/PromenadeSoftware/Parlay.git
+~$ sudo pip install parlay
 ```
 
 To install the 'secure' version of Parlay use this command
