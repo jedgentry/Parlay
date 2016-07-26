@@ -550,6 +550,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             local_subfields.append(parlay_item.create_field(parameter, INPUT_TYPES.STRING))
 
         command_subfields.append(local_subfields)
+        return
 
 
     @staticmethod
@@ -573,7 +574,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         parlay_item.add_property(property_id, name=property_name)
         parlay_item.add_datastream(property_id, name=property_name + "_stream")
-
+        return
 
 
     @defer.inlineCallbacks
@@ -601,7 +602,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
                 GET PROPERTY NAME
                 GET PROPERTY TYPE
 
-        :param item_id:
+        :param subsystem: The subsystem we will be getting the item IDs from
         :return:
         """
 

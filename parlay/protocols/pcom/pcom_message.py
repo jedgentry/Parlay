@@ -26,7 +26,7 @@ class PCOMMessage(object):
 
     VALID_JSON_MESSAGE_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
 
-    def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None, attributes=None,
+    def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None, attributes=0,
                  response_code=None, response_req=None, msg_status=None, contents=None, data=None, data_fmt=None):
 
         # TODO: Change response_req to response_code
@@ -54,10 +54,10 @@ class PCOMMessage(object):
         self.msg_status = msg_status
         self.contents = contents
         self.priority = 0
+        self.attributes = attributes
         self.format_string = data_fmt
         self.data = data
         self.response_code = response_code
-        self.attributes = attributes
 
     @classmethod
     def _get_item_id(cls, name):

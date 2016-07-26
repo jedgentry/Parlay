@@ -258,7 +258,7 @@ def serialize_msg_attrs(msg):
     will be sent to the embedded core.
     """
 
-    return 0
+    return msg.attributes
 
 
 def serialize_response_code(message):
@@ -565,8 +565,14 @@ def hex_print(buf):
 
 def wrap_packet(packet, sequence_num, use_ack):
     """
-    append book-end bytes, escape bytes that need escaping, and append serial level header info
-    like sequence num and whetehr we need to ACK or not
+    Appends sequence number + packet type, checksum, and payload length to the payload.
+
+    Also escapes packet according to the pcom protocol.
+
+    :param packet: packet that will be wrapped
+    :param sequence_num: current sequence number (nibble)
+    :param use_ack: whether an ack is required or not
+    :return: the resulting wrapped packet
     """
 
     # generate the packet header with the sequence number, length and ack
@@ -583,17 +589,17 @@ def wrap_packet(packet, sequence_num, use_ack):
     checksum_array.append(payload_length & 0xffff)
     checksum_array += packet
 
-    checksum = (0x100 - checksum_calc(checksum_array)) & 0xff
+    checksum = get_checksum(sum_packet(checksum_array))
 
     binary_msg = bytearray([sequence_byte, checksum]) + struct.pack("<H", payload_length & 0xffff) + packet
 
     # If the packet sum is not zero we should raise an exception
     # and not send the packet.
-    if verify_packet(binary_msg):
+    if sum_packet(binary_msg):
         raise Exception("Checksum wasn't zero!")
 
     # Add the start stop and escape characters and send over serial port
-    return _escape_packet(binary_msg)
+    return p_wrap(binary_msg)
 
 
 def unstuff_packet(packet):
@@ -605,7 +611,7 @@ def unstuff_packet(packet):
     packet = _deescape_packet(packet)
     packet_len = len(packet)
 
-    if verify_packet(packet) != 0:
+    if sum_packet(packet) != 0:
         print "WARNING PACKET DIDNT ADD UP TO ZERO"
 
     if packet_len < 1:
@@ -624,37 +630,6 @@ def unstuff_packet(packet):
     json_msg = None if (is_ack or is_nak) else decode_pcom_message(buffer(data))
 
     return sequence_num, ack_expected, is_ack, is_nak, json_msg
-
-
-def verify_packet(packet):
-    """
-    Ensures that the packet's sum is zero.
-    :param packet:
-    :return:
-    """
-    sum = 0
-    for i in packet:
-        sum += i
-    return sum & 0xff
-
-
-def _escape_packet(packet):
-    """
-    Prepare the packet by adding the start (0x02) stop (0x03) and escape(0x10) characters
-    Add escape char in front of  start, stop and escape
-    """
-
-    msg = bytearray()
-    msg.append(START_BYTE) # START
-    for b in packet:
-        if b == START_BYTE or b == END_BYTE or b == ESCAPE_BYTE:   # if b is an escape values
-            msg.append(ESCAPE_BYTE)
-            msg.append(b + ESCAPE_BYTE)
-        else:
-            msg.append(b)
-    msg.append(END_BYTE)
-    return msg
-
 
 def _deescape_packet(packet):
     """
@@ -676,7 +651,7 @@ def _deescape_packet(packet):
     return result
 
 
-def checksum_calc(msg):
+def sum_packet(msg):
     """
     Calculate the checksum for the given msg
     """
@@ -685,6 +660,15 @@ def checksum_calc(msg):
     for b in msg:
         checksum = (checksum + b) & 0xff
     return checksum
+
+def get_checksum(packet_sum):
+    """
+    Calculates the checksum given the summation of the packet
+    :param packet_sum: sum of all bytes in the packet
+    :return: checksum for the packet
+    """
+
+    return 0x100 - (packet_sum & 0xff) #TODO: provide constants instead of magic numbers
 
 
 

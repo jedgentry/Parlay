@@ -3,7 +3,7 @@ from pcom_message import PCOMMessage
 from enums import *
 import serial_encoding
 
-from pcom_serial import PCOM_Serial
+from pcom_serial import PCOMSerial
 from twisted.internet import defer
 from twisted.trial import unittest
 
@@ -235,7 +235,30 @@ class TestSerialEncoding(unittest.TestCase):
         test_pcom_msg.contents = {"RATE": 1000, "STOP": True}
         self.assertEqual(STREAM_OFF, serial_encoding.serialize_msg_type(test_pcom_msg))
 
+    def test_ack_nak_message(self):
+        seq_num = 0
+        self.assertEqual('\x20\xe0\x00\x00', serial_encoding.ack_nak_message(seq_num, True))
+        seq_num += 12
+        self.assertEqual('\x2c\xd4\x00\x00', serial_encoding.ack_nak_message(seq_num, True))
+        seq_num = 15
+        self.assertEqual('\x3f\xc1\x00\x00', serial_encoding.ack_nak_message(seq_num, False))
 
+    def test_get_str_len(self):
+        """
+        NOTE: string must be NULL terminated
+        :return:
+        """
+        self.assertEqual(4, serial_encoding.get_str_len('\x60\x61\x62\x00'))
+        self.assertEqual(1, serial_encoding.get_str_len('\x00'))
+        self.assertEqual(2, serial_encoding.get_str_len('\x60\x00'))
+        self.assertEqual(3, serial_encoding.get_str_len('\x60\x61\x00'))
+
+    def test_escape_packet(self):
+        return
+
+    def test_wrap_packet(self):
+        self.assertEqual('\x02\x80\x80\x00\x00\x03', serial_encoding.wrap_packet('', 0, True))
+        self.assertEqual('\x02\x81\x4b\x01\x00\x33\x03', serial_encoding.wrap_packet('\x33', 1, True))
 
 
 
@@ -290,6 +313,12 @@ class TestPCOMMessage(unittest.TestCase):
 
 
 class TestPCOMProtocol(unittest.TestCase, AdapterMixin, ReactorMixin):
+    """
+    NOTE: All IDs on the embedded side will need to match the following IDs in the
+    test cases. This unit test sends data across the serial port to the embedded core
+    and checks the response message. This is used to test both the protocol's sending/publishing
+    and the embedded core's receiving/sending.
+    """
     BAUD_RATE = 57600
     PORT_NAME = "/dev/cu.usbserial-FTHM129F"
     TEST_ITEM_ID = 0xfef1
@@ -416,13 +445,13 @@ class TestPCOMProtocol(unittest.TestCase, AdapterMixin, ReactorMixin):
 
     @defer.inlineCallbacks
     def setUp(self):
-        self.protocol = PCOM_Serial.open(adapter=self.adapter, port=self.PORT_NAME, baudrate=self.BAUD_RATE)
+        self.protocol = PCOMSerial.open(adapter=self.adapter, port=self.PORT_NAME, baudrate=self.BAUD_RATE)
         if not self._is_discovered:
             yield self.protocol.get_discovery()
             self._is_discovered = True
 
     def tearDown(self):
-        PCOM_Serial._instance = None
+        PCOMSerial._instance = None
         self.protocol.close()
         return
 
