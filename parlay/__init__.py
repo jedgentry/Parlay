@@ -1,5 +1,4 @@
-import pkg_resources
-__version__ = pkg_resources.get_distribution("parlay").version
+__version__ = "0.3.0"
 
 
 # Item Public API

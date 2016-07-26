@@ -1,13 +1,24 @@
 from setuptools import setup, find_packages
 from setuptools.command.sdist import sdist
 import os
+import re
 import fnmatch
 import urllib2
 
-version = "0.2.0"
 UI_VERSION = "0.0.4"
-
 UI_LOCATION = "parlay/ui/dist"
+
+
+def get_version():
+    VERSIONFILE = os.path.join('parlay', '__init__.py')
+    initfile_lines = open(VERSIONFILE, 'rt').readlines()
+    VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
+    for line in initfile_lines:
+        mo = re.search(VSRE, line, re.M)
+        if mo:
+            return mo.group(1)
+    raise RuntimeError('Unable to find version string in %s.' % (VERSIONFILE,))
+
 
 def find_files(directory, pattern):
 
@@ -57,7 +68,7 @@ class SDistWithDocBuild(sdist):
 
 setup(
     name="parlay",
-    version=version,
+    version=get_version(),
     description="A framework for developing and testing software for embedded devices",
     long_description=readme,
     author="Promenade Software, Inc.",
