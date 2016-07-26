@@ -1,11 +1,10 @@
-from pcom_message import PCOMMessage
-
-from enums import *
-import serial_encoding
-
-from pcom_serial import PCOMSerial
 from twisted.internet import defer
 from twisted.trial import unittest
+
+from parlay.protocols.pcom.pcom_message import PCOMMessage
+from parlay.protocols.pcom.enums import *
+from parlay.protocols.pcom.pcom_serial import PCOMSerial
+import parlay.protocols.pcom.serial_encoding as serial_encoding
 
 from parlay.testing.unittest_mixins.adapter import AdapterMixin
 from parlay.testing.unittest_mixins.reactor import ReactorMixin
