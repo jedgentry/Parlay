@@ -180,7 +180,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :type message dict
         :param message: dictionary message received from Parlay
         """
-
+        print "MESSAGE", message
         s = pcom_message.PCOMMessage.from_json_msg(message)
 
         # Serialize the message and prepare for protocol wrapping.
@@ -197,7 +197,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         sequence_num = self._seq_num.next()
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
         # Write to serial line! Good luck packet.
         self.transport.write(packet)
@@ -257,7 +257,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: name of the property from Embedded Core
         """
 
-        response = yield self.send_command(to, command_id=GET_PROPERTY_NAME, params=["property id"],
+        response = yield self.send_command(to, command_id=GET_PROPERTY_NAME, params=["property_id"],
                                            data=[requested_property_id])
 
         # The data in the response message will be a list,
@@ -275,7 +275,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: name from Embedded Core
         """
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_NAME, params=["command id"],
+        response = yield self.send_command(to, command_id=GET_COMMAND_NAME, params=["command_id"],
                                            data=[requested_command_id])
 
         # The data in the response message will be a list,
@@ -295,7 +295,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: format string describing input parameters
         """
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command id"],
+        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command_id"],
                                            data=[requested_command_id])
 
         r_val = '' if len(response.data) == 0 else response.data[0]
@@ -315,7 +315,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: a list of parameter names
         """
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command id"],
+        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command_id"],
                                            data=[requested_command_id])
 
         param_names = [] if len(response.data) == 0 else response.data[0].split(',')
@@ -335,7 +335,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: a list of parameter names
         """
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command id"],
+        response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command_id"],
                                            data=[requested_command_id])
         list_of_names = [] if len(response.data) == 0 else response.data[0].split(",")
         defer.returnValue(list_of_names)
@@ -351,7 +351,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: format string describing the type
         """
 
-        response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property id"],
+        response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property_id"],
                                            data=[requested_property_id])
 
         r_val = '' if len(response.data) == 0 else response.data[0]
@@ -464,18 +464,18 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param item_id: Item ID found during discovery.
         :return: None
         """
-
+        command_map[item_id][RESET_ITEM] = CommandInfo("", "", "")
         command_map[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
         command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
         command_map[item_id][GET_COMMAND_IDS] = CommandInfo("", [], ["Command IDs"])
         command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("", [], ["Property IDs"])
-        command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command id"], ["Command name"])
-        command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command id"],
+        command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command_id"], ["Command name"])
+        command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command_id"],
                                                                            ["Command input format"])
-        command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command id"], ["Command input names"])
-        command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command id"], ["Command output names"])
-        command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property id"], ["Property name"])
-        command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property id"], ["Property type"])
+        command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command_id"], ["Command input names"])
+        command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command_id"], ["Command output names"])
+        command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property_id"], ["Property name"])
+        command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property_id"], ["Property type"])
 
         return
 

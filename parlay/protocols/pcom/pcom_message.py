@@ -104,7 +104,7 @@ class PCOMMessage(object):
 
         data = []
         fmt = ''
-
+        print "CONTENTS", msg.contents
         if msg.msg_type == "COMMAND":
             # If the message type is "COMMAND" there should be an
             # entry in the 'CONTENTS' table for the command ID
@@ -160,6 +160,7 @@ class PCOMMessage(object):
 
         msg = cls(to=to, from_=from_, msg_id=msg_id, response_req=response_req, msg_type=msg_type,
                   msg_status=msg_status, tx_type=tx_type, contents=contents)
+
 
         msg.data, msg.format_string = cls._get_data_format(msg)
         return msg

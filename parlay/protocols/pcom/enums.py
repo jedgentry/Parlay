@@ -14,6 +14,7 @@ property_map = {}
 # be large maps we do not want to pass them as parameters.
 
 GET_SUBSYSTEMS = 0
+RESET_ITEM = 1000
 GET_ITEM_NAME = 1001
 GET_ITEM_TYPE = 1002
 GET_COMMAND_IDS = 1003
