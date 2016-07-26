@@ -4,10 +4,12 @@
 *.pyc
 *.so
 *.o
+*.log
 parlay/ui
 .DS_Store
 parlay/cached_discovery.json
 parlay/docs/_build/
+build/
 dist/
 _trial_temp/
 parlay.egg*

@@ -1,0 +1,15 @@
+recursive-include parlay/docs/_build/html *
+include *.md
+include *.txt
+include LICENSE
+recursive-include parlay *.bat
+recursive-include parlay *.crt
+recursive-include parlay *.csr
+recursive-include parlay *.ico
+recursive-include parlay *.key
+recursive-include parlay *.pem
+recursive-include parlay *.png
+recursive-include parlay *.py
+recursive-include parlay *.rst
+recursive-include parlay Makefile
+include parlay/keys/README

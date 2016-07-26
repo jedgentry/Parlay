@@ -17,5 +17,12 @@ class ThreadedItemTest(unittest.TestCase, AdapterMixin, ReactorMixin):
         expected = {"TOPICS": {'type': 'broker', 'request': 'get_discovery'}, "CONTENTS": {'force': True}}
         self.assertEqual(self.adapter.last_published, expected)
 
+    def testSleep(self):
+        sleep_d = self.item.sleep(1)
+        self.assertTrue(not sleep_d.called) # make sure it hasn't been called yet
+        self.reactor.callLater(0.5, lambda: self.assertTrue(not sleep_d.called)) # make sure it STILL hasn't been called
+        return sleep_d # test will end when called, or will timeout and fail
+
+
     def tearDown(self):
         pass
