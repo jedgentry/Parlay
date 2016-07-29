@@ -781,7 +781,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
-        start_byte_index = (line.find(START_BYTE_STR) + 1)
+        start_byte_index = (line.rfind(START_BYTE_STR) + 1)
         buf += line
         packet_tuple = unstuff_packet(buf[start_byte_index:])
         self._on_packet(*packet_tuple)
