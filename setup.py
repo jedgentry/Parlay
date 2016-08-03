@@ -1,12 +1,14 @@
 from setuptools import setup, find_packages
-from setuptools.command.sdist import sdist
+
 import os
 import re
 import fnmatch
 import urllib2
 
+
 UI_VERSION = "0.0.4"
 UI_LOCATION = "parlay/ui/dist"
+DOCS_LOCATION = "parlay/docs/_build/html"
 
 
 def get_version():
@@ -31,39 +33,35 @@ def find_files(directory, pattern):
                 yield _modulename, _filename
 
 
-# wget the dist file and put it in /ui/dist
 if not os.path.exists(UI_LOCATION + "/index.html"):
-  response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
-  html = response.read()
-  if not os.path.exists(UI_LOCATION):
-      os.makedirs(UI_LOCATION)
+    # wget the dist file and put it in /ui/dist
+    response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
+    html = response.read()
+    if not os.path.exists(UI_LOCATION):
+        os.makedirs(UI_LOCATION)
 
-  with open(UI_LOCATION + "/index.html", 'w+') as index_file:
-      index_file.write(html)
+    with open(UI_LOCATION + "/index.html", 'w+') as index_file:
+        index_file.write(html)
 
-files = [os.path.relpath(filename, "parlay")
-                             for module_name, filename in find_files(UI_LOCATION, "*")]
 
+package_data_files = [os.path.relpath(filename, "parlay") for _, filename in find_files(UI_LOCATION, "*")]
+
+if os.path.exists(DOCS_LOCATION):
+    package_data_files.extend([os.path.relpath(filename, "parlay") for _, filename in find_files(DOCS_LOCATION, "*")])
+else:
+    try:
+        import sphinx
+        sphinx.build_main(['-b html', 'parlay/docs', DOCS_LOCATION])
+        package_data_files.extend([os.path.relpath(filename, "parlay") for _, filename in find_files(DOCS_LOCATION, "*")])
+    except ImportError as _:
+        print "Warning: Documentation not built. Please pip install sphinx to build documentation."
+
+
+# Get README to use as long description
 here = os.path.abspath(os.path.dirname(__file__))
 readme = ""
 with open(os.path.join(here, 'README.md')) as f:
     readme = f.read()
-
-
-def _build_docs():
-    """
-    Use sphinx to generate html documentation from rst doc files
-
-    Intended for use during creation of distribution packages
-    """
-    import sphinx
-    sphinx.build_main(['-b html', 'parlay/docs', 'parlay/docs/_build/html'])
-
-
-class SDistWithDocBuild(sdist):
-    def run(self):
-        _build_docs()
-        sdist.run(self)
 
 
 setup(
@@ -76,12 +74,15 @@ setup(
     url="https://github.com/PromenadeSoftware/Parlay",
     license="GPLv3",
     packages=find_packages(),
-    package_data={"parlay": files},  # include ui files
+    package_data={"parlay": package_data_files},
     install_requires=["Twisted >=15.0.0",
                       "autobahn >=0.9.0",
                       "pyserial < 3.0.0"],
     extras_require={
-        "secure": ["cryptography>=1.2.1", "pyOpenSSL>=0.15.1", "cffi>=1.5.0", "service-identity >=14.0.0"]
+        "secure": ["cryptography>=1.2.1",
+                   "pyOpenSSL>=0.15.1",
+                   "cffi>=1.5.0",
+                   "service-identity >=14.0.0"]
     },
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -92,7 +93,5 @@ setup(
     ],
     keywords='embedded device broker medical',
     zip_safe=False,
-    test_suite='parlay/tests',
-    cmdclass={
-        'sdist': SDistWithDocBuild
-    })
+    test_suite='parlay/tests'
+)

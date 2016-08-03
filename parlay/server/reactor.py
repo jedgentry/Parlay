@@ -34,9 +34,9 @@ class ReactorWrapper(object):
         Call callable from the reactor thread.  If we are in the reactor thread, then call it and return a Deferred.
         If we are *not* in the reactor thread, then block on that deferred instal of returning it
         """
-        # if we're in the reactor thread
+        # if we're in the reactor thread then just call it
         if self.in_reactor_thread():
-            return defer.maybeDeferred(lambda: callable(*args, **kwargs))
+            return callable(*args, **kwargs)
         else:
             return twisted_threads.blockingCallFromThread(self._reactor, lambda: callable(*args, **kwargs))
 

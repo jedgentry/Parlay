@@ -9,3 +9,4 @@ get_item_by_name = lambda item_name: scripting_setup.script.get_item_by_name(ite
 get_item_by_id = lambda item_id: scripting_setup.script.get_item_by_id(item_id)
 sleep = lambda time: scripting_setup.script.sleep(time)
 shutdown_broker = lambda: scripting_setup.script.shutdown_broker()
+open = lambda protocol_name, **kwargs: scripting_setup.script.open(protocol_name, **kwargs)
