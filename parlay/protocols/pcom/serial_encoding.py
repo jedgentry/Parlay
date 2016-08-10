@@ -28,7 +28,8 @@ FORMAT_STRING_TABLE = {
     'q':   8,
     'f':   4,
     'd':   8,
-    's':   1
+    's':   1,
+    '?':   1
 
 }
 
@@ -182,6 +183,8 @@ def str_to_bool(bool_string):
     :param bool_string: boolean in string format, eg. "False" , or "True"
     :return: bool value
     """
+    if type(bool_string) == bool:
+        return bool_string
     return bool_string.lower().strip() in ("yes", "true", "1")
 
 
@@ -524,7 +527,7 @@ def translate_fmt_str(fmt_str, data):
         if char.isdigit():
             int_holder += char
 
-        if char.isalpha():
+        if char.isalpha() or char == '?':
             if char is 's':
                 count = get_str_len(data[index:]) if is_binary else len(data[index])+1
                 output_str += str(count)
