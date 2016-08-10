@@ -166,6 +166,6 @@ STATUS_MAP = {
     PSTATUS_STREAM_NOT_SUPPORTED: "PSTATUS_STREAM_NOT_SUPPORTED",
     PSTATUS_ENCODING_ERROR: "Could not translate the packet to a serial counterpart."
                              " This is most likely because the data format of"
-                             "the parameters did not match the data types provided by the user. "
+                             " the parameters did not match the data types provided by the user. "
                              "For example, if the parameter requires an integer and a string was entered."
 }
