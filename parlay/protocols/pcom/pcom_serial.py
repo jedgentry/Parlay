@@ -693,6 +693,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             yield discovered_property
 
             self.items.append(parlay_item)
+
+        print "Finished subsystem:", subsystem
         defer.returnValue(discovery)
 
     def _send_broadcast_message(self):
