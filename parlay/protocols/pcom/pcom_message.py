@@ -258,10 +258,18 @@ class PCOMMessage(object):
                     msg['CONTENTS']['VALUE'] = self.data[0]
                     msg['CONTENTS']['RATE'] = 1000
 
-
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
             msg['CONTENTS']['EVENT'] = self.response_req
+            msg['CONTENTS']['STATUS'] = self.msg_status
+            msg['CONTENTS']["INFO"] = self.data
+            msg['CONTENTS']['DESCRIPTION'] = STATUS_MAP[self.msg_status]
+            msg['TOPICS']['RESPONSE_REQ'] = False
+
+            if msg_option == NotificationOptions.Debug:
+                msg['CONTENTS']['MSG_STATUS'] = "INFO"
+            elif msg_option == NotificationOptions.Warning:
+                msg['CONTENTS']['MSG_STATUS'] = "WARNING"
 
         return msg
 
