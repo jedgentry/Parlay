@@ -126,6 +126,8 @@ def encode_pcom_message(msg):
                                 |-------------------|---------------|-----------|
                                 | string            |    s          |    ?      |
                                 |-------------------|---------------|-----------|
+                                | bool              |    ?          |    1      |
+                                |-------------------|---------------|-----------|
 
     """
 
@@ -145,7 +147,7 @@ def encode_pcom_message(msg):
     # to the payload.
     if msg.data:
         msg.data = cast_data(msg.format_string, msg.data)
-        payload += struct.pack(translate_fmt_str(msg.format_string, msg.data), *msg.data)
+        payload += struct.pack("<" + translate_fmt_str(msg.format_string, msg.data), *msg.data)
 
     return payload
 
@@ -177,15 +179,15 @@ def expand_fmt_string(format_string):
     return result
 
 
-def str_to_bool(bool_string):
+def convert_to_bool(bool_obj):
     """
     Helper function to convert strings to boolean for casting purposes
     :param bool_string: boolean in string format, eg. "False" , or "True"
     :return: bool value
     """
-    if type(bool_string) == bool:
-        return bool_string
-    return bool_string.lower().strip() in ("yes", "true", "1")
+    if type(bool_obj) in [bool, int]:
+        return bool_obj
+    return bool_obj.lower().strip() in ("yes", "true", "1")
 
 
 def cast_data(fmt_string, data):
@@ -245,7 +247,7 @@ def cast_data(fmt_string, data):
             else:
                 raise Exception("Unhandled data type")
         elif i == '?':
-            result.append(str_to_bool(data[index]))
+            result.append(convert_to_bool(data[index]))
         else:
             raise Exception("Format string wasn't of type string")
 
