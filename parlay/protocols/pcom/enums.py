@@ -138,7 +138,7 @@ PSTATUS_INVALID_COMMAND = 1017
 PSTATUS_OS_INIT_ERROR = 1020
 PSTATUS_OS_ERROR = 1021
 PSTATUS_PROPERTY_NOT_SUPPORTED = 1030
-PSTATUS_PROPERTY_NOT_WRITEABLE = 1031
+PSTATUS_PROPERTY_NOT_WRITABLE = 1031
 PSTATUS_STREAM_NOT_SUPPORTED = 1032
 PSTATUS_ENCODING_ERROR = 1033
 
@@ -162,10 +162,10 @@ STATUS_MAP = {
     PSTATUS_OS_INIT_ERROR: "PSTATUS_OS_INIT_ERROR",
     PSTATUS_OS_ERROR: "PSTATUS_OS_ERROR",
     PSTATUS_PROPERTY_NOT_SUPPORTED: "PSTATUS_PROPERTY_NOT_SUPPORTED",
-    PSTATUS_PROPERTY_NOT_WRITEABLE: "PSTATUS_PROPERTY_NOT_WRITEABLE",
+    PSTATUS_PROPERTY_NOT_WRITABLE: "Error: property is not writable",
     PSTATUS_STREAM_NOT_SUPPORTED: "PSTATUS_STREAM_NOT_SUPPORTED",
     PSTATUS_ENCODING_ERROR: "Could not translate the packet to a serial counterpart."
                              " This is most likely because the data format of"
-                             "the parameters did not match the data types provided by the user. "
+                             " the parameters did not match the data types provided by the user. "
                              "For example, if the parameter requires an integer and a string was entered."
 }

@@ -885,6 +885,7 @@ class CommandHandle(object):
         # remove this function from the listeners list
         return self._done
 
+    @run_in_thread
     def wait_for(self, fn, timeout=None):
         """
         Block and wait for a message in our queue where fn returns true. Return that message
@@ -895,6 +896,7 @@ class CommandHandle(object):
 
         return msg
 
+    @run_in_thread
     def wait_for_complete(self):
         """
         Called from a scripts thread. Blocks until the message is complete.
@@ -905,6 +907,7 @@ class CommandHandle(object):
 
         return msg["CONTENTS"]["RESULT"]
 
+    @run_in_thread
     def wait_for_ack(self):
         """
         Called from a scripts thread. Blocks until the message is ackd

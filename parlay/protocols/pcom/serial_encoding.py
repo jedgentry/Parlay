@@ -28,7 +28,8 @@ FORMAT_STRING_TABLE = {
     'q':   8,
     'f':   4,
     'd':   8,
-    's':   1
+    's':   1,
+    '?':   1
 
 }
 
@@ -125,6 +126,8 @@ def encode_pcom_message(msg):
                                 |-------------------|---------------|-----------|
                                 | string            |    s          |    ?      |
                                 |-------------------|---------------|-----------|
+                                | bool              |    ?          |    1      |
+                                |-------------------|---------------|-----------|
 
     """
 
@@ -144,7 +147,7 @@ def encode_pcom_message(msg):
     # to the payload.
     if msg.data:
         msg.data = cast_data(msg.format_string, msg.data)
-        payload += struct.pack(translate_fmt_str(msg.format_string, msg.data), *msg.data)
+        payload += struct.pack("<" + translate_fmt_str(msg.format_string, msg.data), *msg.data)
 
     return payload
 
@@ -176,13 +179,15 @@ def expand_fmt_string(format_string):
     return result
 
 
-def str_to_bool(bool_string):
+def convert_to_bool(bool_obj):
     """
     Helper function to convert strings to boolean for casting purposes
     :param bool_string: boolean in string format, eg. "False" , or "True"
     :return: bool value
     """
-    return bool_string.lower().strip() in ("yes", "true", "1")
+    if type(bool_obj) in [bool, int]:
+        return bool_obj
+    return bool_obj.lower().strip() in ("yes", "true", "1")
 
 
 def cast_data(fmt_string, data):
@@ -242,7 +247,7 @@ def cast_data(fmt_string, data):
             else:
                 raise Exception("Unhandled data type")
         elif i == '?':
-            result.append(str_to_bool(data[index]))
+            result.append(convert_to_bool(data[index]))
         else:
             raise Exception("Format string wasn't of type string")
 
@@ -524,7 +529,7 @@ def translate_fmt_str(fmt_str, data):
         if char.isdigit():
             int_holder += char
 
-        if char.isalpha():
+        if char.isalpha() or char == '?':
             if char is 's':
                 count = get_str_len(data[index:]) if is_binary else len(data[index])+1
                 output_str += str(count)
@@ -668,7 +673,7 @@ def get_checksum(packet_sum):
     :return: checksum for the packet
     """
 
-    return 0x100 - (packet_sum & 0xff) #TODO: provide constants instead of magic numbers
+    return (0x100 - packet_sum) & 0xff #TODO: provide constants instead of magic numbers
 
 
 
