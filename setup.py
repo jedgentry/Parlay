@@ -77,12 +77,14 @@ setup(
     package_data={"parlay": package_data_files},
     install_requires=["Twisted >=15.0.0",
                       "autobahn >=0.9.0",
-                      "pyserial < 3.0.0"],
+                      "pyserial < 3.0.0",
+                      "requests"],
     extras_require={
         "secure": ["cryptography>=1.2.1",
                    "pyOpenSSL>=0.15.1",
                    "cffi>=1.5.0",
-                   "service-identity >=14.0.0"]
+                   "service-identity >=14.0.0",
+                   "pycrypto"]
     },
     classifiers=[
         'Development Status :: 4 - Beta',
