@@ -147,7 +147,7 @@ PSTATUS_ENCODING_ERROR = 1033
 
 # Maps status code to their corresponding description.
 STATUS_MAP = {
-    PSTATUS_SUCCESS: "Command successful"
+    PSTATUS_SUCCESS: "Command successful",
     PSTATUS_COMMAND_NOT_SUPPORTED: "Command is not supported",
     PSTATUS_NOT_INITIALIZED: "PSTATUS_NOT_INITIALIZED",
     PSTATUS_OVERRUN: "PSTATUS_OVERRUN",
