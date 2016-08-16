@@ -178,13 +178,13 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual("ddffII", serial_encoding.expand_fmt_string("2d2f2I"))
         self.assertEqual("HIHf", serial_encoding.expand_fmt_string("HIHf"))
 
-    def test_str_to_bool(self):
-        self.assertEqual(True, serial_encoding.str_to_bool("True"))
-        self.assertEqual(True, serial_encoding.str_to_bool("true"))
-        self.assertEqual(True, serial_encoding.str_to_bool("1"))
-        self.assertEqual(False, serial_encoding.str_to_bool("False"))
-        self.assertEqual(False, serial_encoding.str_to_bool("false"))
-        self.assertEqual(False, serial_encoding.str_to_bool("0"))
+    def test_convert_to_bool(self):
+        self.assertEqual(True, serial_encoding.convert_to_bool("True"))
+        self.assertEqual(True, serial_encoding.convert_to_bool("true"))
+        self.assertEqual(True, serial_encoding.convert_to_bool("1"))
+        self.assertEqual(False, serial_encoding.convert_to_bool("False"))
+        self.assertEqual(False, serial_encoding.convert_to_bool("false"))
+        self.assertEqual(False, serial_encoding.convert_to_bool("0"))
 
     def test_serialize_response_code(self):
         test_pcom_msg = PCOMMessage(msg_type="COMMAND", contents={"COMMAND": 2000})
