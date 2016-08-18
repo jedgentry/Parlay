@@ -58,8 +58,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     # Number of bits we have for sequence number
     SEQ_BITS = 4
 
+    # baud rate of communication over serial line
+    BAUD_RATE = 57600
+
     @classmethod
-    def open(cls, adapter, port, baudrate):
+    def open(cls, adapter, port):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
@@ -71,7 +74,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter)
-        SerialPort(protocol, port, adapter.reactor, baudrate=baudrate)
+        SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
         return protocol
 
     @classmethod
@@ -84,7 +87,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         default_args = BaseProtocol.get_open_params_defaults()
         potential_serials = [port_list[0] for port_list in list_ports.comports()]
         default_args['port'] = potential_serials
-        default_args['baudrate'] = [300, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400]
 
         return default_args
 
