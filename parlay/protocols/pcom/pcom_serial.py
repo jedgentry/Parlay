@@ -182,7 +182,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :type message dict
         :param message: dictionary message received from Parlay
         """
-        print "MESSAGE", message
+        # print "MESSAGE", message
         s = pcom_message.PCOMMessage.from_json_msg(message)
 
         # Serialize the message and prepare for protocol wrapping.
@@ -199,7 +199,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         sequence_num = self._seq_num.next()
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
         # Write to serial line! Good luck packet.
         self.transport.write(packet)
@@ -652,7 +652,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
             response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
 
-            item_type = str(response.data[0])
+            item_type = int(response.data[0])
+
             response = yield self.send_command(item_id, command_id=GET_COMMAND_IDS, tx_type="DIRECT")
 
             command_ids = response.data
@@ -697,7 +698,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
             yield discovered_property
 
-            self.items.append(parlay_item)
+            if item_type != ITEM_TYPE_HIDDEN:
+                self.items.append(parlay_item)
+
+            print "Finished ITEM:", item_name
 
         print "Finished subsystem:", subsystem
         defer.returnValue(discovery)
@@ -761,15 +765,15 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return  # Ignore, timeout should handle the resend.
 
         parlay_msg = msg.to_json_msg()
-        print "---> Message to be published: ", parlay_msg
+        # print "---> Message to be published: ", parlay_msg
         self.adapter.publish(parlay_msg, self.transport.write)
 
         # If we need to ack, ACK!
         if ack_expected:
             ack = str(p_wrap(ack_nak_message(sequence_num, True)))
             self.transport.write(ack)
-            print "---> ACK MESSAGE SENT"
-            print [hex(ord(x)) for x in ack]
+            # print "---> ACK MESSAGE SENT"
+            # print [hex(ord(x)) for x in ack]
 
         # also send it to discovery listener locally
         self._discovery_listener(msg)
@@ -783,8 +787,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        print "--->Line received was called!"
-        print [hex(ord(x)) for x in line]
+        # print "--->Line received was called!"
+        # print [hex(ord(x)) for x in line]
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
