@@ -458,7 +458,7 @@ def decode_pcom_message(binary_msg):
     msg.data = struct.unpack(receive_format, binary_msg[format_string_end_index+1:])
 
     # Remove null byte from all strings in data
-    print msg.data
+    # print msg.data
     msg.data = map(lambda s: s[:-1] if isinstance(s, basestring) and s.endswith('\x00') else s, msg.data)
 
     # Map booleans to numbers until UI handles booleans correctly.
@@ -467,7 +467,7 @@ def decode_pcom_message(binary_msg):
     # It's possible to receive empty strings for parameter requests.
     # In the case that we do receive an empty string we should not store it in data
     msg.data = filter(lambda x: x != '', msg.data)
-    print msg.data
+    # print msg.data
     return msg
 
 
