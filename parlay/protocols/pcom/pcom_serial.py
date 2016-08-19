@@ -452,7 +452,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
         self._subsystem_ids = [int(response.data[0])]
-        print "SUBSYSTEMS:", self._subsystem_ids
+        print "Subsystems found:", response.data[1]
 
         # TODO: Explain this in comments
         d = self._attached_item_d
