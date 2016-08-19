@@ -104,7 +104,6 @@ class PCOMMessage(object):
 
         data = []
         fmt = ''
-        print "CONTENTS", msg.contents
         if msg.msg_type == "COMMAND":
             # If the message type is "COMMAND" there should be an
             # entry in the 'CONTENTS' table for the command ID
@@ -132,7 +131,6 @@ class PCOMMessage(object):
                     data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
                     data = serial_encoding.cast_data(fmt, data)
 
-        print "DATA: ", data, "FORMAT: ", fmt
         return data, fmt
 
     @classmethod

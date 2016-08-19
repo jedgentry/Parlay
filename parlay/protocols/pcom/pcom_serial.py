@@ -58,8 +58,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     # Number of bits we have for sequence number
     SEQ_BITS = 4
 
+    # baud rate of communication over serial line
+    BAUD_RATE = 57600
+
     @classmethod
-    def open(cls, adapter, port, baudrate):
+    def open(cls, adapter, port):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
@@ -71,7 +74,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter)
-        SerialPort(protocol, port, adapter.reactor, baudrate=baudrate)
+        SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
         return protocol
 
     @classmethod
@@ -84,7 +87,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         default_args = BaseProtocol.get_open_params_defaults()
         potential_serials = [port_list[0] for port_list in list_ports.comports()]
         default_args['port'] = potential_serials
-        default_args['baudrate'] = [300, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400]
 
         return default_args
 
@@ -180,7 +182,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :type message dict
         :param message: dictionary message received from Parlay
         """
-        print "MESSAGE", message
+        # print "MESSAGE", message
         s = pcom_message.PCOMMessage.from_json_msg(message)
 
         # Serialize the message and prepare for protocol wrapping.
@@ -197,7 +199,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         sequence_num = self._seq_num.next()
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
         # Write to serial line! Good luck packet.
         self.transport.write(packet)
@@ -450,7 +452,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
         self._subsystem_ids = [int(response.data[0])]
-        print "SUBSYSTEMS:", self._subsystem_ids
+        print "Subsystems found:", response.data[1]
 
         # TODO: Explain this in comments
         d = self._attached_item_d
@@ -519,7 +521,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
 
     @staticmethod
-    def command_cb(command_info_list, item_id, command_id, command_dropdowns, command_subfields, parlay_item):
+    def command_cb(command_info_list, item_id, command_id, command_dropdowns, command_subfields, parlay_item, hidden=False):
         """
         Callback function used to update the command map and parlay item dropdown menu when the command info
         is retrieved from the embedded device during discovery. This function is called using gatherResults
@@ -532,6 +534,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param command_dropdowns: dropdown field for the ParlayStandardItem
         :param command_subfields: subfields for each dropdown option of the ParlayStandardItem
         :param parlay_item: ParlayStandardItem that we will be updating
+        :param hidden: whether or not the command will be hidden from UI
         :return:
         """
 
@@ -544,12 +547,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         command_map[item_id][command_id] = CommandInfo(c_input_format, c_input_names,
                                                       c_output_desc)
-        command_dropdowns.append((c_name, command_id))
 
-        for parameter in c_input_names:
-            local_subfields.append(parlay_item.create_field(parameter, INPUT_TYPES.STRING))
+        if not hidden:
+            command_dropdowns.append((c_name, command_id))
 
-        command_subfields.append(local_subfields)
+            for parameter in c_input_names:
+                local_subfields.append(parlay_item.create_field(parameter, INPUT_TYPES.STRING, required=True))
+
+            command_subfields.append(local_subfields)
         return
 
 
@@ -647,7 +652,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
             response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
 
-            item_type = str(response.data[0])
+            item_type = int(response.data[0])
+
             response = yield self.send_command(item_id, command_id=GET_COMMAND_IDS, tx_type="DIRECT")
 
             command_ids = response.data
@@ -673,7 +679,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
                 discovered_command = defer.gatherResults([command_name, command_input_format, command_input_param_names, command_output_desc])
                 discovered_command.addCallback(PCOMSerial.command_cb, item_id=item_id, command_id=command_id,
                                                command_subfields=command_subfields, command_dropdowns=command_dropdowns,
-                                               parlay_item=parlay_item)
+                                               parlay_item=parlay_item, hidden=(command_id in DISCOVERY_MESSAGES))
 
             yield discovered_command
 
@@ -692,7 +698,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
             yield discovered_property
 
-            self.items.append(parlay_item)
+            if item_type != ITEM_TYPE_HIDDEN:
+                self.items.append(parlay_item)
+
+            print "Finished ITEM:", item_name
 
         print "Finished subsystem:", subsystem
         defer.returnValue(discovery)
@@ -756,15 +765,15 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return  # Ignore, timeout should handle the resend.
 
         parlay_msg = msg.to_json_msg()
-        print "---> Message to be published: ", parlay_msg
+        # print "---> Message to be published: ", parlay_msg
         self.adapter.publish(parlay_msg, self.transport.write)
 
         # If we need to ack, ACK!
         if ack_expected:
             ack = str(p_wrap(ack_nak_message(sequence_num, True)))
             self.transport.write(ack)
-            print "---> ACK MESSAGE SENT"
-            print [hex(ord(x)) for x in ack]
+            # print "---> ACK MESSAGE SENT"
+            # print [hex(ord(x)) for x in ack]
 
         # also send it to discovery listener locally
         self._discovery_listener(msg)
@@ -778,8 +787,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        print "--->Line received was called!"
-        print [hex(ord(x)) for x in line]
+        # print "--->Line received was called!"
+        # print [hex(ord(x)) for x in line]
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
