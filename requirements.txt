@@ -9,7 +9,9 @@ pycparser>=2.14
 pyserial==2.7
 service-identity>=14.0.0
 six>=1.10.0
+sphinx>=1.4.5
 Twisted>=15.5.0
 txaio>=2.2.0
 wheel>=0.24.0
+zest.releaser[recommended]>=6.6.4
 zope.interface>=4.1.3
