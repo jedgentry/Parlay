@@ -66,8 +66,6 @@ class Broker(object):
         # The listeners that will be called whenever a message is received
         self._listeners = {}  # See Listener lookup document for more info
 
-
-
         # the broker is a singleton
         Broker.instance = self
 
