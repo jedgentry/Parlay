@@ -90,7 +90,16 @@ def timeout(d, seconds):
         return d
 
     timeout_deferred = defer.Deferred()
-    d.addBoth(lambda x:  timeout_deferred.callback(x) if not timeout_deferred.called else None)
+    def callback(x):
+        timeout_deferred.callback(x)
+        return x
+
+    def errback(x):
+        timeout_deferred.errback(x)
+        return x
+
+    d.addCallback(callback)
+    d.addErrback(errback)
 
     def cancel():
         if not d.called:
