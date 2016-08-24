@@ -63,7 +63,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     SEQ_BITS = 4
 
     # baud rate of communication over serial line
-    BAUD_RATE = 57600
+    BAUD_RATE = 115200
 
     # ACK window size
     WINDOW_SIZE = 8
@@ -141,7 +141,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # From parlay.utils, calls _message_queue_handler() whenever
         # a new message is added to the MessageQueue object
         self._message_queue = MessageQueue(self._message_queue_handler)
-        MessageQueue
         self._attached_item_d = None
 
         # Dictionary that maps ID # to Deferred object
@@ -597,7 +596,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         parlay_item.add_datastream(property_id, name=property_name + "_stream")
         return
 
-
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, subsystem):
         """
@@ -765,7 +763,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         This will get called with every new serial packet.
         The parameters are the expanded tuple given from unstuff_packet
         :param sequence_num: the sequence number of the received packet
-        :param ack_expected: Is an ack expected to this message?
+        :param ack
+        _expected: Is an ack expected to this message?
         :param is_ack : Is this an ack?
         :param is_nak: Is this a nak?
         :param msg: The pcom message (if it is one and not an ack/nak)
@@ -865,10 +864,10 @@ class SlidingACKWindow:
     def ack_timeout_errback(self, timeout_exception):
         """
         Errback that is called on ACK timeout
-        :param sequence_number:
-        :param timeout_exception:
+        :param timeout_exception: TimeoutException object that holds the ACK sequence number that timed out
         :return:
         """
+
         ack_to_send = self._window[timeout_exception.sequence_number]
         if ack_to_send.num_retries < self.NUM_RETRIES:
             ack_to_send.transport.write(ack_to_send.packet)
@@ -878,8 +877,8 @@ class SlidingACKWindow:
 
     def add_to_window(self, ack_info):
         """
-        adds ack_info to the window
-        :param ack_info:
+        Adds <ack_info> to the window
+        :param ack_info: ACKInfo object that will be added
         :return:
         """
 
@@ -892,7 +891,7 @@ class SlidingACKWindow:
 
     def add(self, ack_info):
         """
-        Adds ack_info to the window if there is room, or queue if no room
+        Adds ack_info to the window if there is room, or to the queue if there isn't any room
         :param ack_info: ACKInfo object
         :return:
         """
@@ -908,20 +907,22 @@ class SlidingACKWindow:
         :param ack_info:
         :return:
         """
+
         self._window[sequence_number].deferred.callback(sequence_number)
 
     def ack_timeout(self, d, seconds, sequence_number):
         """
-        Call d's errback if it hasn't been called back within 'seconds' number of seconds
-        If 'seconds' is None, then do nothing
+        An extension of the timeout() function from Parlay utils. Calls the errback of d
+        in <seconds> seconds if d is not called. In this case we will be passing a TimeoutException
+        with the ACK sequence number so that we can remove it from the table.
         """
-        # get out of here if no timeout
+
         if seconds is None:
             return d
 
         def cancel():
             if not d.called:
-                print "TIMEOUT: CALLING ERRBACK:", sequence_number
+                print "TIMEOUT SEQ NUM:", sequence_number
                 d.errback(TimeoutException(sequence_number))
 
         timer = reactor.callLater(seconds, cancel)
@@ -936,6 +937,11 @@ class SlidingACKWindow:
 
 
 class TimeoutException(Exception):
+    """
+    A custom exception used to be passed to the timeout errback for ACKs.
+    The sequence number needs to be stored so that the errback can lookup the correct
+    ACK in the sliding window.
+    """
 
     def __init__(self, sequence_number):
         self.sequence_number = sequence_number
