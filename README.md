@@ -21,45 +21,32 @@ The documentation for Parlay is hosted on [Read the Docs](http://parlay.readthed
 
 ## Installation
 
-#### Dependencies 
+### Windows
 
-Parlay requires some basic python development dependencies. Make sure these are installed
-##### Linux
+Download and run the Windows Installer exe from our [releases page](https://github.com/PromenadeSoftware/Parlay/releases/latest).
+
+
+### Linux
+
+#### Dependencies
+
+Parlay requires some basic python development dependencies. Make sure these are installed.
+
 Run the following from a command prompt:
 ```
-# python dependencies
-sudo apt-get install python python-pip python-dev
-# development dependencies
-sudo apt-get install git
+sudo apt-get install python python-pip python-dev libffi-dev libssl-dev
 ```
-
-######Optional dependencies for 'secure' branch
-These dependencies are only needed if you want to use the 'secure' version of Parlay that uses SSL for all websocket and http connections. 
-```
-sudo apt-get install libffi-dev libssl-dev
-```
-
-##### Windows
-
-Parlay requires [PyWin32](https://sourceforge.net/projects/pywin32/files/pywin32/)  (Download the 32 bit pywin32 if your python is 32 bit, otherwise download the 64bit version)
-
 
 #### Install via Python Pip
 
-For users familiar with python, the easiest way to install Parlay is with pip:
+To install Parlay for development only:
 ```
-c:\> pip install parlay
-```
-
-On linux you might need the sudo command :
-```
-~$ sudo pip install parlay
+$ sudo pip install parlay
 ```
 
-To install the 'secure' version of Parlay use this command
-
+To install the 'secure' version of Parlay:
 ```
-~$ sudo pip install git+https://github.com/PromenadeSoftware/Parlay.git#egg=parlay[secure]
+$ sudo pip install parlay[secure]
 ```
 
 ## Examples
