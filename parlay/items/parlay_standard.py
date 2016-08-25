@@ -322,6 +322,9 @@ class BadStatusError(Exception):
         self.error = error
         self.description = description
 
+    def __str__(self):
+        return str(self.error) + "\n" + str(self.description)
+
 
 class ParlayCommandItem(ParlayStandardItem):
     """
@@ -587,9 +590,11 @@ class ParlayCommandItem(ParlayStandardItem):
                 # if we get an error, then return it
                 result.addErrback(bad_status_errback)
 
-            except KeyError as _:
-                # TODO: Reply with human readible error message for UI
-                print("ERROR: missing args" + str(arg_names))
+            except KeyError as e:
+                self.send_response(msg, contents={"DESCRIPTION": "Missing Argument '%s' to command '%s'" %
+                                                                 (e.args[0], command),
+                                                  "TRACEBACK": ""}, msg_status=MSG_STATUS.ERROR)
+
 
             return True
 
@@ -905,7 +910,12 @@ class CommandHandle(object):
         msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.PROGRESS and
                                         msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
 
-        return msg["CONTENTS"]["RESULT"]
+        # if the  status is OK, then get the result, optherwise get the description
+        status = msg["TOPICS"].get("MSG_STATUS", None)
+        if status == MSG_STATUS.OK:
+            return msg["CONTENTS"]["RESULT"]
+        elif status == MSG_STATUS.ERROR:
+            raise BadStatusError("Error returned from item", msg["CONTENTS"].get("DESCRIPTION", ""))
 
     @run_in_thread
     def wait_for_ack(self):

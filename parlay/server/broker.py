@@ -66,8 +66,6 @@ class Broker(object):
         # The listeners that will be called whenever a message is received
         self._listeners = {}  # See Listener lookup document for more info
 
-
-
         # the broker is a singleton
         Broker.instance = self
 
@@ -526,7 +524,7 @@ class Broker(object):
         except:
             return "UNKNOWN"
 
-    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, ui_path=None):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, use_ssl=False, open_browser=True, ui_path=None):
         """
         Start up and run the broker. This method call with not return
         """
@@ -537,8 +535,8 @@ class Broker(object):
         signal.signal(signal.SIGINT, lambda sig, frame: self.cleanup())
 
         if mode == Broker.Modes.DEVELOPMENT:
-            print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
-            print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
+            print "INFO: Broker running in DEVELOPER mode. This is fine development environment"
+            print "INFO: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
                   "broker.run(mode=Broker.Modes.PRODUCTION)"
             # print out the local ip to access this broker from
             print "This device is remotely accessible at http://" + self.get_local_ip() + ":" + str(self.http_port)
@@ -559,23 +557,24 @@ class Broker(object):
             root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
 
         # ssl websocket
-        try:
-            from OpenSSL.SSL import Context
-            ssl_context_factory = BrokerSSlContextFactory()
+        if use_ssl:
+            try:
+                from OpenSSL.SSL import Context
+                ssl_context_factory = BrokerSSlContextFactory()
 
-            factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
-            factory.protocol = WebSocketServerAdapter
-            factory.setProtocolOptions(allowHixie76=True)
-            listenWS(factory, ssl_context_factory, interface=interface)
-            root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
-            self.reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
+                factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
+                factory.protocol = WebSocketServerAdapter
+                factory.setProtocolOptions()
+                listenWS(factory, ssl_context_factory, interface=interface)
+                root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
+                self.reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
 
-        except ImportError:
-            print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
-        except Exception as e:
-            print "WARNING: PyOpenSSL has had an error: " + str(e)
-            if ssl_only:
-                raise
+            except ImportError:
+                print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
+            except Exception as e:
+                print "WARNING: PyOpenSSL has had an error: " + str(e)
+                if ssl_only:
+                    raise
 
         if not ssl_only:
             # listen for websocket connections on port 8085
@@ -592,8 +591,6 @@ class Broker(object):
 
         self.reactor.callWhenRunning(self._started.callback, None)
         self.reactor.run()
-
-
 
 try:
     from twisted.internet import ssl

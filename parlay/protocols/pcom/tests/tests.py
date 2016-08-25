@@ -3,11 +3,8 @@ from twisted.trial import unittest
 
 from parlay.protocols.pcom.pcom_message import PCOMMessage
 from parlay.protocols.pcom.enums import *
-from parlay.protocols.pcom.pcom_serial import PCOMSerial
 import parlay.protocols.pcom.serial_encoding as serial_encoding
 
-from parlay.testing.unittest_mixins.adapter import AdapterMixin
-from parlay.testing.unittest_mixins.reactor import ReactorMixin
 
 
 class TestSerialEncoding(unittest.TestCase):
@@ -85,7 +82,7 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual(msg.format_string, "fB")
         self.assertEqual(msg.data, [0x10, 0x14])
 
-        self.s.format_string = "ffbBH"
+        self.s.format_string = "ff?BH"
         self.s.data = [0x01, 0x01, 0x01, 0x01, 0x01]
 
         b_msg = serial_encoding.encode_pcom_message(self.s)
@@ -97,7 +94,7 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual(msg.response_code, self.b_order_code)
         # self.assertEqual(msg.msg_type, self.b_type)
         self.assertEqual(msg.attributes, self.b_attributes)
-        self.assertEqual(msg.format_string, "ffbBH")
+        self.assertEqual(msg.format_string, "ff?BH")
         self.assertEqual(msg.data, [1.0, 1.0, 1, 1, 1])
 
     def test_translate_format_string(self):
@@ -119,6 +116,7 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual('6B', serial_encoding.translate_fmt_str('*B', '\x65\x65\x65\x65\x65\x65'))
         self.assertEqual('H2b', serial_encoding.translate_fmt_str('H*b', '\x11\x11\x22\x22'))
         self.assertEqual('10H', serial_encoding.translate_fmt_str('*H', [10, 0, 1, 2, 4, 1, 10, 6, 1, 6]))
+        self.assertEqual('?', serial_encoding.translate_fmt_str('?', [1]))
 
     def test_cast_data(self):
         self.assertEqual([12, 13, 14], serial_encoding.cast_data("3H", ["12", "13", "14"]))
@@ -148,6 +146,7 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual([False, False, False], serial_encoding.cast_data('*?', ["0, False, false"]))
         self.assertEqual([False, False, False], serial_encoding.cast_data('*?', ["no, False, 0"]))
         self.assertEqual([True], serial_encoding.cast_data('*?', ["True"]))
+        self.assertEqual([True], serial_encoding.cast_data('?', ["1"]))
         self.assertEqual([False], serial_encoding.cast_data('*?', ["false"]))
         self.assertEqual([0x1111, 0x2222], serial_encoding.cast_data('*H', ["0x1111, 0x2222"]))
         self.assertEqual([0x1919, 0x2020, 0x3030], serial_encoding.cast_data('*h', ["0x1919, 0x2020, 0x3030"]))
