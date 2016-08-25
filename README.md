@@ -61,6 +61,10 @@ Check out the #parlay channel on freenode IRC for help
 
 This version of Parlay is released under the GPLv3 License. Contact [Promenade Software](http://promenadesoftware.com) for more information on a commercial license. 
 
+## Contributing
+
+Please read our [contributing guide](https://github.com/PromenadeSoftware/Parlay/blob/master/CONTRIBUTING.md). 
+
 ## Copyright
 
 Parlay is Copyright (C) 2015 by Promenade Software, Inc.
