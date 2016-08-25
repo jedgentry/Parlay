@@ -10,15 +10,13 @@ You accept and agree to the following terms and conditions for Your present and 
 to Promenade Software. Except for the license granted herein to Promenade Software and recipients of software distributed 
 by Promenade Software, You reserve all right, title, and interest in and to Your Contributions.
 
-1. Definitions
-
+1. Definitions.  
 "You" (or "Your") shall mean the copyright owner or legal entity authorized by the copyright owner that is making 
 this Agreement with Promenade Software. For legal entities, the entity making a Contribution and all other entities that 
 control, are controlled by, or are under common control with that entity are considered to be a single Contributor. 
 For the purposes of this definition, "control" means (i) the power, direct or indirect, to cause the direction 
 or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more 
-of the outstanding shares, or (iii) beneficial ownership of such entity.
-
+of the outstanding shares, or (iii) beneficial ownership of such entity.  
 "Contribution" shall mean any original work of authorship, including any modifications or additions to an existing
 work, that is intentionally submitted by You to Promenade Software for inclusion in, or documentation of, any of the products 
 owned or managed by Promenade Software (the "Work"). For the purposes of this definition, "submitted" means any form of 
