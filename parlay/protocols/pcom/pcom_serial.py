@@ -206,7 +206,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         sequence_num = self._seq_num.next()
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
 
         # Write to serial line! Good luck packet.
@@ -460,7 +460,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
         self._subsystem_ids = [int(response.data[0])]
-        print "Subsystems found:", response.data[1]
+        # print "Subsystems found:", response.data[1]
 
         # TODO: Explain this in comments
         d = self._attached_item_d
@@ -783,8 +783,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if ack_expected:
             ack = str(p_wrap(ack_nak_message(sequence_num, True)))
             self.transport.write(ack)
-            print "---> ACK MESSAGE SENT"
-            print [hex(ord(x)) for x in ack]
+            # print "---> ACK MESSAGE SENT"
+            # print [hex(ord(x)) for x in ack]
 
         # also send it to discovery listener locally
         self._discovery_listener(msg)
@@ -798,8 +798,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        print "--->Line received was called!"
-        print [hex(ord(x)) for x in line]
+        # print "--->Line received was called!"
+        # print [hex(ord(x)) for x in line]
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
