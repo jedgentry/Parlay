@@ -230,7 +230,7 @@ def cast_data(fmt_string, data):
             continue
 
         if i == '*':
-            variable_array = data[index].split(",")
+            variable_array = data[index].split(",") if type(data[index]) == str else data
             new_fmt_str = str(len(variable_array)) + expanded_fmt[fmt_index+1]
             result.extend(cast_data(expand_fmt_string(new_fmt_str), variable_array))
             skip_next = 1
@@ -662,7 +662,7 @@ def sum_packet(msg):
 
     checksum = 0
     for b in msg:
-        checksum = (checksum + b) & 0xff
+        checksum = (checksum + b) % 0x100
     return checksum
 
 def get_checksum(packet_sum):
@@ -672,7 +672,7 @@ def get_checksum(packet_sum):
     :return: checksum for the packet
     """
 
-    return (0x100 - (packet_sum & 0xff)) & 0x100 #TODO: provide constants instead of magic numbers
+    return (0x100 - packet_sum) % 0x100
 
 
 
