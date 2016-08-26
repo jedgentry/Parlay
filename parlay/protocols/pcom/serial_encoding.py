@@ -616,18 +616,20 @@ def wrap_packet(packet, sequence_num, use_ack):
     payload_length = len(packet)
     sequence_byte = sequence_num | (NORMAL << 4) if use_ack else sequence_num | (ACK << 4)
 
-    checksum_array = [sequence_byte, payload_length & 0xffff]
-    # calculate and add the checksum byte
-    checksum_array += bytearray(packet)
+    binary_msg = bytearray([sequence_byte])
+    binary_msg += struct.pack("<H", payload_length & 0xFFFF)
+    binary_msg += bytearray(packet)
 
-    sum_checksum_array = sum_packet(checksum_array)
-    checksum = get_checksum(sum_checksum_array)
+    hex_print(str(binary_msg))
+    msg_sum = sum_packet(binary_msg)
+    checksum = get_checksum(msg_sum)
 
     #verify checksum
-    if (sum_checksum_array + checksum) & 0xff != 0:
+    if (msg_sum + checksum) & 0xff != 0:
         raise ValueError("Checksum didn't equal zero!")
 
-    binary_msg = bytearray([sequence_byte, checksum]) + struct.pack("<H", payload_length & 0xffff) + bytearray(packet)
+    binary_msg = bytearray([sequence_byte, checksum]) + binary_msg[1:]
+    hex_print(str(binary_msg))
 
 
     # Add the start stop and escape characters and send over serial port
