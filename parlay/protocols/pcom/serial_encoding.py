@@ -672,7 +672,7 @@ def get_checksum(packet_sum):
     :return: checksum for the packet
     """
 
-    return (0x100 - (packet_sum & 0xff)) & 0xff #TODO: provide constants instead of magic numbers
+    return (0x100 - (packet_sum & 0xff)) & 0x100 #TODO: provide constants instead of magic numbers
 
 
 

@@ -258,6 +258,12 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual('\x02\x80\x80\x00\x00\x03', serial_encoding.wrap_packet('', 0, True))
         self.assertEqual('\x02\x81\x4b\x01\x00\x33\x03', serial_encoding.wrap_packet('\x33', 1, True))
 
+    def test_checksum(self):
+        sum_p = serial_encoding.sum_packet(range(0,500))
+        print sum_p
+        check_s = serial_encoding.get_checksum(sum_p)
+        self.assertEqual(0, (check_s+sum_p) & 0x100)
+
 
 
 class TestPCOMMessage(unittest.TestCase):
