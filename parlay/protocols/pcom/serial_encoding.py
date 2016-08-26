@@ -230,9 +230,9 @@ def cast_data(fmt_string, data):
             continue
 
         if i == '*':
-            variable_array = data[index].split(",") if type(data[index]) == str else data
+            variable_array = data[index].split(",") if isinstance(data[index], basestring) else data[index]
             new_fmt_str = str(len(variable_array)) + expanded_fmt[fmt_index+1]
-            result.extend(cast_data(expand_fmt_string(new_fmt_str), variable_array))
+            result.append(cast_data(expand_fmt_string(new_fmt_str), variable_array))
             skip_next = 1
         elif i.isalpha():
             if i in "bBhHiIlLqQnNx":  # TODO: Should padding (x) be int?
