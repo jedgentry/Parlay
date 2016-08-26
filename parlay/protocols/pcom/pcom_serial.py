@@ -870,6 +870,8 @@ class SlidingACKWindow:
         if ack_to_send.num_retries < self.NUM_RETRIES:
             ack_to_send.transport.write(ack_to_send.packet)
             ack_to_send.num_retries += 1
+            ack_to_send.deferred.addErrback(self.ack_timeout_errback)
+            self.ack_timeout(ack_to_send.deferred, .5, ack_to_send.sequence_number)
         else:
             self.remove(ack_to_send)
 
