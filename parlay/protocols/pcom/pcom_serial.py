@@ -77,7 +77,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
         '"""
-
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter)
@@ -118,7 +117,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # The list of connected item IDs found in the initial sweep in
         # connectionMade()
         self._item_ids = []
-
         BaseProtocol.__init__(self)
 
         # Set the LineReceiver to line mode. This causes lineReceived to be called
@@ -208,7 +206,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         sequence_num = self._seq_num.next()
         packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
 
         # Write to serial line! Good luck packet.
@@ -785,8 +783,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if ack_expected:
             ack = str(p_wrap(ack_nak_message(sequence_num, True)))
             self.transport.write(ack)
-            # print "---> ACK MESSAGE SENT"
-            # print [hex(ord(x)) for x in ack]
+            print "---> ACK MESSAGE SENT"
+            print [hex(ord(x)) for x in ack]
 
         # also send it to discovery listener locally
         self._discovery_listener(msg)
@@ -800,8 +798,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        # print "--->Line received was called!"
-        # print [hex(ord(x)) for x in line]
+        print "--->Line received was called!"
+        print [hex(ord(x)) for x in line]
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
