@@ -188,7 +188,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         :type message dict
         :param message: dictionary message received from Parlay
+
+
         """
+
+        # this function should return a fired deferred, so set one up
+        d = defer.Deferred()
+        d.callback(None)
+
         # print "MESSAGE", message
         s = pcom_message.PCOMMessage.from_json_msg(message)
 
@@ -197,7 +204,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             packet = encode_pcom_message(s)
         except:
             self.send_error_message(original_message=s, message_status=PSTATUS_ENCODING_ERROR)
-            defer.returnValue(message)
+            return d
 
         need_ack = True
 
@@ -211,22 +218,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # Write to serial line! Good luck packet.
         self._ack_window.add(ACKInfo(sequence_num, 0, packet, self.transport))
-
-        # while need_ack and num_retries_left > 0:
-        #     try:
-        #         ack_sequence_num = yield timeout(self._ack_deferred, .5)
-        #         if ack_sequence_num == sequence_num:
-        #             need_ack = False
-        #         else:
-        #             print "Wrong seq num:", ack_sequence_num, "!=", sequence_num
-        #
-        #     except TimeoutError:
-        #         print "Timeout occurred. Sending packet again..."
-        #         self._ack_deferred = defer.Deferred()
-        #         self.transport.write(packet)
-        #         num_retries_left -= 1
-        d = defer.Deferred()
-        d.callback(None)
         return d
 
     def _discovery_listener(self, msg):

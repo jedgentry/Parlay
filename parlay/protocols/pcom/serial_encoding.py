@@ -13,6 +13,7 @@ import array
 import sys
 from enums import *
 import pcom_message
+import collections
 
 FORMAT_STRING_TABLE = {
 
@@ -147,9 +148,33 @@ def encode_pcom_message(msg):
     # to the payload.
     if msg.data:
         msg.data = cast_data(msg.format_string, msg.data)
-        payload += struct.pack("<" + translate_fmt_str(msg.format_string, msg.data), *msg.data)
+        flattened_data = flatten(msg.data)
+        payload += struct.pack("<" + translate_fmt_str(msg.format_string, msg.data), *flattened_data)
 
     return payload
+
+
+def flatten(data):
+    """
+    Flattens an irregular data list into one list.
+
+    Eg.
+
+    [1, 2, [3, 4]] -> [1, 2, 3, 4]
+
+     NOTE: used for handling variable length format string data
+
+     FORMAT STRING = b*b
+     DATA = [2, [3, 4]]
+
+     Data needs to be packed as struct.pack('b2b', 2, 3, 4)
+    :param data:  data list to be packed
+    :return: flattened data lilst
+    """
+    if isinstance(data, collections.Iterable):
+        return [element for lst in data for element in flatten(lst)]
+    else:
+        return [data]
 
 
 def expand_fmt_string(format_string):
@@ -207,7 +232,7 @@ def cast_data(fmt_string, data):
 
     Example usage:
 
-    cast_data("*B", ["12, 13, 14"]) --> [12, 13, 14]
+    cast_data("*B", ["12, 13, 14"]) --> [[12, 13, 14]]
     cast_data("Hs", ["12", "test"] --> [12, "test"]
 
     The return list will be sent to struct.pack()
@@ -518,12 +543,14 @@ def translate_fmt_str(fmt_str, data):
     for fmt_index, char in enumerate(fmt_str):
 
         if char == '*':
-            rest_of_data_len = (len(data) - index)
             if is_binary:
+                rest_of_data_len = (len(data) - index)
                 rest_of_data_len /= FORMAT_STRING_TABLE[fmt_str[fmt_index+1]]
-
-            output_str += str(rest_of_data_len)
-            index += rest_of_data_len
+                output_str += str(rest_of_data_len)
+                index += rest_of_data_len
+            else:
+                output_str += str(len(data[index]))
+                index += 1
             continue
 
         if char.isdigit():
@@ -593,14 +620,15 @@ def wrap_packet(packet, sequence_num, use_ack):
     # calculate and add the checksum byte
     checksum_array += bytearray(packet)
 
-    checksum = get_checksum(sum_packet(checksum_array))
+    sum_checksum_array = sum_packet(checksum_array)
+    checksum = get_checksum(sum_checksum_array)
 
-    binary_msg = bytearray([sequence_byte, checksum]) + struct.pack("<H", payload_length & 0xffff) + packet
+    #verify checksum
+    if (sum_checksum_array + checksum) & 0xff != 0:
+        raise ValueError("Checksum didn't equal zero!")
 
-    # If the packet sum is not zero we should raise an exception
-    # and not send the packet.
-    if sum_packet(binary_msg):
-        raise Exception("Checksum wasn't zero!")
+    binary_msg = bytearray([sequence_byte, checksum]) + struct.pack("<H", payload_length & 0xffff) + bytearray(packet)
+
 
     # Add the start stop and escape characters and send over serial port
     return p_wrap(binary_msg)
@@ -662,8 +690,8 @@ def sum_packet(msg):
 
     checksum = 0
     for b in msg:
-        checksum = (checksum + b) % 0x100
-    return checksum
+        checksum = (checksum + b)
+    return checksum & 0xff
 
 def get_checksum(packet_sum):
     """
@@ -672,7 +700,7 @@ def get_checksum(packet_sum):
     :return: checksum for the packet
     """
 
-    return (0x100 - packet_sum) % 0x100
+    return -packet_sum & 0xff
 
 
 

@@ -110,12 +110,13 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual('2s', serial_encoding.translate_fmt_str('s', '\x23\x00'))
         self.assertEqual('5s2B', serial_encoding.translate_fmt_str('s2B', '\x65\x65\x65\x65\x00\x12\x12'))
         self.assertEqual('6s2H', serial_encoding.translate_fmt_str('s2H', ["hello", 12, 2]))
-        self.assertEqual('2b', serial_encoding.translate_fmt_str('*b', [12, 2]))
-        self.assertEqual('4I', serial_encoding.translate_fmt_str('*I', [12, 2, 4, 5]))
+        self.assertEqual('2b', serial_encoding.translate_fmt_str('*b', [[12, 2]]))
+        self.assertEqual('4I', serial_encoding.translate_fmt_str('*I', [[12, 2, 4, 5]]))
         self.assertEqual('2I', serial_encoding.translate_fmt_str('*I', '\x12\x12\x12\x12\x33\x33\x33\x33'))
         self.assertEqual('6B', serial_encoding.translate_fmt_str('*B', '\x65\x65\x65\x65\x65\x65'))
         self.assertEqual('H2b', serial_encoding.translate_fmt_str('H*b', '\x11\x11\x22\x22'))
-        self.assertEqual('10H', serial_encoding.translate_fmt_str('*H', [10, 0, 1, 2, 4, 1, 10, 6, 1, 6]))
+        self.assertEqual('10H', serial_encoding.translate_fmt_str('*H', [[10, 0, 1, 2, 4, 1, 10, 6, 1, 6]]))
+        self.assertEqual('b2H', serial_encoding.translate_fmt_str('b*H', [100, [100, 200]]))
         self.assertEqual('?', serial_encoding.translate_fmt_str('?', [1]))
 
     def test_cast_data(self):
@@ -261,9 +262,9 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual('\x02\x81\x4b\x01\x00\x33\x03', serial_encoding.wrap_packet('\x33', 1, True))
 
     def test_checksum(self):
-        sum_p = serial_encoding.sum_packet(range(0, 500))
+        sum_p = serial_encoding.sum_packet(range(0, 100)*100)
         check_s = serial_encoding.get_checksum(sum_p)
-        self.assertEqual(0, (check_s+sum_p) % 0x100)
+        self.assertEqual(0, sum_p+check_s & 0xff)
 
 
 
