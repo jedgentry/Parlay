@@ -589,10 +589,9 @@ def wrap_packet(packet, sequence_num, use_ack):
     payload_length = len(packet)
     sequence_byte = sequence_num | (NORMAL << 4) if use_ack else sequence_num | (ACK << 4)
 
-    checksum_array = bytearray([sequence_byte])
+    checksum_array = [sequence_byte, payload_length & 0xffff]
     # calculate and add the checksum byte
-    checksum_array.append(payload_length & 0xffff)
-    checksum_array += packet
+    checksum_array += bytearray(packet)
 
     checksum = get_checksum(sum_packet(checksum_array))
 
