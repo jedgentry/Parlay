@@ -199,7 +199,7 @@ class ParlayProperty(object):
     **Example: How to define a property**::
 
         class MyItem(ParlayCommandItem):
-            self.x = ParlayProperty(default=0, val_type=int)
+            x = ParlayProperty(default=0, val_type=int)
 
             def __init__(self, item_id, item_name):
                 ParlayCommandItem.__init__(self, item_id, item_name)
@@ -266,7 +266,7 @@ class ParlayDatastream(object):
     Example Usage::
 
         class Balloon(ParlayCommandItem):
-            self.altitude = ParlayDatastream(default=0, units="ft")
+            altitude = ParlayDatastream(default=0, units="ft")
     """
 
     def __init__(self, default=None, val_type=None, units="", callback=lambda _: _):
