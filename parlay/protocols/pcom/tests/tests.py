@@ -155,6 +155,8 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual([2000200, 3003000, 40004000], serial_encoding.cast_data('*q', ["2000200, 3003000, 40004000"]))
         self.assertEqual([10000000, 20000000, 300000000], serial_encoding.cast_data('*Q', ["10000000, 20000000, 300000000"]))
         self.assertEqual([1000], serial_encoding.cast_data('H', [1000]))
+        self.assertEqual([10000000, 20000000, 300000000],
+                         serial_encoding.cast_data('*Q', [10000000, 20000000, 300000000]))
 
     def test_p_wrap(self):
         self.assertEqual(START_BYTE_STR+'\x00'+END_BYTE_STR, serial_encoding.p_wrap('\x00'))
@@ -259,10 +261,9 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual('\x02\x81\x4b\x01\x00\x33\x03', serial_encoding.wrap_packet('\x33', 1, True))
 
     def test_checksum(self):
-        sum_p = serial_encoding.sum_packet(range(0,500))
-        print sum_p
+        sum_p = serial_encoding.sum_packet(range(0, 500))
         check_s = serial_encoding.get_checksum(sum_p)
-        self.assertEqual(0, (check_s+sum_p) & 0x100)
+        self.assertEqual(0, (check_s+sum_p) % 0x100)
 
 
 
