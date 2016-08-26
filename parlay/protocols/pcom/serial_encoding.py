@@ -629,7 +629,6 @@ def wrap_packet(packet, sequence_num, use_ack):
         raise ValueError("Checksum didn't equal zero!")
 
     binary_msg = bytearray([sequence_byte, checksum]) + binary_msg[1:]
-    hex_print(str(binary_msg))
 
 
     # Add the start stop and escape characters and send over serial port
