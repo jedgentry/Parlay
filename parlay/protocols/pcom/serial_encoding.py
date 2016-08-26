@@ -620,7 +620,6 @@ def wrap_packet(packet, sequence_num, use_ack):
     binary_msg += struct.pack("<H", payload_length & 0xFFFF)
     binary_msg += bytearray(packet)
 
-    hex_print(str(binary_msg))
     msg_sum = sum_packet(binary_msg)
     checksum = get_checksum(msg_sum)
 
