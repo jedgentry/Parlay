@@ -468,7 +468,8 @@ class ParlayCommandItem(ParlayStandardItem):
         for member_name in [x for x in dir(self.__class__) if not x.startswith("__")]:
             member = self.__class__.__dict__.get(member_name, None)
             if isinstance(member, ParlayProperty):
-                self.add_property(member_name, member_name, INPUT_TYPES.STRING,
+                self.add_property(member_name, member_name,  # lookup type name based on type func (e.g. int())
+                                  INPUT_TYPE_DISCOVERY_LOOKUP.get(member._val_type.__name__, "STRING"),
                                   read_only=member._read_only, write_only=member._write_only)
 
     def _add_datastreams_to_discovery(self):
