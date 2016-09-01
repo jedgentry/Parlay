@@ -11,6 +11,7 @@ between Parlay and embedded devices.
 from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import defer
+from twisted.internet import reactor
 
 from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
@@ -22,6 +23,9 @@ from serial_encoding import *
 from enums import *
 
 from collections import namedtuple
+
+import time
+
 
 
 # A namedtuple representing the information of each property.
@@ -59,8 +63,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     SEQ_BITS = 4
 
     # baud rate of communication over serial line
-    BAUD_RATE = 57600
+    BAUD_RATE = 115200
 
+    # ACK window size
+    WINDOW_SIZE = 8
+
+    ACK_DIFFERENTIAL = 8
     @classmethod
     def open(cls, adapter, port):
         """
@@ -70,7 +78,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
         '"""
-
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter)
@@ -111,7 +118,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # The list of connected item IDs found in the initial sweep in
         # connectionMade()
         self._item_ids = []
-
         BaseProtocol.__init__(self)
 
         # Set the LineReceiver to line mode. This causes lineReceived to be called
@@ -134,7 +140,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # From parlay.utils, calls _message_queue_handler() whenever
         # a new message is added to the MessageQueue object
         self._message_queue = MessageQueue(self._message_queue_handler)
-
         self._attached_item_d = None
 
         # Dictionary that maps ID # to Deferred object
@@ -156,6 +161,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self._in_progress = False
         self._discovery_deferred = defer.Deferred()
 
+        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+
+        self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
+
     def send_error_message(self, original_message, message_status):
         """
         Sends a notification error to the destination ID.
@@ -171,7 +180,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         json_msg = error_msg.to_json_msg()
         self.adapter.publish(json_msg)
 
-    @defer.inlineCallbacks
     def _message_queue_handler(self, message):
         """
         This is the callback function given to the MessageQueue object that is called
@@ -181,7 +189,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         :type message dict
         :param message: dictionary message received from Parlay
+
+
         """
+
+        # this function should return a fired deferred, so set one up
+        d = defer.Deferred()
+        d.callback(None)
+
         # print "MESSAGE", message
         s = pcom_message.PCOMMessage.from_json_msg(message)
 
@@ -190,7 +205,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             packet = encode_pcom_message(s)
         except:
             self.send_error_message(original_message=s, message_status=PSTATUS_ENCODING_ERROR)
-            defer.returnValue(message)
+            return d
 
         need_ack = True
 
@@ -201,25 +216,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
+
         # Write to serial line! Good luck packet.
-        self.transport.write(packet)
-        num_retries_left = self.NUM_RETRIES
-
-        while need_ack and num_retries_left > 0:
-            try:
-                ack_sequence_num = yield timeout(self._ack_deferred, .5)
-                if ack_sequence_num == sequence_num:
-                    need_ack = False
-                else:
-                    print "Wrong seq num:", ack_sequence_num, "!=", sequence_num
-
-            except TimeoutError:
-                print "Timeout occurred. Sending packet again..."
-                self._ack_deferred = defer.Deferred()
-                self.transport.write(packet)
-                num_retries_left -= 1
-
-        defer.returnValue(message)
+        self._ack_window.add(ACKInfo(sequence_num, 0, packet, self.transport))
+        return d
 
     def _discovery_listener(self, msg):
         """
@@ -452,7 +452,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
         self._subsystem_ids = [int(response.data[0])]
-        print "Subsystems found:", response.data[1]
+        # print "Subsystems found:", response.data[1]
 
         # TODO: Explain this in comments
         d = self._attached_item_d
@@ -494,6 +494,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         print "Discovery function started!"
         print "----------------------------"
 
+        t1 = time.time()
+
         # If there is a deferred item, yield that first
         if self._attached_item_d is not None:
             yield self._attached_item_d
@@ -513,6 +515,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         self._in_progress = False
 
+        t2 = time.time()
+
+        print "Discovery took", (t2 - t1), "seconds"
         # At this point self.items should be populated with
         # the ParlayStandardItem objects that represent the items we discovered.
         # By calling BaseProtocol's get_discovery() function we can get that information
@@ -580,7 +585,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         parlay_item.add_property(property_id, name=property_name)
         parlay_item.add_datastream(property_id, name=property_name + "_stream")
         return
-
 
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, subsystem):
@@ -749,7 +753,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         This will get called with every new serial packet.
         The parameters are the expanded tuple given from unstuff_packet
         :param sequence_num: the sequence number of the received packet
-        :param ack_expected: Is an ack expected to this message?
+        :param ack
+        _expected: Is an ack expected to this message?
         :param is_ack : Is this an ack?
         :param is_nak: Is this a nak?
         :param msg: The pcom message (if it is one and not an ack/nak)
@@ -757,9 +762,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
 
         if is_ack:
-            temp = self._ack_deferred
-            self._ack_deferred = defer.Deferred()
-            temp.callback(sequence_num)
+            self._ack_window.remove(sequence_num)
             return
         elif is_nak:
             return  # Ignore, timeout should handle the resend.
@@ -808,6 +811,154 @@ class CommandInfo:
         self.fmt = fmt
         self.params = parameters
         self.output_names = output_names
+
+
+class ACKInfo:
+    """
+    Stores ACK information: deferred and number of retries
+    """
+
+    def __init__(self, sequence_number, num_retries, packet, transport):
+        self.deferred = defer.Deferred()
+        self.num_retries = num_retries
+        self.sequence_number = sequence_number
+        self.transport = transport
+        self.packet = packet
+
+
+class SlidingACKWindow:
+    """
+    Represents an ACK window
+    """
+
+    TIMEOUT = 1000
+    EXPIRED = 1001
+    def __init__(self, window_size, num_retries):
+        self._window = {}
+        self._queue = []
+        self.WINDOW_SIZE = window_size
+        self.NUM_RETRIES = num_retries
+        self.MAX_ACK_SEQ = 16
+        # Initialize lack_acked_map so that none of the first ACKs think they are
+        # duplicates. -1 works because no ACK has sequence number -1
+        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
+
+    def ack_received_callback(self, sequence_number):
+        """
+        Callback for the deferred objects in the sliding ACK window.
+
+        When an ACK is received we should remove it from the window and then
+        move one ACK from the queue into the window
+        :return:
+        """
+
+        # Check for duplicate ack
+        if sequence_number != self.TIMEOUT:
+
+            if sequence_number != self.EXPIRED:
+                if self._last_acked_map[sequence_number % self.WINDOW_SIZE] == sequence_number:
+                    print "UNEXPECTED ACK SEQ NUM:", sequence_number, "DROPPING"
+                    return
+
+                self._last_acked_map[sequence_number % self.WINDOW_SIZE] = sequence_number
+
+            del self._window[sequence_number]
+            if len(self._queue) > 0:
+                ack_to_add = self._queue.pop(0)
+                self.add_to_window(ack_to_add)
+
+    def ack_timeout_errback(self, timeout_failure):
+        """
+        Errback that is called on ACK timeout
+        :param timeout_exception: TimeoutException object that holds the ACK sequence number that timed out
+        :return:
+        """
+
+        ack_to_send = self._window[timeout_failure.value.sequence_number]
+        if ack_to_send.num_retries < self.NUM_RETRIES:
+            print "TIMEOUT SEQ NUM", timeout_failure.value.sequence_number, " RESENDING..."
+            ack_to_send.transport.write(ack_to_send.packet)
+            ack_to_send.num_retries += 1
+            d = defer.Deferred()
+            d.addErrback(self.ack_timeout_errback)
+            d.addCallback(self.ack_received_callback)
+            ack_to_send.deferred = d
+            self.ack_timeout(ack_to_send.deferred, .5, ack_to_send.sequence_number)
+            return self.TIMEOUT
+
+        return self.EXPIRED
+
+
+
+    def add_to_window(self, ack_info):
+        """
+        Adds <ack_info> to the window
+        :param ack_info: ACKInfo object that will be added
+        :return:
+        """
+
+        ack_info.deferred.addCallback(self.ack_received_callback)
+        ack_info.deferred.addErrback(self.ack_timeout_errback)
+
+        ack_info.transport.write(ack_info.packet)
+        self.ack_timeout(ack_info.deferred, .5, ack_info.sequence_number)
+        self._window[ack_info.sequence_number] = ack_info
+
+    def add(self, ack_info):
+        """
+        Adds ack_info to the window if there is room, or to the queue if there isn't any room
+        :param ack_info: ACKInfo object
+        :return:
+        """
+
+        if len(self._window) < self.WINDOW_SIZE:
+            self.add_to_window(ack_info)
+        else:
+            self._queue.append(ack_info)
+
+    def remove(self, sequence_number):
+        """
+        Removes ack_info from the window
+        :param ack_info:
+        :return:
+        """
+
+        self._window[sequence_number].deferred.callback(sequence_number)
+
+    def ack_timeout(self, d, seconds, sequence_number):
+        """
+        An extension of the timeout() function from Parlay utils. Calls the errback of d
+        in <seconds> seconds if d is not called. In this case we will be passing a TimeoutException
+        with the ACK sequence number so that we can remove it from the table.
+        """
+        if seconds is None:
+            return d
+
+        def cancel():
+            if not d.called:
+                d.errback(TimeoutException(sequence_number))
+
+        timer = reactor.callLater(seconds, cancel)
+
+        # clean up the timer on success
+        def clean_up_timer(result):
+            if timer.active():
+                timer.cancel()
+            return result  # pass through the result
+        d.addCallback(clean_up_timer)
+
+
+class TimeoutException(Exception):
+    """
+    A custom exception used to be passed to the timeout errback for ACKs.
+    The sequence number needs to be stored so that the errback can lookup the correct
+    ACK in the sliding window.
+    """
+
+    def __init__(self, sequence_number):
+        self.sequence_number = sequence_number
+
+
 
 
 
