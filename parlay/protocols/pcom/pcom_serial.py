@@ -63,7 +63,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     SEQ_BITS = 4
 
     # baud rate of communication over serial line
-    BAUD_RATE = 115200
+    BAUD_RATE = 230400
 
     # ACK window size
     WINDOW_SIZE = 8
@@ -833,6 +833,7 @@ class SlidingACKWindow:
 
     TIMEOUT = 1000
     EXPIRED = 1001
+
     def __init__(self, window_size, num_retries):
         self._window = {}
         self._queue = []
