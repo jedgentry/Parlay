@@ -68,6 +68,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     # ACK window size
     WINDOW_SIZE = 8
 
+    ACK_DIFFERENTIAL = 8
     @classmethod
     def open(cls, adapter, port):
         """
@@ -830,11 +831,17 @@ class SlidingACKWindow:
     Represents an ACK window
     """
 
+    TIMEOUT = 1000
+    EXPIRED = 1001
     def __init__(self, window_size, num_retries):
         self._window = {}
         self._queue = []
         self.WINDOW_SIZE = window_size
         self.NUM_RETRIES = num_retries
+        self.MAX_ACK_SEQ = 16
+        # Initialize lack_acked_map so that none of the first ACKs think they are
+        # duplicates. -1 works because no ACK has sequence number -1
+        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
 
     def ack_received_callback(self, sequence_number):
         """
@@ -845,26 +852,43 @@ class SlidingACKWindow:
         :return:
         """
 
-        del self._window[sequence_number]
-        if len(self._queue) > 0:
-            ack_to_add = self._queue.pop(0)
-            self.add_to_window(ack_to_add)
+        # Check for duplicate ack
+        if sequence_number != self.TIMEOUT:
 
-    def ack_timeout_errback(self, timeout_exception):
+            if sequence_number != self.EXPIRED:
+                if self._last_acked_map[sequence_number % self.WINDOW_SIZE] == sequence_number:
+                    print "UNEXPECTED ACK SEQ NUM:", sequence_number, "DROPPING"
+                    return
+
+                self._last_acked_map[sequence_number % self.WINDOW_SIZE] = sequence_number
+
+            del self._window[sequence_number]
+            if len(self._queue) > 0:
+                ack_to_add = self._queue.pop(0)
+                self.add_to_window(ack_to_add)
+
+    def ack_timeout_errback(self, timeout_failure):
         """
         Errback that is called on ACK timeout
         :param timeout_exception: TimeoutException object that holds the ACK sequence number that timed out
         :return:
         """
 
-        ack_to_send = self._window[timeout_exception.sequence_number]
+        ack_to_send = self._window[timeout_failure.value.sequence_number]
         if ack_to_send.num_retries < self.NUM_RETRIES:
+            print "TIMEOUT SEQ NUM", timeout_failure.value.sequence_number, " RESENDING..."
             ack_to_send.transport.write(ack_to_send.packet)
             ack_to_send.num_retries += 1
-            ack_to_send.deferred.addErrback(self.ack_timeout_errback)
+            d = defer.Deferred()
+            d.addErrback(self.ack_timeout_errback)
+            d.addCallback(self.ack_received_callback)
+            ack_to_send.deferred = d
             self.ack_timeout(ack_to_send.deferred, .5, ack_to_send.sequence_number)
-        else:
-            self.remove(ack_to_send)
+            return self.TIMEOUT
+
+        return self.EXPIRED
+
+
 
     def add_to_window(self, ack_info):
         """
@@ -907,13 +931,11 @@ class SlidingACKWindow:
         in <seconds> seconds if d is not called. In this case we will be passing a TimeoutException
         with the ACK sequence number so that we can remove it from the table.
         """
-
         if seconds is None:
             return d
 
         def cancel():
             if not d.called:
-                print "TIMEOUT SEQ NUM:", sequence_number
                 d.errback(TimeoutException(sequence_number))
 
         timer = reactor.callLater(seconds, cancel)
@@ -923,7 +945,6 @@ class SlidingACKWindow:
             if timer.active():
                 timer.cancel()
             return result  # pass through the result
-
         d.addCallback(clean_up_timer)
 
 
