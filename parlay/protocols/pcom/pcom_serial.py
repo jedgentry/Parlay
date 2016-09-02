@@ -63,7 +63,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     SEQ_BITS = 4
 
     # baud rate of communication over serial line
-    BAUD_RATE = 230400
+    BAUD_RATE = 115200
 
     # ACK window size
     WINDOW_SIZE = 8
