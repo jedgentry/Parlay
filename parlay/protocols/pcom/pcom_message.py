@@ -258,7 +258,7 @@ class PCOMMessage(object):
 
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
-            msg['CONTENTS']['EVENT'] = self.response_req
+            msg['CONTENTS']['EVENT'] = self.response_code
             msg['CONTENTS']['STATUS'] = self.msg_status
             msg['CONTENTS']["INFO"] = self.data
             msg['CONTENTS']['DESCRIPTION'] = STATUS_MAP[self.msg_status]
