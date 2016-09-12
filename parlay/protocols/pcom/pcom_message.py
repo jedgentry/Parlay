@@ -231,15 +231,19 @@ class PCOMMessage(object):
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
             msg['CONTENTS']['STATUS'] = self.msg_status
             if msg_sub_type == ResponseSubType.Command:
-                msg['TOPICS']['MSG_STATUS'] = "OK"
+                item = command_map.get(self.from_, None)
                 if msg_option == ResponseCommandOption.Complete:
-                    item = command_map.get(self.from_, None)
+                    msg['TOPICS']['MSG_STATUS'] = "OK"
                     if item:
                         msg['CONTENTS']['RESULT'] = self._get_result_string(item[self.response_code].output_names) # Maybe need to change to tuple or something
                     else:
                         msg['CONTENTS']['RESULT'] = {}
                 elif msg_option == ResponseCommandOption.Inprogress:
-                    raise Exception("Inprogress not supported yet")
+                    msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
+                    if item:
+                        msg['CONTENTS']['RESULT'] = self._get_result_string(item[self.response_code].output_names)
+                    else:
+                        msg['CONTENTS']['RESULT'] = {}
             elif msg_sub_type == ResponseSubType.Property:
                 msg['TOPICS']['MSG_STATUS'] = "OK"
                 if msg_option == ResponsePropertyOption.Get_Response:
