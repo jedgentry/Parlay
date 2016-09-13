@@ -54,7 +54,7 @@ else:
         sphinx.build_main(['-b html', 'parlay/docs', DOCS_LOCATION])
         package_data_files.extend([os.path.relpath(filename, "parlay") for _, filename in find_files(DOCS_LOCATION, "*")])
     except ImportError as _:
-        print "Warning: Documentation not built. Please pip install sphinx to build documentation."
+        print "Warning: Documentation not built. Please run `pip install sphinx sphinx-rtd-theme` to build documentation."
 
 
 # Get README to use as long description
