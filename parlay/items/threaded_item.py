@@ -154,7 +154,8 @@ class ThreadedItem(BaseItem):
         msg['TOPICS']['MSG_ID'] = self._message_id_generator.next()
         msg['TOPICS']['TO'] = to
         msg['TOPICS']['FROM'] = self.item_id
-        msg['CONTENTS']['COMMAND'] = command
+        if command is not None:
+            msg['CONTENTS']['COMMAND'] = command
         return msg
 
     def send_parlay_message(self, msg, timeout=DEFAULT_TIMEOUT, wait=None):
