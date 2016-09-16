@@ -73,6 +73,8 @@ class PCOMMessage(object):
             return cls._item_lookup_map[name]
 
         else:
+            # if the item ID wasn't in our map, generate an int for it
+            # and add it to the map
             item_id = cls._item_id_generator.next()
             cls._item_lookup_map[name] = item_id
             cls._item_lookup_map[item_id] = name
@@ -159,7 +161,7 @@ class PCOMMessage(object):
         msg = cls(to=to, from_=from_, msg_id=msg_id, response_req=response_req, msg_type=msg_type,
                   msg_status=msg_status, tx_type=tx_type, contents=contents)
 
-
+        # Set data and format using class function
         msg.data, msg.format_string = cls._get_data_format(msg)
         return msg
 
@@ -232,18 +234,17 @@ class PCOMMessage(object):
             msg['CONTENTS']['STATUS'] = self.msg_status
             if msg_sub_type == ResponseSubType.Command:
                 item = command_map.get(self.from_, None)
-                if msg_option == ResponseCommandOption.Complete:
-                    msg['TOPICS']['MSG_STATUS'] = "OK"
-                    if item:
-                        msg['CONTENTS']['RESULT'] = self._get_result_string(item[self.response_code].output_names) # Maybe need to change to tuple or something
-                    else:
-                        msg['CONTENTS']['RESULT'] = {}
-                elif msg_option == ResponseCommandOption.Inprogress:
-                    msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
-                    if item:
-                        msg['CONTENTS']['RESULT'] = self._get_result_string(item[self.response_code].output_names)
-                    else:
-                        msg['CONTENTS']['RESULT'] = {}
+
+                if item:
+                    if msg_option == ResponseCommandOption.Complete:
+                        msg['TOPICS']['MSG_STATUS'] = "OK"
+                    elif msg_option == ResponseCommandOption.Inprogress:
+                        msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
+                    msg['CONTENTS']['RESULT'] = self._get_result_string(item[self.response_code].output_names)
+                else:
+                    msg['TOPICS']['MSG_STATUS'] = "ERROR"
+                    msg['CONTENTS']['RESULT'] = {}
+
             elif msg_sub_type == ResponseSubType.Property:
                 msg['TOPICS']['MSG_STATUS'] = "OK"
                 if msg_option == ResponsePropertyOption.Get_Response:
@@ -258,7 +259,7 @@ class PCOMMessage(object):
                     msg['TOPICS']['MSG_TYPE'] = "STREAM"
                     msg['TOPICS']['STREAM'] = self.response_code
                     msg['CONTENTS']['VALUE'] = self.data[0]
-                    msg['CONTENTS']['RATE'] = 1000
+                    msg['CONTENTS']['RATE'] = 1000  # Rate not obtained during discovery, using 1000 (ms) here as arbitrary value
 
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
