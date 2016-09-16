@@ -535,7 +535,7 @@ class Broker(object):
         signal.signal(signal.SIGINT, lambda sig, frame: self.cleanup())
 
         if mode == Broker.Modes.DEVELOPMENT:
-            print "INFO: Broker running in DEVELOPER mode. This is fine development environment"
+            print "INFO: Broker running in DEVELOPER mode. This is fine for a development environment"
             print "INFO: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
                   "broker.run(mode=Broker.Modes.PRODUCTION)"
             # print out the local ip to access this broker from
