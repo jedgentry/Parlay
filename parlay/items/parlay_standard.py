@@ -685,12 +685,9 @@ class ParlayStandardScriptProxy(object):
             self._listener = lambda _: _
             self._new_value = defer.Deferred()
             self._reactor = self._item_proxy._script._reactor
+            self._subscribed = False
 
             item_proxy._script.add_listener(self._update_val_listener)
-
-            msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
-                                            direct=True, response_req=False, STREAM=self._id, RATE=rate)
-            item_proxy._script.send_parlay_message(msg)
 
         def attach_listener(self, listener):
             self._listener = listener
@@ -706,6 +703,12 @@ class ParlayStandardScriptProxy(object):
             return self._reactor.maybeblockingCallFromThread(lambda: self._new_value)
 
         def get(self):
+            if not self._subscribed:
+                msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
+                                              direct=True, response_req=False, STREAM=self._id, RATE=rate)
+
+                item_proxy._script.send_parlay_message(msg)
+                self._subscribed = True
             return self.__get__(None, None)
 
         def _update_val_listener(self, msg):
@@ -739,7 +742,7 @@ class ParlayStandardScriptProxy(object):
         self._discovery = discovery
         self._script = script
         self.datastream_update_rate_hz = 2
-        self.timeout = 30
+        self.timeout = 120
         self._command_id_lookup = {}
 
         # look at the discovery and add all commands, properties, and streams
