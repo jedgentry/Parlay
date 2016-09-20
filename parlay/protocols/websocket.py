@@ -33,12 +33,10 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
         """
         Send a message dictionary as JSON
         """
-        print("->" + str(msg))
         self.sendMessage(json.dumps(msg))
 
     def onMessage(self, payload, isBinary):
         if not isBinary:
-            print payload
             msg = json.loads(payload)
 
             # if we're waiting for discovery and its a discovery response

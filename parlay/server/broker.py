@@ -49,7 +49,8 @@ class Broker(object):
         def __init__(self):
             raise BaseException("Broker.Modes should never be instantiated.  It is only for enumeration.")
 
-    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
+    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086,
+                 print_messages=True):
         assert(Broker.instance is None)
 
         # :type parlay.server.reactor.ReactorWrapper
@@ -74,6 +75,7 @@ class Broker(object):
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
+        self.print_messages = print_messages # set to True to print all messages that go through the broker
 
 
     @staticmethod
@@ -121,6 +123,9 @@ class Broker(object):
         :param write_method : the protocol's method to callback if the broker needs to send a response
         :type msg : dict
         """
+        if self.print_messages:
+            print msg
+
         if write_method is None:
             write_method = lambda _: _
 
