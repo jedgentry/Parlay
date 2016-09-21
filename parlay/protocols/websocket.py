@@ -15,8 +15,6 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
 
     broker = Broker.get_instance()
 
-
-
     def __init__(self, broker=None):
         WebSocketServerProtocol.__init__(self)
         self._discovery_response_defer = None
