@@ -460,7 +460,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         d.callback(None)
 
     @staticmethod
-    def initialize_command_map(item_id):
+    def initialize_command_maps(item_id):
         """
         Creates the discovery command entries in the command map for the specified item ID.
         :param item_id: Item ID found during discovery.
@@ -479,6 +479,18 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property_id"], ["Property name"])
         command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property_id"], ["Property type"])
 
+        command_name_map[item_id]["reset_item"] = RESET_ITEM
+        command_name_map[item_id]["get_item_name"] = GET_ITEM_NAME
+        command_name_map[item_id]["get_item_type"] = GET_ITEM_TYPE
+        command_name_map[item_id]["get_command_ids"] = GET_COMMAND_IDS
+        command_name_map[item_id]["get_property_ids"] = GET_PROPERTY_IDS
+        command_name_map[item_id]["get_command_name"] = GET_COMMAND_NAME
+        command_name_map[item_id]["get_command_input_param_format"] = GET_COMMAND_INPUT_PARAM_FORMAT
+        command_name_map[item_id]["get_command_input_param_names"] = GET_COMMAND_INPUT_PARAM_NAMES
+        command_name_map[item_id]["get_command_input_param_names"] = GET_COMMAND_INPUT_PARAM_NAMES
+        command_name_map[item_id]["get_command_output_param_desc"] = GET_COMMAND_OUTPUT_PARAM_DESC
+        command_name_map[item_id]["get_property_name"] = GET_PROPERTY_NAME
+        command_name_map[item_id]["get_property_type"] = GET_PROPERTY_TYPE
         return
 
     @defer.inlineCallbacks
@@ -552,6 +564,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         command_map[item_id][command_id] = CommandInfo(c_input_format, c_input_names,
                                                       c_output_desc)
+
+        command_name_map[item_id][c_name] = command_id
 
         if not hidden:
             command_dropdowns.append((c_name, command_id))
@@ -646,7 +660,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
             command_map[item_id] = {}
             property_map[item_id] = {}
-            PCOMSerial.initialize_command_map(item_id)
+            command_name_map[item_id] = {}
+            PCOMSerial.initialize_command_maps(item_id)
 
         for item_id in self._item_ids:
             response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")

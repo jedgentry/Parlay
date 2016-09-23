@@ -91,6 +91,15 @@ class PCOMMessage(object):
 
         return item_id
 
+    @staticmethod
+    def _look_up_cmd_id(command):
+        if isinstance(command, basestring):
+            return command_name_map.get(command, None)
+        else:
+            return command
+
+
+
     @classmethod
     def _get_data_format(cls, msg):
         """
@@ -113,6 +122,10 @@ class PCOMMessage(object):
                 # TODO: Check if s.contents['COMMAND'] is in the second level of the map
                 # command will be a CommandInfo object that has a list of parameters and format string
                 command = command_map[msg.to][msg.contents['COMMAND']]
+                command_id = cls._look_up_cmd_id(command)
+                if command_id is None:
+                    print "Could not find command ID for command name:", command
+                    return
                 fmt = command.fmt
                 for param in command.params:
                     data.append(msg.contents[param] if msg.contents[param] is not None else 0)
@@ -173,13 +186,21 @@ class PCOMMessage(object):
 
         return (self.category()) == MessageCategory.Order
 
-    def _is_order(self):
+    @staticmethod
+    def get_subsystem(id):
         """"
-        If the message is an order return True, if not return False
-        :return: boolean
+        Gets the subsystem of the message.
         """
+        return (id & SUBSYSTEM_MASK) >> SUBSYSTEM_SHIFT
 
-        return
+    def get_tx_type_from_id(self, id):
+        """
+        Given an ID, returns the msg['TOPICS']['TX_TYPE'] that should be assigned
+        :param id: destination item ID
+        :return:
+        """
+        subsystem_id = self.get_subsystem(id)
+        return "BROADCAST" if subsystem_id == BROADCAST_ID else "DIRECT"
 
     def to_json_msg(self):
         """
@@ -190,7 +211,8 @@ class PCOMMessage(object):
         msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
         msg['TOPICS']['MSG_ID'] = self.msg_id
-        msg['TOPICS']['TX_TYPE'] = "DIRECT"
+
+        msg['TOPICS']['TX_TYPE'] = self.get_tx_type_from_id(self.to)
 
         if self.msg_status != STATUS_SUCCESS:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
@@ -231,7 +253,7 @@ class PCOMMessage(object):
 
         elif msg_category == MessageCategory.Order_Response:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
-            msg['CONTENTS']['STATUS'] = self.msg_status
+            msg['CONTENTS']['ERROR_CODE'] = self.msg_status
             if msg_sub_type == ResponseSubType.Command:
                 item = command_map.get(self.from_, None)
 
@@ -270,9 +292,9 @@ class PCOMMessage(object):
             msg['TOPICS']['RESPONSE_REQ'] = False
 
             if msg_option == NotificationOptions.Debug:
-                msg['CONTENTS']['MSG_STATUS'] = "INFO"
+                msg['TOPICS']['MSG_STATUS'] = "INFO"
             elif msg_option == NotificationOptions.Warning:
-                msg['CONTENTS']['MSG_STATUS'] = "WARNING"
+                msg['TOPICS']['MSG_STATUS'] = "WARNING"
 
         return msg
 

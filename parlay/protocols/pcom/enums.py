@@ -9,6 +9,11 @@ command_map = {}
 # name -> format mapping in order to serialize data
 property_map = {}
 
+# Store a map of command names to IDs
+# item ID -> Command name -> ID
+command_name_map = {}
+
+
 # NOTE: These are global because the serial_encoding.py and
 # pcom_message.py modules need access to them. Since they will
 # be large maps we do not want to pass them as parameters.
@@ -66,6 +71,10 @@ SUB_TYPE_SHIFT = 4
 CATEGORY_MASK = 0xc0
 CATEGORY_SHIFT = 6
 
+
+SUBSYSTEM_MASK = 0xff00
+BROADCAST_ID = 0x80
+SUBSYSTEM_SHIFT = 2
 
 ORDER_TYPES = ["COMMAND", "PROPERTY", "STREAM"]
 NOTIFICATION_TYPES = ["EVENT"]
