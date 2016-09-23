@@ -91,6 +91,15 @@ class PCOMMessage(object):
 
         return item_id
 
+    @staticmethod
+    def _look_up_cmd_id(command):
+        if isinstance(command, basestring):
+            return command_name_map.get(command, None)
+        else:
+            return command
+
+
+
     @classmethod
     def _get_data_format(cls, msg):
         """
@@ -113,6 +122,10 @@ class PCOMMessage(object):
                 # TODO: Check if s.contents['COMMAND'] is in the second level of the map
                 # command will be a CommandInfo object that has a list of parameters and format string
                 command = command_map[msg.to][msg.contents['COMMAND']]
+                command_id = cls._look_up_cmd_id(command)
+                if command_id is None:
+                    print "Could not find command ID for command name:", command
+                    return
                 fmt = command.fmt
                 for param in command.params:
                     data.append(msg.contents[param] if msg.contents[param] is not None else 0)
