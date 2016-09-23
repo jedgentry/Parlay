@@ -12,13 +12,14 @@ import os
 import json
 import signal
 import functools
+import parlay
 
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
-BROKER_VERSION = "0.2.0"
+BROKER_VERSION = parlay.__version__
 
 
 class Broker(object):
