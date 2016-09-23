@@ -154,7 +154,12 @@ class Broker(object):
 
         # call any functions in the None key
         for func, owner in root_list.get(None, []):
-            func(msg)
+            try:
+                func(msg)
+            except Exception as e:
+                print "UNCAUGHT EXCEPTION IN PROTOCOL"
+                print e
+
 
         TOPICS = msg['TOPICS']
         # for each key in the listeners list
