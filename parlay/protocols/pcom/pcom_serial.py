@@ -114,6 +114,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # The base protocol will use this dictionary to feed items to
         # the UI
         self.items = []
+        self._error_codes = []
 
         # The list of connected item IDs found in the initial sweep in
         # connectionMade()
@@ -466,6 +467,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param item_id: Item ID found during discovery.
         :return: None
         """
+
+        command_map[item_id] = {}
+        property_map[item_id] = {}
+        command_name_map[item_id] = {}
+
         command_map[item_id][RESET_ITEM] = CommandInfo("", "", "")
         command_map[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
         command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
@@ -600,6 +606,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         parlay_item.add_datastream(property_id, name=property_name + "_stream")
         return
 
+    @staticmethod
+    def _initialize_reactor_command_map(reactor):
+        command_map[reactor] = {}
+        command_map[reactor][GET_ERROR_CODES] = CommandInfo("", [], ["codes"])
+        command_map[reactor][GET_ERROR_STRING] = CommandInfo("H", ["code"], ["string"])
+
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, subsystem):
         """
@@ -607,6 +619,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         GET SUBSYSTEMS IDS
         GET ITEM IDS
+        GET ERROR CODE INFO
         GET ITEM INFORMATION
 
         Where ITEM INFORMATION is:
@@ -651,16 +664,26 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # For each subsystem ID, fetch the items attached to it
 
         print "Fetching items from subsystem ID: ", subsystem_id
-        response = yield self.send_command(subsystem_id << self.SUBSYSTEM_SHIFT, "DIRECT")
+
+        REACTOR = subsystem_id << self.SUBSYSTEM_SHIFT
+        response = yield self.send_command(REACTOR, "DIRECT")
         self._item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
+
+
+        # Fetch error codes
+        self._initialize_reactor_command_map(REACTOR)
+        response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_CODES)
+        self._error_codes = [int(error_code) for error_code in response.data]
+
+        for error_code in self._error_codes:
+            response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_STRING, params=["code"], data=[error_code])
+            error_code_string = response.data[0]
+            error_code_map[error_code] = error_code_string
 
         print "---> ITEM IDS FOUND: ", self._item_ids
 
         for item_id in self._item_ids:
             self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
-            command_map[item_id] = {}
-            property_map[item_id] = {}
-            command_name_map[item_id] = {}
             PCOMSerial.initialize_command_maps(item_id)
 
         for item_id in self._item_ids:
