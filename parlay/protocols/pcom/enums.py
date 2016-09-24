@@ -14,6 +14,11 @@ property_map = {}
 command_name_map = {}
 
 
+# Map of error codes to their string name equivalent
+error_code_map = {}
+
+
+
 # NOTE: These are global because the serial_encoding.py and
 # pcom_message.py modules need access to them. Since they will
 # be large maps we do not want to pass them as parameters.
@@ -30,6 +35,8 @@ GET_COMMAND_INPUT_PARAM_NAMES = 1012
 GET_COMMAND_OUTPUT_PARAM_DESC = 1013
 GET_PROPERTY_NAME = 1020
 GET_PROPERTY_TYPE = 1021
+GET_ERROR_CODES = 1
+GET_ERROR_STRING = 2
 
 DISCOVERY_MESSAGES = [GET_ITEM_NAME, GET_ITEM_TYPE, GET_COMMAND_IDS, GET_PROPERTY_IDS, GET_COMMAND_NAME,
                       GET_COMMAND_INPUT_PARAM_FORMAT, GET_COMMAND_INPUT_PARAM_NAMES, GET_COMMAND_OUTPUT_PARAM_DESC,
