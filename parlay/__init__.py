@@ -1,4 +1,4 @@
-__version__ = '0.3.3'
+__version__ = '0.3.6'
 
 
 # Item Public API
@@ -40,3 +40,17 @@ def open_protocol(protocol_name, **kwargs):
 
     """
     Broker.call_on_start(lambda: Broker.get_instance().open_protocol(protocol_name, kwargs))
+
+
+class WidgetsImpl(object):
+    """
+    Stub that will warn users that accidentally import or try to use widgets that it can only be used in the UI
+    """
+
+    def __getitem__(self, item):
+        raise NotImplementedError("widgets can only be used from the Parlay UI")
+
+    def __setitem__(self, key, value):
+        raise NotImplementedError("widgets can only be used from the Parlay UI")
+
+widgets = WidgetsImpl()

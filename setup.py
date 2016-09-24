@@ -6,10 +6,13 @@ import fnmatch
 import urllib2
 
 
-UI_VERSION = "0.0.7"
+UI_VERSION = "0.0.10"
 UI_LOCATION = "parlay/ui/dist"
 DOCS_LOCATION = "parlay/docs/_build/html"
 
+here = os.path.abspath(os.path.dirname(__file__))
+UI_LOCATION = os.path.join(here, UI_LOCATION)
+DOCS_LOCATION = os.path.join(here, DOCS_LOCATION)
 
 def get_version():
     VERSIONFILE = os.path.join('parlay', '__init__.py')
@@ -40,7 +43,7 @@ if not os.path.exists(UI_LOCATION + "/index.html"):
     if not os.path.exists(UI_LOCATION):
         os.makedirs(UI_LOCATION)
 
-    with open(UI_LOCATION + "/index.html", 'w+') as index_file:
+    with open(os.path.join(UI_LOCATION, "index.html"), 'w+') as index_file:
         index_file.write(html)
 
 
@@ -54,11 +57,10 @@ else:
         sphinx.build_main(['-b html', 'parlay/docs', DOCS_LOCATION])
         package_data_files.extend([os.path.relpath(filename, "parlay") for _, filename in find_files(DOCS_LOCATION, "*")])
     except ImportError as _:
-        print "Warning: Documentation not built. Please pip install sphinx to build documentation."
+        print "Warning: Documentation not built. Please run `pip install sphinx sphinx-rtd-theme` to build documentation."
 
 
 # Get README to use as long description
-here = os.path.abspath(os.path.dirname(__file__))
 readme = ""
 with open(os.path.join(here, 'README.md')) as f:
     readme = f.read()

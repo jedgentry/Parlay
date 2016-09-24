@@ -12,13 +12,14 @@ import os
 import json
 import signal
 import functools
+import parlay
 
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
-BROKER_VERSION = "0.2.0"
+BROKER_VERSION = parlay.__version__
 
 
 class Broker(object):
@@ -49,7 +50,8 @@ class Broker(object):
         def __init__(self):
             raise BaseException("Broker.Modes should never be instantiated.  It is only for enumeration.")
 
-    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
+    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086,
+                 print_messages=True):
         assert(Broker.instance is None)
 
         # :type parlay.server.reactor.ReactorWrapper
@@ -74,6 +76,7 @@ class Broker(object):
         self.https_port = https_port
         self.secure_websocket_port = secure_websocket_port
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
+        self.print_messages = print_messages # set to True to print all messages that go through the broker
 
 
     @staticmethod
@@ -121,6 +124,9 @@ class Broker(object):
         :param write_method : the protocol's method to callback if the broker needs to send a response
         :type msg : dict
         """
+        if self.print_messages:
+            print msg
+
         if write_method is None:
             write_method = lambda _: _
 
@@ -149,7 +155,12 @@ class Broker(object):
 
         # call any functions in the None key
         for func, owner in root_list.get(None, []):
-            func(msg)
+            try:
+                func(msg)
+            except Exception as e:
+                print "UNCAUGHT EXCEPTION IN PROTOCOL"
+                print e
+
 
         TOPICS = msg['TOPICS']
         # for each key in the listeners list
