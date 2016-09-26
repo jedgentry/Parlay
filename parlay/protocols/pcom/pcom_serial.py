@@ -205,7 +205,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         try:
             packet = encode_pcom_message(s)
         except:
-            self.send_error_message(original_message=s, message_status=PSTATUS_ENCODING_ERROR)
+            self.send_error_message(original_message=s, message_status="Unable to encode message: {0}".format(s))
             return d
 
         need_ack = True

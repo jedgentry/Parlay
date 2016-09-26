@@ -219,7 +219,7 @@ class PCOMMessage(object):
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
             msg['CONTENTS']['STATUS'] = self.msg_status
             msg['TOPICS']['MSG_STATUS'] = "ERROR"
-            msg['CONTENTS']['DESCRIPTION'] = STATUS_MAP[self.msg_status]
+            msg['CONTENTS']['DESCRIPTION'] = error_code_map.get(self.msg_status, "")
             msg['TOPICS']['RESPONSE_REQ'] = False
             return msg
 
