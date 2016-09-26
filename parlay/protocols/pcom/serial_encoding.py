@@ -303,6 +303,8 @@ def serialize_response_code(message):
 
     if m_type in VALID_MSG_TYPES:
         code = message.contents.get("STATUS" if m_type == "RESPONSE" else m_type, None)
+        if isinstance(code, basestring):
+            code = command_name_map[message.to][code]
     else:
         raise Exception("Response code could not be generated for message type: " + m_type)
 
