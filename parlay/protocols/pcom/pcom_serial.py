@@ -321,7 +321,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command_id"],
                                            data=[requested_command_id])
 
-        param_names = [] if len(response.data) == 0 else response.data[0].split(',')
+        param_names = [] if len(response.data) == 0 else [x.strip() for x in response.data[0].split(',')]
         defer.returnValue(param_names)
 
     @defer.inlineCallbacks
@@ -340,7 +340,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command_id"],
                                            data=[requested_command_id])
-        list_of_names = [] if len(response.data) == 0 else response.data[0].split(",")
+        list_of_names = [] if len(response.data) == 0 else [x.strip() for x in response.data[0].split(',')]
         defer.returnValue(list_of_names)
 
     @defer.inlineCallbacks
