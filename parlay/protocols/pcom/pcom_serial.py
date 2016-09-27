@@ -69,6 +69,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     WINDOW_SIZE = 8
 
     ACK_DIFFERENTIAL = 8
+
+    # timeout before resend in secs
+    ACK_TIMEOUT = .5
+
+
     @classmethod
     def open(cls, adapter, port):
         """
@@ -922,7 +927,7 @@ class SlidingACKWindow:
             d.addErrback(self.ack_timeout_errback)
             d.addCallback(self.ack_received_callback)
             ack_to_send.deferred = d
-            self.ack_timeout(ack_to_send.deferred, .5, ack_to_send.sequence_number)
+            self.ack_timeout(ack_to_send.deferred, PCOMSerial.ACK_TIMEOUT, ack_to_send.sequence_number)
             return self.TIMEOUT
 
         return self.EXPIRED
@@ -940,7 +945,7 @@ class SlidingACKWindow:
         ack_info.deferred.addErrback(self.ack_timeout_errback)
 
         ack_info.transport.write(ack_info.packet)
-        self.ack_timeout(ack_info.deferred, .5, ack_info.sequence_number)
+        self.ack_timeout(ack_info.deferred, PCOMSerial.ACK_TIMEOUT, ack_info.sequence_number)
         self._window[ack_info.sequence_number] = ack_info
 
     def add(self, ack_info):
@@ -961,8 +966,8 @@ class SlidingACKWindow:
         :param ack_info:
         :return:
         """
-
-        self._window[sequence_number].deferred.callback(sequence_number)
+        if sequence_number in self._window:
+            self._window[sequence_number].deferred.callback(sequence_number)
 
     def ack_timeout(self, d, seconds, sequence_number):
         """
