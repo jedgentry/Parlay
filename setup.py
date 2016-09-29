@@ -95,5 +95,10 @@ setup(
     ],
     keywords='embedded device broker medical',
     zip_safe=False,
-    test_suite='parlay/tests'
+    test_suite='parlay/tests',
+    entry_points={
+        'console_scripts': [
+              'parlay = parlay.__main__:main'
+          ]
+    }
 )
