@@ -16,8 +16,15 @@ import parlay
 
 
 # path to the root parlay folder
-PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
-BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
+# if we're frozen by pyinstaller then this should be relative to the exe
+if getattr(sys, 'frozen', False):
+    PARLAY_PATH = os.path.dirname(sys.executable)
+    BROKER_DIR = os.path.dirname(sys.executable)
+
+else:
+    # we're running as normal python
+    PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
+    BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
 BROKER_VERSION = parlay.__version__
 
