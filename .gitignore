@@ -5,6 +5,7 @@
 *.so
 *.o
 *.log
+*.spec
 parlay/ui
 .DS_Store
 parlay/cached_discovery.json
