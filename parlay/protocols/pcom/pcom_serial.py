@@ -27,6 +27,26 @@ from collections import namedtuple
 import time
 
 
+# Store a map of Item IDs -> Command ID -> Command Objects
+# Command objects will store the parameter -> format mapping
+command_map = {}
+
+# Store a map of properties. We must keep track of a
+# name -> format mapping in order to serialize data
+property_map = {}
+
+# Store a map of command names to IDs
+# item ID -> Command name -> ID
+command_name_map = {}
+
+
+# Map of error codes to their string name equivalent
+error_code_map = {}
+
+# Store a map of property names to IDs
+# item ID -> Property name -> ID
+property_name_map = {}
+
 
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.

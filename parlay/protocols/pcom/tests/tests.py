@@ -347,6 +347,7 @@ class TestPCOMMessage(unittest.TestCase):
 
         EXPECTED_PROPERTY_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x4c\x04\x00\x00\x10\x00\x00'
         EXPECTED_COMMAND_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x64\x00\x00\x00\x00\x00\x00'
+        EXPECTED_PROPERTY_2_OUTPUT_BUFFER = '\x03\x00\x00\xfc\x57\x01\x65\x00\x00\x00\x10\x00\x00'
 
         msg = PCOMMessage.from_json_msg(self.PROPERTY_NAME_MSG)
         self.assertEqual(EXPECTED_PROPERTY_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
@@ -358,6 +359,7 @@ class TestPCOMMessage(unittest.TestCase):
         self.assertEqual(EXPECTED_COMMAND_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
 
         msg = PCOMMessage.from_json_msg(self.PROPERTY_NAME_2)
+        self.assertEqual(EXPECTED_PROPERTY_2_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
 
 
 
