@@ -15,6 +15,8 @@ from enums import *
 import pcom_message
 import collections
 
+import pcom_serial
+
 FORMAT_STRING_TABLE = {
 
     'B':   1,
@@ -304,7 +306,7 @@ def serialize_response_code(message):
     if m_type in VALID_MSG_TYPES:
         code = message.contents.get("STATUS" if m_type == "RESPONSE" else m_type, None)
         if isinstance(code, basestring):
-            map_to_use = command_name_map if m_type == "COMMAND" else property_name_map if m_type == "PROPERTY" else None
+            map_to_use = pcom_serial.command_name_map if m_type == "COMMAND" else pcom_serial.property_name_map if m_type == "PROPERTY" else None
             if map_to_use:
                 return pcom_message.PCOMMessage._look_up_id(map_to_use, message.to, code)
         elif type(code) == int:

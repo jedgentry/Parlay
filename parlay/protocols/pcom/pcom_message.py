@@ -13,6 +13,9 @@ conversion to and from a JSON message.
 """
 
 from parlay.protocols.utils import message_id_generator
+
+import pcom_serial
+
 import serial_encoding
 from enums import *
 
@@ -92,7 +95,7 @@ class PCOMMessage(object):
         return item_id
 
     @staticmethod
-    def _look_up_cmd_id(map, destination_id, name):
+    def _look_up_id(map, destination_id, name):
         if isinstance(name, basestring):
             # TODO: use .get() to avoid key error
             return map[destination_id].get(name, None)
@@ -119,15 +122,15 @@ class PCOMMessage(object):
         if msg.msg_type == "COMMAND":
             # If the message type is "COMMAND" there should be an
             # entry in the 'CONTENTS' table for the command ID
-            if msg.to in command_map:
+            if msg.to in pcom_serial.command_map:
                 # command will be a CommandInfo object that has a list of parameters and format string
                 command_id = msg.contents.get("COMMAND", INVALID_ID)
-                command_int_id = cls._look_up_cmd_id(command_name_map, msg.to, command_id)
+                command_int_id = cls._look_up_id(pcom_serial.command_name_map, msg.to, command_id)
                 if command_int_id is None:
                     print "Could not find integer command ID for command name:", command_id
                     return
                 # TODO: check for KeyError
-                command = command_map[msg.to][command_int_id]
+                command = pcom_serial.command_map[msg.to][command_int_id]
                 fmt = str(msg.contents.get('__format__', command.fmt))
                 for param in command.params:
                     # TODO: May need to change default value to error out
@@ -143,13 +146,13 @@ class PCOMMessage(object):
                 data = []
                 fmt = ''
             elif action == "SET":
-                if msg.to in property_map:
+                if msg.to in pcom_serial.property_map:
                     property_id = msg.contents.get("PROPERTY", INVALID_ID)
-                    property = cls._look_up_id(property_name_map, msg.to, property_id)
+                    property = cls._look_up_id(pcom_serial.property_name_map, msg.to, property_id)
                     if property is None:
                         print "Could not find integer property ID for property name:", property
                         return
-                    prop = property_map[msg.to][property]
+                    prop = pcom_serial.property_map[msg.to][property]
                     fmt = prop.format
                     data.append(msg.contents.get('VALUE', 0))
                     data = serial_encoding.cast_data(fmt, data)
@@ -226,7 +229,7 @@ class PCOMMessage(object):
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
             msg['CONTENTS']['STATUS'] = self.msg_status
             msg['TOPICS']['MSG_STATUS'] = "ERROR"
-            msg['CONTENTS']['DESCRIPTION'] = error_code_map.get(self.msg_status, "")
+            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
             msg['TOPICS']['RESPONSE_REQ'] = False
             return msg
 
@@ -263,7 +266,7 @@ class PCOMMessage(object):
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
             msg['CONTENTS']['ERROR_CODE'] = self.msg_status
             if msg_sub_type == ResponseSubType.Command:
-                item = command_map.get(self.from_, None)
+                item = pcom_serial.command_map.get(self.from_, None)
 
                 if item:
                     if msg_option == ResponseCommandOption.Complete:
@@ -296,7 +299,7 @@ class PCOMMessage(object):
             msg['CONTENTS']['EVENT'] = self.response_code
             msg['CONTENTS']['STATUS'] = self.msg_status
             msg['CONTENTS']["INFO"] = self.data
-            msg['CONTENTS']['DESCRIPTION'] = error_code_map.get(self.msg_status, "")
+            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
             msg['TOPICS']['RESPONSE_REQ'] = False
 
             if msg_option == NotificationOptions.Debug:

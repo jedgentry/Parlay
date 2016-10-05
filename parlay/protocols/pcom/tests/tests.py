@@ -4,6 +4,7 @@ from twisted.trial import unittest
 from parlay.protocols.pcom.pcom_message import PCOMMessage
 from parlay.protocols.pcom.enums import *
 import parlay.protocols.pcom.serial_encoding as serial_encoding
+import parlay.protocols.pcom.pcom_serial as pcom_serial
 
 
 
@@ -206,8 +207,9 @@ class TestSerialEncoding(unittest.TestCase):
         test_pcom_msg.msg_type = "PROPERTY"
         test_pcom_msg.contents = {"PROPERTY": 1000}
         self.assertEqual(1000, serial_encoding.serialize_response_code(test_pcom_msg))
+
         test_pcom_msg.contents = {"COMMAND" : 1000}
-        self.assertEqual(None, serial_encoding.serialize_response_code(test_pcom_msg))
+        self.assertRaises(Exception, lambda: serial_encoding.serialize_response_code(test_pcom_msg))
 
     def test_serialize_msg_type(self):
         PROPERTY_GET = MessageCategory.Order << CATEGORY_SHIFT | OrderSubType.Property << SUB_TYPE_SHIFT \
@@ -316,5 +318,46 @@ class TestPCOMMessage(unittest.TestCase):
             'STATUS_NAME': None
         }
     }
+
+    PROPERTY_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 7, u'FROM': u'qt.SelfTest', u'MSG_TYPE': u'PROPERTY'},
+                         u'CONTENTS': {u'PROPERTY': 'test_property', u'ACTION': 'GET'}}
+
+    PROPERTY_NAME_2 = {u'TOPICS': {u'TO': 343, u'MSG_ID': 3, u'FROM': u'qt.SelfTest', u'MSG_TYPE': u'PROPERTY'},
+     u'CONTENTS': {u'ACTION': u'GET', u'PROPERTY': u'chassis'}}
+
+    PROPERTY_ID_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 7, u'FROM': u'qt.SelfTest', u'MSG_TYPE': u'PROPERTY'},
+                   u'CONTENTS': {u'PROPERTY': 1100, u'ACTION': 'GET'}}
+
+    COMMAND_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 7, u'FROM': u'qt.SelfTest', u'MSG_TYPE': u'COMMAND'},
+                    u'CONTENTS': {u'COMMAND': 'test_command'}}
+
+
+    def test_property_and_command_names(self):
+        TEST_ITEM_ID = 343
+        TEST_PROPERTY_MAP = {TEST_ITEM_ID: {'test_property': 1100}}
+        TEST_COMMAND_MAP = {TEST_ITEM_ID: {'test_command': 100}}
+
+        self.assertEqual(PCOMMessage._look_up_id(TEST_PROPERTY_MAP, TEST_ITEM_ID, 'test_property'), 1100)
+        self.assertEqual(PCOMMessage._look_up_id(TEST_PROPERTY_MAP, TEST_ITEM_ID, 1100), 1100)
+        self.assertEqual(PCOMMessage._look_up_id(TEST_COMMAND_MAP, TEST_ITEM_ID, 100), 100)
+        self.assertEqual(PCOMMessage._look_up_id(TEST_COMMAND_MAP, TEST_ITEM_ID, 'test_command'), 100)
+
+        pcom_serial.property_name_map = {TEST_ITEM_ID: {'test_property': 1100, u'chassis': 101}}
+        pcom_serial.command_name_map = {TEST_ITEM_ID: {'test_command': 100}}
+
+        EXPECTED_PROPERTY_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x4c\x04\x00\x00\x10\x00\x00'
+        EXPECTED_COMMAND_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x64\x00\x00\x00\x00\x00\x00'
+
+        msg = PCOMMessage.from_json_msg(self.PROPERTY_NAME_MSG)
+        self.assertEqual(EXPECTED_PROPERTY_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
+
+        msg = PCOMMessage.from_json_msg(self.PROPERTY_ID_MSG)
+        self.assertEqual(EXPECTED_PROPERTY_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
+
+        msg = PCOMMessage.from_json_msg(self.COMMAND_NAME_MSG)
+        self.assertEqual(EXPECTED_COMMAND_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
+
+        msg = PCOMMessage.from_json_msg(self.PROPERTY_NAME_2)
+
 
 
