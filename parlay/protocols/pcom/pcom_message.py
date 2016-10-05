@@ -92,12 +92,12 @@ class PCOMMessage(object):
         return item_id
 
     @staticmethod
-    def _look_up_cmd_id(destination_id, command):
-        if isinstance(command, basestring):
+    def _look_up_cmd_id(map, destination_id, name):
+        if isinstance(name, basestring):
             # TODO: use .get() to avoid key error
-            return command_name_map[destination_id].get(command, None)
+            return map[destination_id].get(name, None)
         else:
-            return command
+            return name
 
 
 
@@ -121,15 +121,17 @@ class PCOMMessage(object):
             # entry in the 'CONTENTS' table for the command ID
             if msg.to in command_map:
                 # command will be a CommandInfo object that has a list of parameters and format string
-                command_id = msg.contents["COMMAND"]
-                command_int_id = cls._look_up_cmd_id(msg.to, command_id)
+                command_id = msg.contents.get("COMMAND", INVALID_ID)
+                command_int_id = cls._look_up_cmd_id(command_name_map, msg.to, command_id)
                 if command_int_id is None:
                     print "Could not find integer command ID for command name:", command_id
                     return
+                # TODO: check for KeyError
                 command = command_map[msg.to][command_int_id]
-                fmt = command.fmt
+                fmt = str(msg.contents.get('__format__', command.fmt))
                 for param in command.params:
-                    data.append(msg.contents[param] if msg.contents[param] is not None else 0)
+                    # TODO: May need to change default value to error out
+                    data.append(msg.contents.get(str(param), 0))
 
         elif msg.msg_type == "PROPERTY":
             # If the message type is a "PROPERTY" there should be
@@ -142,9 +144,14 @@ class PCOMMessage(object):
                 fmt = ''
             elif action == "SET":
                 if msg.to in property_map:
-                    prop = property_map[msg.to][msg.contents['PROPERTY']]
+                    property_id = msg.contents.get("PROPERTY", INVALID_ID)
+                    property = cls._look_up_id(property_name_map, msg.to, property_id)
+                    if property is None:
+                        print "Could not find integer property ID for property name:", property
+                        return
+                    prop = property_map[msg.to][property]
                     fmt = prop.format
-                    data.append(msg.contents['VALUE'] if msg.contents['VALUE'] is not None else 0)
+                    data.append(msg.contents.get('VALUE', 0))
                     data = serial_encoding.cast_data(fmt, data)
 
         return data, fmt

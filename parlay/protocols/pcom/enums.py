@@ -17,6 +17,10 @@ command_name_map = {}
 # Map of error codes to their string name equivalent
 error_code_map = {}
 
+# Store a map of property names to IDs
+# item ID -> Property name -> ID
+property_name_map = {}
+
 
 
 # NOTE: These are global because the serial_encoding.py and

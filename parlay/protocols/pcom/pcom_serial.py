@@ -476,6 +476,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         command_map[item_id] = {}
         property_map[item_id] = {}
         command_name_map[item_id] = {}
+        property_name_map[item_id] = {}
 
         command_map[item_id][RESET_ITEM] = CommandInfo("", "", "")
         command_map[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
@@ -581,12 +582,69 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if not hidden:
             command_dropdowns.append((c_name, command_id))
 
-            for parameter in c_input_names:
-                local_subfields.append(parlay_item.create_field(parameter, INPUT_TYPES.STRING, required=True))
+            PCOMSerial.build_parlay_item_subfields(c_input_format, c_input_names, local_subfields, parlay_item)
 
             command_subfields.append(local_subfields)
         return
 
+    @staticmethod
+    def tokenize_format_char_string(format_chars):
+        """
+        Given a format string, returns a list of tokens.
+
+        Eg.
+
+        "bB*i" -> ["b", "B", "*i"]
+        :param format_chars:
+        :return:
+        """
+
+        token = ""
+        tokenized_list = []
+        for i in format_chars:
+            token += i
+        if token != "*":
+            tokenized_list.append(token)
+        token = ""
+        return tokenized_list
+
+    @staticmethod
+    def build_parlay_item_subfields(c_input_format, c_input_names, local_subfields, parlay_item):
+        """
+        Builds up Parlay items to be pushed to discoverer
+
+        :param c_input_format: format string Eg. "bBIq"
+        :param c_input_names: list of string names representing the input parameters Eg. ["hello", "hello"]
+        :param local_subfields: subfields of the Parlay item
+        :param parlay_item: the Parlay item to be built up
+        :return:
+        """
+
+        format_tokens = PCOMSerial.tokenize_format_char_string(c_input_format)
+
+        for parameter, format_token in zip(c_input_names, format_tokens):
+            local_subfields.append(parlay_item.create_field(msg_key=parameter, label=parameter,
+                                                            input=PCOMSerial._get_input_type(format_token), required=True))
+
+    @staticmethod
+    def _get_input_type(format_char):
+        """
+         Given a format character, returns the corresponding Parlay input type
+
+         :param format_char:
+         :return:
+         """
+
+        if format_char in "BbHhIiQqfd":
+            return INPUT_TYPES.NUMBER
+        elif format_char[0] == '*':
+            return INPUT_TYPES.ARRAY
+        elif format_char in "?csx":
+            return INPUT_TYPES.STRING
+        else:
+            print "Invalid format character", format_char, "defaulting to INPUT TYPE STRING"
+
+        return INPUT_TYPES.STRING
 
     @staticmethod
     def property_cb(property_info_list, item_id, property_id, parlay_item):
@@ -605,6 +663,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         property_name = property_info_list[0]
         property_type = property_info_list[1]
 
+        property_name_map[item_id][property_name] = property_id
         property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
         parlay_item.add_property(property_id, name=property_name)
