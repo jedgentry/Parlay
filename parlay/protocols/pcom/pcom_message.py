@@ -223,15 +223,8 @@ class PCOMMessage(object):
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
         msg['TOPICS']['MSG_ID'] = self.msg_id
 
-        msg['TOPICS']['TX_TYPE'] = self.get_tx_type_from_id(self.to)
+        msg['TOPICS']['TX_TYPE'] = "DIRECT"
 
-        if self.msg_status != STATUS_SUCCESS:
-            msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
-            msg['CONTENTS']['STATUS'] = self.msg_status
-            msg['TOPICS']['MSG_STATUS'] = "ERROR"
-            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
-            msg['TOPICS']['RESPONSE_REQ'] = False
-            return msg
 
         msg_category = self.category()
         msg_sub_type = self.sub_type()
@@ -265,6 +258,13 @@ class PCOMMessage(object):
         elif msg_category == MessageCategory.Order_Response:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
             msg['CONTENTS']['ERROR_CODE'] = self.msg_status
+
+            if self.msg_status != STATUS_SUCCESS:
+                msg['TOPICS']['MSG_STATUS'] = "ERROR"
+                msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
+                msg['TOPICS']['RESPONSE_REQ'] = False
+                return msg
+
             if msg_sub_type == ResponseSubType.Command:
                 item = pcom_serial.command_map.get(self.from_, None)
 
@@ -297,14 +297,30 @@ class PCOMMessage(object):
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
             msg['CONTENTS']['EVENT'] = self.response_code
-            msg['CONTENTS']['STATUS'] = self.msg_status
+            msg['CONTENTS']['ERROR_CODE'] = self.msg_status
             msg['CONTENTS']["INFO"] = self.data
             msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
             msg['TOPICS']['RESPONSE_REQ'] = False
 
-            if msg_option == NotificationOptions.Debug:
+            if msg_sub_type == NotificationSubType.Broadcast:
+                if msg_option == BroadcastNotificationOptions.External:
+                    msg['TOPICS']['TX_TYPE'] = "BROADCAST"
+                    if "TO" in msg['TOPICS']:
+                        del msg['TOPICS']['TO']
+                else:
+                    raise Exception("Received internal broadcast message")
+
+            elif msg_option == NotificationSubType.Direct:
+                msg['TOPICS']['TX_TYPE'] = "DIRECT"
+
+            else:
+                raise Exception("Unhandled notification type")
+
+            if self.msg_status == 0:
                 msg['TOPICS']['MSG_STATUS'] = "INFO"
-            elif msg_option == NotificationOptions.Warning:
+            elif self.msg_status > 0:
+                msg['TOPICS']['MSG_STATUS'] = "ERROR"
+            else:
                 msg['TOPICS']['MSG_STATUS'] = "WARNING"
 
         return msg
