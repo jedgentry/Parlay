@@ -39,7 +39,7 @@ def open_protocol(protocol_name, **kwargs):
         start()
 
     """
-    Broker.call_on_start(lambda: Broker.get_instance().open_protocol(protocol_name, kwargs))
+    return Broker.call_on_start(lambda: Broker.get_instance().open_protocol(protocol_name, kwargs))
 
 
 class WidgetsImpl(object):
