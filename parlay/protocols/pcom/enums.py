@@ -86,7 +86,8 @@ ResponseSubType = enum(
 )
 
 NotificationSubType = enum(
-    'Info'
+    'Direct',
+    'Broadcast'
 )
 
 OrderCommandOption = enum(
@@ -112,10 +113,11 @@ ResponsePropertyOption = enum(
     'Stream_Response'
 )
 
-NotificationOptions = enum(
-    'Error',
-    'Warning',
-    'Info',
-    'Debug'
+DirectNotificationOptions = enum(
+    'Default'
 )
 
+BroadcastNotificationOptions = enum(
+    'Internal',
+    'External'
+)
