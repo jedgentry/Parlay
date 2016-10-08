@@ -90,14 +90,15 @@ def timeout(d, seconds):
         return d
 
     timeout_deferred = defer.Deferred()
+    
     def callback(x):
         timeout_deferred.callback(x)
         return x
-
+    
     def errback(x):
         timeout_deferred.errback(x)
         return x
-
+        
     d.addCallback(callback)
     d.addErrback(errback)
 

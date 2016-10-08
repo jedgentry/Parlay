@@ -289,11 +289,16 @@ class Broker(object):
         """
 
         if cls._started.called:
-            # already started, queue it up in the reactor
-            cls.get_instance().reactor.callLater(0, func)
+            #make sure its run in the broker
+            @run_in_broker
+            def inner():
+                # already started, queue it up in the reactor
+                return defer.maybeDeferred(func)
+            return inner()
         else:
             # need a lambda to eat any results from the previous callback in the chain
             cls._started.addBoth(lambda *args: func())
+            return cls._started
 
     @classmethod
     def call_on_stop(cls, func):

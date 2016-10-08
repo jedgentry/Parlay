@@ -14,6 +14,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
 
     broker = Broker.get_instance()
+    open_ports = set()
 
     def __init__(self, port):
         self._parlay_name = port
@@ -85,18 +86,7 @@ class LineItem(ParlayCommandItem):
         self._protocol.sendLine(str(data))
 
     @parlay_command(async=True)
-    def send_and_wait_for_data(self, data, timeout_secs):
-        """
-        Send raw Data and then wait for the response
-        :param data:
-        :return:
-        """
-        handler = self._protocol.get_new_data_wait_handler()
-        self._protocol.sendLine(str(data))
-        return handler.wait(timeout_secs)
-
-    @parlay_command(async=True)
-    def wait_for_data(self, timeout_secs=3):
+    def wait_for_data(self, timeout_secs=300):
         """
         :type timeout_secs float
         """
