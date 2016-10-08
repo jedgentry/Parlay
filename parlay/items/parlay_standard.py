@@ -689,6 +689,7 @@ class ParlayStandardScriptProxy(object):
 
             item_proxy._script.add_listener(self._update_val_listener)
 
+
         def attach_listener(self, listener):
             self._listener = listener
 
@@ -700,16 +701,17 @@ class ParlayStandardScriptProxy(object):
             If in Broker:
                 Will return deferred that is called back with the datastream value when updated
             """
+            self.get()
             return self._reactor.maybeblockingCallFromThread(lambda: self._new_value)
 
         def get(self):
             if not self._subscribed:
-                msg = item_proxy._script.make_msg(item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
-                                              direct=True, response_req=False, STREAM=self._id, RATE=rate)
+                msg = self._item_proxy._script.make_msg(self._item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
+                                              direct=True, response_req=False, STREAM=self._id)
 
-                item_proxy._script.send_parlay_message(msg)
+                self._item_proxy._script.send_parlay_message(msg)
                 self._subscribed = True
-            return self.__get__(None, None)
+            return self._val
 
         def _update_val_listener(self, msg):
             """
@@ -726,11 +728,6 @@ class ParlayStandardScriptProxy(object):
                 temp.callback(new_val)
             return False  # never eat me!
 
-        def __get__(self, instance, owner):
-            return self._val
-
-        def __set__(self, instance, value):
-            raise NotImplementedError()  # you can't set a STREAM
 
     def __init__(self, discovery, script):
         """
@@ -821,8 +818,7 @@ class ParlayStandardScriptProxy(object):
     # Thanks: http://blog.brianbeck.com/post/74086029/instance-descriptors
     def __getattribute__(self, name):
         value = object.__getattribute__(self, name)
-        if isinstance(value, ParlayStandardScriptProxy.PropertyProxy) or \
-                isinstance(value, ParlayStandardScriptProxy.StreamProxy):
+        if isinstance(value, ParlayStandardScriptProxy.PropertyProxy):
             value = value.__get__(self, self.__class__)
         return value
 
@@ -832,8 +828,7 @@ class ParlayStandardScriptProxy(object):
         except AttributeError:
             pass
         else:
-            if isinstance(obj, ParlayStandardScriptProxy.PropertyProxy) or \
-                    isinstance(obj, ParlayStandardScriptProxy.StreamProxy):
+            if isinstance(obj, ParlayStandardScriptProxy.PropertyProxy):
                 return obj.__set__(self, value)
         return object.__setattr__(self, name, value)
 
