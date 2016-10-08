@@ -689,10 +689,8 @@ class ParlayStandardScriptProxy(object):
 
             item_proxy._script.add_listener(self._update_val_listener)
 
-
         def attach_listener(self, listener):
             self._listener = listener
-
 
         def wait_for_value(self):
             """

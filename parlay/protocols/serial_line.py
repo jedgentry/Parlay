@@ -14,6 +14,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
     """
 
     broker = Broker.get_instance()
+    open_ports = set()
 
     def __init__(self, port):
         self._parlay_name = port
