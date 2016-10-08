@@ -289,8 +289,12 @@ class Broker(object):
         """
 
         if cls._started.called:
-            # already started, queue it up in the reactor
-            return defer.maybeDeferred(lambda: func())
+            #make sure its run in the broker
+            @run_in_broker
+            def inner():
+                # already started, queue it up in the reactor
+                return defer.maybeDeferred(func)
+            return inner()
         else:
             # need a lambda to eat any results from the previous callback in the chain
             cls._started.addBoth(lambda *args: func())
