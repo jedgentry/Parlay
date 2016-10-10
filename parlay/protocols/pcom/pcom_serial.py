@@ -105,7 +105,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         '"""
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
-        protocol = PCOMSerial(adapter)
+        protocol = PCOMSerial(adapter, port)
         SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
         return protocol
 
@@ -131,10 +131,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self.transport.loseConnection()
         return defer.succeed(None)
 
-    def __init__(self, adapter):
+    def __str__(self):
+        return "PCOM @ " + str(self._port)
+
+    def __init__(self, adapter, port):
         """
         :param adapter: The adapter that will serve as an interface for interacting with the broker
         """
+        self._port = port
         # A list of items that we will need to discover for.
         # The base protocol will use this dictionary to feed items to
         # the UI
@@ -921,6 +925,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         buf += line
         packet_tuple = unstuff_packet(buf[start_byte_index:])
         self._on_packet(*packet_tuple)
+
+
 
 
 class CommandInfo:

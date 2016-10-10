@@ -121,7 +121,34 @@ class ThreadedItem(BaseItem):
                     if _msg['CONTENTS']['STATUS'] == 'ok':
                         result.callback(_msg['CONTENTS']['STATUS'])
                     else:
-                        result.errback(Failure(_msg['CONTENTS']['STATUS']))
+                        result.errback(Failure(RuntimeError(_msg['CONTENTS']['STATUS'])))
+                    return True  # we're done here
+                return False  # keep waiting
+
+            self.add_listener(listener)
+            return result
+
+        return self._reactor.maybeblockingCallFromThread(wait_for_response)
+
+    def close_protocol(self, protocol_id):
+        """
+        close a protocol by id
+        :param protocol_id:
+        :return:
+        """
+        msg = {"TOPICS": {'type': 'broker', 'request': 'close_protocol'},
+               "CONTENTS": {'protocol': protocol_id}}
+        self._reactor.maybeCallFromThread(self.publish, msg)
+
+        def wait_for_response():
+            result = defer.Deferred()
+
+            def listener(_msg):
+                if _msg['TOPICS'].get('response', "") == 'close_protocol_response':
+                    if _msg['CONTENTS']['STATUS'] == 'ok':
+                        result.callback(_msg['CONTENTS']['STATUS'])
+                    else:
+                        result.errback(Failure(RuntimeError(_msg['CONTENTS']['STATUS'])))
                     return True  # we're done here
                 return False  # keep waiting
 
