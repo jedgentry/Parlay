@@ -627,9 +627,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         tokenized_list = []
         for i in format_chars:
             token += i
-        if token != "*":
-            tokenized_list.append(token)
-        token = ""
+            if token != "*":
+                tokenized_list.append(token)
+            token = ""
         return tokenized_list
 
     @staticmethod
