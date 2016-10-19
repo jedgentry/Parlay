@@ -758,6 +758,8 @@ class ParlayStandardScriptProxy(object):
 
                 def _closure_wrapper(f_name=func_name, f_id=func_id, _arg_names=arg_names, _self=self):
 
+                    @run_in_broker
+                    @defer.inlineCallbacks
                     def func(*args, **kwargs):
                         if len(args) + len(kwargs) > len(_arg_names):
                             raise KeyError("Too many Arguments. Expected arguments are: " +
@@ -775,8 +777,8 @@ class ParlayStandardScriptProxy(object):
                         msg = _self._script.make_msg(_self.item_id, f_id, msg_type=MSG_TYPES.COMMAND,
                                                      direct=True, response_req=True, COMMAND=f_name, **kwargs)
 
-                        resp = _self._script.send_parlay_message(msg, timeout=_self.timeout)
-                        return resp['CONTENTS'].get('RESULT', None)
+                        resp = yield _self._script.send_parlay_message(msg, timeout=_self.timeout)
+                        yield resp['CONTENTS'].get('RESULT', None)
 
                     # set this object's function to be that function
                     setattr(_self, f_name, func)
