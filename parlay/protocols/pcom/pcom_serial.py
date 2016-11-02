@@ -91,7 +91,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     ACK_DIFFERENTIAL = 8
 
     # timeout before resend in secs
-    ACK_TIMEOUT = .5
+    ACK_TIMEOUT = 10
 
 
     @classmethod
