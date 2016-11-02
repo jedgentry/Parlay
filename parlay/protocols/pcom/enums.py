@@ -1,24 +1,6 @@
 from parlay.enum import enum
 
 
-# Store a map of Item IDs -> Command ID -> Command Objects
-# Command objects will store the parameter -> format mapping
-command_map = {}
-
-# Store a map of properties. We must keep track of a
-# name -> format mapping in order to serialize data
-property_map = {}
-
-# Store a map of command names to IDs
-# item ID -> Command name -> ID
-command_name_map = {}
-
-
-# Map of error codes to their string name equivalent
-error_code_map = {}
-
-
-
 # NOTE: These are global because the serial_encoding.py and
 # pcom_message.py modules need access to them. Since they will
 # be large maps we do not want to pass them as parameters.
@@ -43,6 +25,7 @@ DISCOVERY_MESSAGES = [GET_ITEM_NAME, GET_ITEM_TYPE, GET_COMMAND_IDS, GET_PROPERT
                       GET_PROPERTY_NAME, GET_PROPERTY_TYPE, GET_SUBSYSTEMS, RESET_ITEM]
 
 
+INVALID_ID = 0xffff
 
 ITEM_TYPE_HIDDEN = 1000
 # From serial_encoding.py
@@ -103,7 +86,8 @@ ResponseSubType = enum(
 )
 
 NotificationSubType = enum(
-    'Info'
+    'Direct',
+    'Broadcast'
 )
 
 OrderCommandOption = enum(
@@ -129,10 +113,11 @@ ResponsePropertyOption = enum(
     'Stream_Response'
 )
 
-NotificationOptions = enum(
-    'Error',
-    'Warning',
-    'Info',
-    'Debug'
+DirectNotificationOptions = enum(
+    'Default'
 )
 
+BroadcastNotificationOptions = enum(
+    'Internal',
+    'External'
+)
