@@ -173,7 +173,7 @@ def flatten(data):
     :param data:  data list to be packed
     :return: flattened data lilst
     """
-    if isinstance(data, collections.Iterable):
+    if isinstance(data, collections.Iterable) and not isinstance(data, basestring):
         return [element for lst in data for element in flatten(lst)]
     else:
         return [data]
@@ -566,12 +566,12 @@ def translate_fmt_str(fmt_str, data):
             if char is 's':
                 count = get_str_len(data[index:]) if is_binary else len(data[index])+1
                 output_str += str(count)
+                index += 1
             else:
                 multiplier = 1 if len(int_holder) == 0 else int(int_holder)
                 count = FORMAT_STRING_TABLE[char] * multiplier if is_binary else multiplier
                 int_holder = ''
-
-            index += count
+                index += count
 
         output_str += char
 

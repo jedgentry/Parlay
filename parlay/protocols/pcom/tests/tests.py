@@ -109,6 +109,8 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual('5s', serial_encoding.translate_fmt_str('s', '\x65\x65\x65\x65\x00'))
         self.assertEqual('2s', serial_encoding.translate_fmt_str('s', ["c"]))
         self.assertEqual('2s', serial_encoding.translate_fmt_str('s', '\x23\x00'))
+        self.assertEqual('3sH', serial_encoding.translate_fmt_str('sH', ["hi", 12]))
+        self.assertEqual('3sH', serial_encoding.translate_fmt_str('sH', '\x65\x65\x00\x12\x12'))
         self.assertEqual('5s2B', serial_encoding.translate_fmt_str('s2B', '\x65\x65\x65\x65\x00\x12\x12'))
         self.assertEqual('6s2H', serial_encoding.translate_fmt_str('s2H', ["hello", 12, 2]))
         self.assertEqual('2b', serial_encoding.translate_fmt_str('*b', [[12, 2]]))
@@ -119,6 +121,7 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual('10H', serial_encoding.translate_fmt_str('*H', [[10, 0, 1, 2, 4, 1, 10, 6, 1, 6]]))
         self.assertEqual('b2H', serial_encoding.translate_fmt_str('b*H', [100, [100, 200]]))
         self.assertEqual('?', serial_encoding.translate_fmt_str('?', [1]))
+        self.assertEqual('4s4s', serial_encoding.translate_fmt_str('ss', ["hel", "hel"]))
 
     def test_cast_data(self):
         self.assertEqual([12, 13, 14], serial_encoding.cast_data("3H", ["12", "13", "14"]))
