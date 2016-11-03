@@ -215,7 +215,7 @@ class ParlayProperty(object):
 
     """
 
-    def __init__(self, default=None, val_type=None, read_only=False, write_only=False,
+    def __init__(self, default=None, val_type=str, read_only=False, write_only=False,
                  custom_read=None, custom_write=None):
         """
         Init method for the ParlayProperty class
