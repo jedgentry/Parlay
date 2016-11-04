@@ -214,6 +214,12 @@ class TestSerialEncoding(unittest.TestCase):
         test_pcom_msg.contents = {"COMMAND" : 1000}
         self.assertRaises(Exception, lambda: serial_encoding.serialize_response_code(test_pcom_msg))
 
+    def test_flatten_data(self):
+
+        self.assertEqual([1, 2, 3, 4], serial_encoding.flatten([1, [2, 3, 4]]))
+        self.assertEqual([1], serial_encoding.flatten([1]))
+        self.assertEqual(["hello"], serial_encoding.flatten(["hello"]))
+
     def test_serialize_msg_type(self):
         PROPERTY_GET = MessageCategory.Order << CATEGORY_SHIFT | OrderSubType.Property << SUB_TYPE_SHIFT \
                        | OrderPropertyOption.Get_Property << OPTION_SHIFT

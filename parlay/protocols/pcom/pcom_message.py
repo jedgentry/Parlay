@@ -336,7 +336,7 @@ class PCOMMessage(object):
 
         # If the first output parameter is a list then simply return
         # a all of the data
-        if len(output_param_names) > 0 and  output_param_names[0][-2:] == "[]":
+        if len(output_param_names) > 0 and output_param_names[0][-2:] == "[]":
             return {output_param_names[0]: self.data}
         # Otherwise return a map of output names -> data
         else:
