@@ -778,7 +778,7 @@ class ParlayStandardScriptProxy(object):
                                                      direct=True, response_req=True, COMMAND=f_name, **kwargs)
 
                         resp = yield _self._script.send_parlay_message(msg, timeout=_self.timeout)
-                        yield resp['CONTENTS'].get('RESULT', None)
+                        yield defer.returnValue(resp['CONTENTS'].get('RESULT', None))
 
                     # set this object's function to be that function
                     setattr(_self, f_name, func)
