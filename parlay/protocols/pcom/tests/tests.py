@@ -7,8 +7,8 @@ import parlay.protocols.pcom.serial_encoding as serial_encoding
 import parlay.protocols.pcom.pcom_serial as pcom_serial
 
 
-
 class TestSerialEncoding(unittest.TestCase):
+
     b_msg_id = 20
     b_source_id = 5
     b_destination_id = 7
@@ -278,8 +278,8 @@ class TestSerialEncoding(unittest.TestCase):
         self.assertEqual(0, sum_p+check_s & 0xff)
 
 
-
 class TestPCOMMessage(unittest.TestCase):
+
     command_msg = {
         'TOPICS': {
             'TX_TYPE': "DIRECT",
@@ -342,7 +342,6 @@ class TestPCOMMessage(unittest.TestCase):
 
     STREAM_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 5, u'FROM': u'DeviceSession', u'MSG_TYPE': u'STREAM'},
                     u'CONTENTS': {u'STOP': False, u'STREAM': u'test_property_stream'}}
-
 
     def test_property_and_command_names(self):
         TEST_ITEM_ID = 343
