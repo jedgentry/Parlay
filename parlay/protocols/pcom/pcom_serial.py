@@ -733,7 +733,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
         parlay_item.add_property(property_id, name=property_desc, attr_name=property_name)
-        parlay_item.add_datastream(property_name + "_stream", name=property_desc + " (stream)", attr_name=property_name + "_stream")
+        parlay_item.add_datastream(property_name + "_stream", name=property_desc, attr_name=property_name + "_stream")
 
         return
 
