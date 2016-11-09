@@ -298,6 +298,7 @@ class PCOMMessage(object):
                 elif msg_option == ResponsePropertyOption.Stream_Response:
                     msg['TOPICS']['MSG_TYPE'] = "STREAM"
                     msg['TOPICS']['STREAM'] = self.response_code
+                    msg['CONTENTS']['STREAM'] = self.response_code
                     msg['CONTENTS']['VALUE'] = self.data[0]
                     msg['CONTENTS']['RATE'] = 1000  # Rate not obtained during discovery, using 1000 (ms) here as arbitrary value
 
