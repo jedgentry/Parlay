@@ -231,7 +231,7 @@ class PCOMMessage(object):
         :return:
         """
 
-        item_name_map= map.get(item_id, None)
+        item_name_map = map.get(item_id, None)
 
         if not item_name_map:
             return default_val
@@ -248,6 +248,9 @@ class PCOMMessage(object):
         """
 
         destination_id = self._get_name_from_id(self.to)
+        destination_integer_id = self.to
+        sender_integer_id = self.from_
+
         msg = {'TOPICS': {}, 'CONTENTS': {}}
         msg['TOPICS']['TO'] = destination_id
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
@@ -325,7 +328,7 @@ class PCOMMessage(object):
                     id = self.response_code
                     if type(id) == int:
                         # convert to stream name ID
-                        id = self.get_name_from_id(destination_id, pcom_serial.stream_name_map, self.response_code, default_val=self.response_code)
+                        id = self.get_name_from_id(sender_integer_id, pcom_serial.stream_name_map, self.response_code, default_val=self.response_code)
                     msg['TOPICS']['STREAM'] = id
                     msg['CONTENTS']['STREAM'] = id
                     msg['CONTENTS']['VALUE'] = self.data[0]
