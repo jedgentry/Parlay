@@ -564,9 +564,13 @@ def translate_fmt_str(fmt_str, data):
 
         if char.isalpha() or char == '?':
             if char is 's':
-                count = get_str_len(data[index:]) if is_binary else len(data[index])+1
+                if is_binary:
+                    count = get_str_len(data[index:])
+                    index += count
+                else:
+                    count = len(data[index]) + 1
+                    index += 1
                 output_str += str(count)
-                index += 1
             else:
                 multiplier = 1 if len(int_holder) == 0 else int(int_holder)
                 count = FORMAT_STRING_TABLE[char] * multiplier if is_binary else multiplier
@@ -651,6 +655,7 @@ def unstuff_packet(packet):
 
     if sum_packet(packet) != 0:
         print "WARNING PACKET DIDNT ADD UP TO ZERO"
+        raise FailCRC
 
     if packet_len < 1:
         raise IndexError("Packets must be AT LEAST 3 bytes long. packet was: " + str(packet))
@@ -707,6 +712,11 @@ def get_checksum(packet_sum):
     """
 
     return -packet_sum & 0xff
+
+class FailCRC(Exception):
+
+    def __init__(self):
+        pass
 
 
 

@@ -923,8 +923,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         buf = bytearray()
         start_byte_index = (line.rfind(START_BYTE_STR) + 1)
         buf += line
-        packet_tuple = unstuff_packet(buf[start_byte_index:])
-        self._on_packet(*packet_tuple)
+        try:
+            packet_tuple = unstuff_packet(buf[start_byte_index:])
+            self._on_packet(*packet_tuple)
+        except FailCRC:
+            print "Failed CRC"
 
 
 
@@ -1017,8 +1020,6 @@ class SlidingACKWindow:
 
         return self.EXPIRED
 
-
-
     def add_to_window(self, ack_info):
         """
         Adds <ack_info> to the window
@@ -1075,6 +1076,7 @@ class SlidingACKWindow:
                 timer.cancel()
             return result  # pass through the result
         d.addCallback(clean_up_timer)
+
 
 
 class TimeoutException(Exception):
