@@ -655,6 +655,7 @@ def unstuff_packet(packet):
 
     if sum_packet(packet) != 0:
         print "WARNING PACKET DIDNT ADD UP TO ZERO"
+        raise FailCRC
 
     if packet_len < 1:
         raise IndexError("Packets must be AT LEAST 3 bytes long. packet was: " + str(packet))
@@ -711,6 +712,11 @@ def get_checksum(packet_sum):
     """
 
     return -packet_sum & 0xff
+
+class FailCRC(Exception):
+
+    def __init__(self):
+        pass
 
 
 
