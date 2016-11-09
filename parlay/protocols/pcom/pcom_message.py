@@ -30,7 +30,7 @@ class PCOMMessage(object):
     VALID_JSON_MESSAGE_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
 
     def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None, attributes=0,
-                 response_code=None, response_req=None, msg_status=None, contents=None, data=None, data_fmt=None):
+                 response_code=None, response_req=None, msg_status=None, contents=None, data=None, data_fmt=None, topics=None):
 
         # TODO: Change response_req to response_code
 
@@ -47,6 +47,7 @@ class PCOMMessage(object):
         self._format_string = ''
         self._data = []
         self._response_code = None
+        self._topics = None
 
         self.to = to
         self.from_ = from_
@@ -61,6 +62,7 @@ class PCOMMessage(object):
         self.format_string = data_fmt
         self.data = data
         self.response_code = response_code
+        self.topics = topics
 
     @classmethod
     def _get_item_id(cls, name):
@@ -157,6 +159,10 @@ class PCOMMessage(object):
                     data.append(msg.contents.get('VALUE', 0))
                     data = serial_encoding.cast_data(fmt, data)
 
+        elif msg.msg_type == "STREAM":
+            # no data or format string for stream messages
+            return [], ''
+
         return data, fmt
 
     @classmethod
@@ -181,9 +187,10 @@ class PCOMMessage(object):
         tx_type = json_msg['TOPICS'].get('TX_TYPE', "DIRECT")
 
         contents = json_msg['CONTENTS']
+        topics = json_msg['TOPICS']
 
         msg = cls(to=to, from_=from_, msg_id=msg_id, response_req=response_req, msg_type=msg_type,
-                  msg_status=msg_status, tx_type=tx_type, contents=contents)
+                  msg_status=msg_status, tx_type=tx_type, contents=contents, topics=topics)
 
         # Set data and format using class function
         msg.data, msg.format_string = cls._get_data_format(msg)

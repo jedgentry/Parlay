@@ -47,6 +47,9 @@ error_code_map = {}
 # item ID -> Property name -> ID
 property_name_map = {}
 
+# Store a map of stream names
+# item ID -> Stream name -> Stream ID
+stream_name_map = {}
 
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
@@ -242,7 +245,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # Get the next sequence number and then wrap the protocol with
         # the desired low level byte wrapping and send down serial line
         sequence_num = self._seq_num.next()
-        packet = str(wrap_packet(packet, sequence_num, need_ack))
+        try:
+            packet = str(wrap_packet(packet, sequence_num, need_ack))
+
+        except ValueError:
+            print "Fatal error: created packet with invalid checksum, aborting send."
+            return d
 
         # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
 
@@ -497,10 +505,13 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: None
         """
 
+
+        # initialize the maps for this item
         command_map[item_id] = {}
         property_map[item_id] = {}
         command_name_map[item_id] = {}
         property_name_map[item_id] = {}
+        stream_name_map[item_id] = {}
 
         command_map[item_id][RESET_ITEM] = CommandInfo("", "", "")
         command_map[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
@@ -688,6 +699,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         property_type = property_info_list[1]
 
         property_name_map[item_id][property_name] = property_id
+        stream_name_map[item_id][property_name + "_stream"] = property_id
+
         property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
         parlay_item.add_property(property_id, name=property_name)
