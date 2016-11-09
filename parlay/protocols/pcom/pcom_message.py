@@ -220,13 +220,36 @@ class PCOMMessage(object):
         subsystem_id = self.get_subsystem(id)
         return "BROADCAST" if subsystem_id == BROADCAST_ID else "DIRECT"
 
+
+    def get_name_from_id(self, item_id, map, id_to_find, default_val="No name found"):
+        """
+        Gets name from item ID. Assuming name is the KEY and ID is the value in <map> dictionary
+
+        :param item_id:
+        :param map:
+        :param default_val:
+        :return:
+        """
+
+        item_name_map= map.get(item_id, None)
+
+        if not item_name_map:
+            return default_val
+
+        for name in item_name_map:
+            if item_name_map[name] == id_to_find:
+                return name
+
+        return default_val
+
     def to_json_msg(self):
         """
         :return:
         """
 
+        destination_id = self._get_name_from_id(self.to)
         msg = {'TOPICS': {}, 'CONTENTS': {}}
-        msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
+        msg['TOPICS']['TO'] = destination_id
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
         msg['TOPICS']['MSG_ID'] = self.msg_id
 
@@ -289,6 +312,8 @@ class PCOMMessage(object):
                 msg['TOPICS']['MSG_STATUS'] = "OK"
                 if msg_option == ResponsePropertyOption.Get_Response:
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
+                    id = self.response_code
+
                     msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['VALUE'] = self.data[0] # TODO: support empty data
                 elif msg_option == ResponsePropertyOption.Set_Response:
@@ -297,8 +322,12 @@ class PCOMMessage(object):
                     pass # NOTE: set responses do not have a 'value' field
                 elif msg_option == ResponsePropertyOption.Stream_Response:
                     msg['TOPICS']['MSG_TYPE'] = "STREAM"
-                    msg['TOPICS']['STREAM'] = self.response_code
-                    msg['CONTENTS']['STREAM'] = self.response_code
+                    id = self.response_code
+                    if type(id) == int:
+                        # convert to stream name ID
+                        id = self.get_name_from_id(destination_id, pcom_serial.stream_name_map, self.response_code, default_val=self.response_code)
+                    msg['TOPICS']['STREAM'] = id
+                    msg['CONTENTS']['STREAM'] = id
                     msg['CONTENTS']['VALUE'] = self.data[0]
                     msg['CONTENTS']['RATE'] = 1000  # Rate not obtained during discovery, using 1000 (ms) here as arbitrary value
 
