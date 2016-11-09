@@ -93,6 +93,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     # timeout before resend in secs
     ACK_TIMEOUT = 10
 
+    is_port_attached = False
+
 
     @classmethod
     def open(cls, adapter, port):
@@ -106,7 +108,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter, port)
-        SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
+        try:
+            SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
+            cls.is_port_attached = True
+        except Exception as E:
+            print "Unable to open port"
+
         return protocol
 
     @classmethod
@@ -298,6 +305,21 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         defer.returnValue(response.data[0])
 
     @defer.inlineCallbacks
+    def get_property_desc(self, to, requested_property_id):
+        """
+        Sends a message to the embedded board requesting the property description for a specified
+        property ID
+
+        :param to: item ID to send the message to
+        :param requested_property_id: property ID to get the description of
+        :return:
+        """
+
+        response = yield self.send_command(to, command_id=GET_PROPERTY_DESC, params=["property_id"],
+                                      data=[requested_property_id])
+
+        defer.returnValue(response.data[0])
+    @defer.inlineCallbacks
     def get_command_name(self, to, requested_command_id):
         """
         Sends a messge down the serial line requesting the property name of a given property ID,
@@ -389,7 +411,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         r_val = '' if len(response.data) == 0 else response.data[0]
         defer.returnValue(r_val)
 
-    def send_command(self, to, tx_type="DIRECT", command_id=0, msg_status="INFO", response_req=True, params=[], data=[]):
+    def send_command(self, to=None, tx_type="DIRECT", command_id=0, msg_status="INFO", response_req=True, params=[], data=[]):
         """
                 Send a command and return a deferred that will succeed on a response and with the response
 
@@ -417,9 +439,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             "RESPONSE_REQ": response_req,
             "MSG_STATUS": msg_status,
             # NOTE: Change this to handle sending and receiving across subsystems.
-            "FROM": self.DISCOVERY_CODE,
-            "TO": to
+            "FROM": self.DISCOVERY_CODE
         }
+
+        if to:
+            topics["TO"] = to
 
         # Build the CONTENTS portion
         contents = {
@@ -537,6 +561,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         Run a discovery for everything connected to this protocol and return a list of of all connected:
         items, messages, and endpoint types
         """
+
+        if not PCOMSerial.is_port_attached:
+            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discoverring"])
 
         print "----------------------------"
         print "Discovery function started!"
@@ -684,14 +711,16 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
+        # set variable to positions in the list for readability
         property_name = property_info_list[0]
         property_type = property_info_list[1]
+        property_desc = property_info_list[2]
 
         property_name_map[item_id][property_name] = property_id
         property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
-        parlay_item.add_property(property_id, name=property_name)
-        parlay_item.add_datastream(property_id, name=property_name + "_stream")
+        parlay_item.add_property(property_id, name=property_desc, attr_name=property_name)
+        parlay_item.add_datastream(property_id, name=property_desc + " (stream)", attr_name=property_name + "_stream")
         return
 
     @staticmethod
@@ -821,8 +850,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             for property_id in property_ids:
                 property_name = self.get_property_name(item_id, property_id)
                 property_type = self.get_property_type(item_id, property_id)
+                property_desc = self.get_property_desc(item_id, property_id)
 
-                discovered_property = defer.gatherResults([property_name, property_type])
+                discovered_property = defer.gatherResults([property_name, property_type, property_desc])
                 discovered_property.addCallback(PCOMSerial.property_cb, item_id=item_id, property_id=property_id,
                                                 parlay_item=parlay_item)
 
