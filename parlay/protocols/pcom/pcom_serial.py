@@ -549,6 +549,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command_id"], ["Command output names"])
         command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property_id"], ["Property name"])
         command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property_id"], ["Property type"])
+        command_map[item_id][GET_PROPERTY_DESC] = CommandInfo("H", ["property_id"], ["Property desc"])
 
         command_name_map[item_id]["reset_item"] = RESET_ITEM
         command_name_map[item_id]["get_item_name"] = GET_ITEM_NAME
