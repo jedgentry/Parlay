@@ -211,6 +211,18 @@ class PCOMMessage(object):
         """
         return (id & SUBSYSTEM_MASK) >> SUBSYSTEM_SHIFT
 
+    def _get_data(self, index):
+        """
+        Helper function for returning the data of the PCOM Message. Returns an error message if there
+        wasn't any data to get.
+        :param index:
+        :return:
+        """
+        if len(self.data) > 0:
+            return self.data[0]
+        else:
+            return None
+
     def get_tx_type_from_id(self, id):
         """
         Given an ID, returns the msg['TOPICS']['TX_TYPE'] that should be assigned
@@ -331,7 +343,7 @@ class PCOMMessage(object):
                         id = self.get_name_from_id(sender_integer_id, pcom_serial.stream_name_map, self.response_code, default_val=self.response_code)
                     msg['TOPICS']['STREAM'] = id
                     msg['CONTENTS']['STREAM'] = id
-                    msg['CONTENTS']['VALUE'] = self.data[0]
+                    msg['CONTENTS']['VALUE'] = self._get_data(0)
                     msg['CONTENTS']['RATE'] = 1000  # Rate not obtained during discovery, using 1000 (ms) here as arbitrary value
 
         elif msg_category == MessageCategory.Notification:
