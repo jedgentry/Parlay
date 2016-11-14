@@ -302,9 +302,9 @@ class PCOMMessage(object):
 
         elif msg_category == MessageCategory.Order_Response:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
-            msg['CONTENTS']['ERROR_CODE'] = self.msg_status
 
             if self.msg_status != STATUS_SUCCESS:
+                msg['CONTENTS']['ERROR_CODE'] = self.msg_status
                 msg['TOPICS']['MSG_STATUS'] = "ERROR"
                 msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
                 msg['TOPICS']['RESPONSE_REQ'] = False
