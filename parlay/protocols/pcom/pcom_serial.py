@@ -26,30 +26,34 @@ from collections import namedtuple
 
 import time
 
+# Constants used in converting format chars to
+# Parlay input types
+PCOM_SERIAL_NUMBER_INPUT_CHARS = "BbHhIiQqfd"
+PCOM_SERIAL_STRING_INPUT_CHARS = "?csx"
+PCOM_SERIAL_ARRAY_INPUT_CHARS = '*'
 
 # Store a map of Item IDs -> Command ID -> Command Objects
 # Command objects will store the parameter -> format mapping
-command_map = {}
+PCOM_COMMAND_MAP = {}
 
 # Store a map of properties. We must keep track of a
 # name -> format mapping in order to serialize data
-property_map = {}
+PCOM_PROPERTY_MAP = {}
 
 # Store a map of command names to IDs
 # item ID -> Command name -> ID
-command_name_map = {}
-
+PCOM_COMMAND_NAME_MAP = {}
 
 # Map of error codes to their string name equivalent
-error_code_map = {}
+PCOM_ERROR_CODE_MAP = {}
 
 # Store a map of property names to IDs
 # item ID -> Property name -> ID
-property_name_map = {}
+PCOM_PROPERTY_NAME_MAP = {}
 
 # Store a map of stream names
 # item ID -> Stream name -> Stream ID
-stream_name_map = {}
+PCOM_STREAM_NAME_MAP = {}
 
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
@@ -98,7 +102,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     is_port_attached = False
 
-
     @classmethod
     def open(cls, adapter, port):
         """
@@ -115,7 +118,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
             cls.is_port_attached = True
         except Exception as E:
-            print "Unable to open port"
+            print "Unable to open port because of error (exception):", E
 
         return protocol
 
@@ -217,8 +220,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
                                              msg_status=message_status, msg_id=original_message.msg_id)
 
-        json_msg = error_msg.to_json_msg()
-        self.adapter.publish(json_msg)
+        try:
+            json_msg = error_msg.to_json_msg()
+            self.adapter.publish(json_msg)
+        except Exception as e:
+            print "Unhandled exception in function: to_json_msg():", e
 
     def _message_queue_handler(self, message):
         """
@@ -238,12 +244,17 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         d.callback(None)
 
         # print "MESSAGE", message
-        s = pcom_message.PCOMMessage.from_json_msg(message)
+        try:
+            s = pcom_message.PCOMMessage.from_json_msg(message)
+        except Exception as e:
+            print "Could not translate JSON message to PCOM equivalent because of exception:", e
 
         # Serialize the message and prepare for protocol wrapping.
         try:
             packet = encode_pcom_message(s)
-        except:
+        except Exception as e:
+            print "Unable to encode pcom message"
+            print "Exception:", e
             self.send_error_message(original_message=s, message_status="Unable to encode message: {0}".format(s))
             return d
 
@@ -310,7 +321,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # The data in the response message will be a list,
         # the property name should be in the 0th position
         # and strip the NULL byte.
-        defer.returnValue(response.data[0])
+        try:
+            defer.returnValue(response.data[0])
+        except IndexError:
+            print "Response from embedded board during discovery sequence did not return data in " \
+                  "expect format. Expected" \
+                  " at least one data field, received:", response.data
 
     @defer.inlineCallbacks
     def get_property_desc(self, to, requested_property_id):
@@ -326,7 +342,13 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         response = yield self.send_command(to, command_id=GET_PROPERTY_DESC, params=["property_id"],
                                       data=[requested_property_id])
 
-        defer.returnValue(response.data[0])
+        try:
+            defer.returnValue(response.data[0])
+        except IndexError:
+            print "Response from embedded board during discovery sequence did not return data in " \
+                  "expect format. Expected" \
+                  " at least one data field, received:", response.data
+
     @defer.inlineCallbacks
     def get_command_name(self, to, requested_command_id):
         """
@@ -342,7 +364,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # The data in the response message will be a list,
         # the command name should be in the 0th position
-        defer.returnValue(response.data[0])
+        try:
+            defer.returnValue(response.data[0])
+        except IndexError:
+            print "Response from embedded board during discovery sequence did not return data in " \
+                  "expect format. Expected" \
+                  " at least one data field, received:", response.data
 
     @defer.inlineCallbacks
     def get_command_input_param_format(self, to, requested_command_id):
@@ -531,38 +558,38 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
 
         # initialize the maps for this item
-        command_map[item_id] = {}
-        property_map[item_id] = {}
-        command_name_map[item_id] = {}
-        property_name_map[item_id] = {}
-        stream_name_map[item_id] = {}
+        PCOM_COMMAND_MAP[item_id] = {}
+        PCOM_PROPERTY_MAP[item_id] = {}
+        PCOM_COMMAND_NAME_MAP[item_id] = {}
+        PCOM_PROPERTY_NAME_MAP[item_id] = {}
+        PCOM_STREAM_NAME_MAP[item_id] = {}
 
-        command_map[item_id][RESET_ITEM] = CommandInfo("", "", "")
-        command_map[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
-        command_map[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
-        command_map[item_id][GET_COMMAND_IDS] = CommandInfo("", [], ["Command IDs"])
-        command_map[item_id][GET_PROPERTY_IDS] = CommandInfo("", [], ["Property IDs"])
-        command_map[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command_id"], ["Command name"])
-        command_map[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command_id"],
+        PCOM_COMMAND_MAP[item_id][RESET_ITEM] = CommandInfo("", "", "")
+        PCOM_COMMAND_MAP[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
+        PCOM_COMMAND_MAP[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_IDS] = CommandInfo("", [], ["Command IDs"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_IDS] = CommandInfo("", [], ["Property IDs"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command_id"], ["Command name"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command_id"],
                                                                            ["Command input format"])
-        command_map[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command_id"], ["Command input names"])
-        command_map[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command_id"], ["Command output names"])
-        command_map[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property_id"], ["Property name"])
-        command_map[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property_id"], ["Property type"])
-        command_map[item_id][GET_PROPERTY_DESC] = CommandInfo("H", ["property_id"], ["Property desc"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command_id"], ["Command input names"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command_id"], ["Command output names"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property_id"], ["Property name"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property_id"], ["Property type"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_DESC] = CommandInfo("H", ["property_id"], ["Property desc"])
 
-        command_name_map[item_id]["reset_item"] = RESET_ITEM
-        command_name_map[item_id]["get_item_name"] = GET_ITEM_NAME
-        command_name_map[item_id]["get_item_type"] = GET_ITEM_TYPE
-        command_name_map[item_id]["get_command_ids"] = GET_COMMAND_IDS
-        command_name_map[item_id]["get_property_ids"] = GET_PROPERTY_IDS
-        command_name_map[item_id]["get_command_name"] = GET_COMMAND_NAME
-        command_name_map[item_id]["get_command_input_param_format"] = GET_COMMAND_INPUT_PARAM_FORMAT
-        command_name_map[item_id]["get_command_input_param_names"] = GET_COMMAND_INPUT_PARAM_NAMES
-        command_name_map[item_id]["get_command_input_param_names"] = GET_COMMAND_INPUT_PARAM_NAMES
-        command_name_map[item_id]["get_command_output_param_desc"] = GET_COMMAND_OUTPUT_PARAM_DESC
-        command_name_map[item_id]["get_property_name"] = GET_PROPERTY_NAME
-        command_name_map[item_id]["get_property_type"] = GET_PROPERTY_TYPE
+        PCOM_COMMAND_MAP[item_id]["reset_item"] = RESET_ITEM
+        PCOM_COMMAND_MAP[item_id]["get_item_name"] = GET_ITEM_NAME
+        PCOM_COMMAND_MAP[item_id]["get_item_type"] = GET_ITEM_TYPE
+        PCOM_COMMAND_MAP[item_id]["get_command_ids"] = GET_COMMAND_IDS
+        PCOM_COMMAND_MAP[item_id]["get_property_ids"] = GET_PROPERTY_IDS
+        PCOM_COMMAND_MAP[item_id]["get_command_name"] = GET_COMMAND_NAME
+        PCOM_COMMAND_MAP[item_id]["get_command_input_param_format"] = GET_COMMAND_INPUT_PARAM_FORMAT
+        PCOM_COMMAND_MAP[item_id]["get_command_input_param_names"] = GET_COMMAND_INPUT_PARAM_NAMES
+        PCOM_COMMAND_MAP[item_id]["get_command_input_param_names"] = GET_COMMAND_INPUT_PARAM_NAMES
+        PCOM_COMMAND_MAP[item_id]["get_command_output_param_desc"] = GET_COMMAND_OUTPUT_PARAM_DESC
+        PCOM_COMMAND_MAP[item_id]["get_property_name"] = GET_PROPERTY_NAME
+        PCOM_COMMAND_MAP[item_id]["get_property_type"] = GET_PROPERTY_TYPE
         return
 
     @defer.inlineCallbacks
@@ -629,18 +656,25 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param hidden: whether or not the command will be hidden from UI
         :return:
         """
+        expected_command_info_list_length = 4
 
         local_subfields = []
+
+        # Ensure that the command_info_list contains at least <expected #> fields
+        if len(command_info_list) < expected_command_info_list_length:
+            print "Error in discovering command information for item:", item_id
+            print "  Command:", command_id
+            return
 
         c_name = command_info_list[0]
         c_input_format = command_info_list[1]
         c_input_names = command_info_list[2]
         c_output_desc = command_info_list[3]
 
-        command_map[item_id][command_id] = CommandInfo(c_input_format, c_input_names,
+        PCOM_COMMAND_MAP[item_id][command_id] = CommandInfo(c_input_format, c_input_names,
                                                       c_output_desc)
 
-        command_name_map[item_id][c_name] = command_id
+        PCOM_COMMAND_NAME_MAP[item_id][c_name] = command_id
 
         if not hidden:
             command_dropdowns.append((c_name, command_id))
@@ -698,11 +732,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
          :return:
          """
 
-        if format_char in "BbHhIiQqfd":
+        if len(format_char) < 1:
+            return INPUT_TYPES.STRING
+
+        if format_char in PCOM_SERIAL_NUMBER_INPUT_CHARS:
             return INPUT_TYPES.NUMBER
-        elif format_char[0] == '*':
+        elif format_char[0] == PCOM_SERIAL_STRING_INPUT_CHARS:
             return INPUT_TYPES.ARRAY
-        elif format_char in "?csx":
+        elif format_char in PCOM_SERIAL_ARRAY_INPUT_CHARS:
             return INPUT_TYPES.STRING
         else:
             print "Invalid format character", format_char, "defaulting to INPUT TYPE STRING"
@@ -723,15 +760,21 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
+        expected_property_info_list_length = 3
+
+        if len(property_info_list) < expected_property_info_list_length:
+            print "Error in property info discovery sequence for item:", item_id
+            print "Property:", property_id
+
         # set variable to positions in the list for readability
         property_name = property_info_list[0]
         property_type = property_info_list[1]
         property_desc = property_info_list[2]
 
-        property_name_map[item_id][property_name] = property_id
-        stream_name_map[item_id][property_name + "_stream"] = property_id
+        PCOM_PROPERTY_NAME_MAP[item_id][property_name] = property_id
+        PCOM_STREAM_NAME_MAP[item_id][property_name + "_stream"] = property_id
 
-        property_map[item_id][property_id] = PropertyData(name=property_name, format=property_type)
+        PCOM_PROPERTY_MAP[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
         parlay_item.add_property(property_id, name=property_desc, attr_name=property_name)
         parlay_item.add_datastream(property_name + "_stream", name=property_desc, attr_name=property_name + "_stream")
@@ -740,9 +783,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     @staticmethod
     def _initialize_reactor_command_map(reactor):
-        command_map[reactor] = {}
-        command_map[reactor][GET_ERROR_CODES] = CommandInfo("", [], ["codes"])
-        command_map[reactor][GET_ERROR_STRING] = CommandInfo("H", ["code"], ["string"])
+        PCOM_COMMAND_MAP[reactor] = {}
+        PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = CommandInfo("", [], ["codes"])
+        PCOM_COMMAND_MAP[reactor][GET_ERROR_STRING] = CommandInfo("H", ["code"], ["string"])
 
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, subsystem):
@@ -810,7 +853,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         for error_code in self._error_codes:
             response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_STRING, params=["code"], data=[error_code])
             error_code_string = response.data[0]
-            error_code_map[error_code] = error_code_string
+            PCOM_ERROR_CODE_MAP[error_code] = error_code_string
 
         print "---> ITEM IDS FOUND: ", self._item_ids
 
