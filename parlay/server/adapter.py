@@ -107,8 +107,6 @@ class PyAdapter(Adapter):
         Untracks the given protocol. You must call this when a protocol has closed to clean up after it.
         """
         self._broker.unsubscribe_all(protocol)
-        if protocol in self._broker._discovery_cache:
-            del self._broker._discovery_cache[protocol]  # remove from discovery cache
         try:
             self.open_protocols.remove(protocol)
         except ValueError:

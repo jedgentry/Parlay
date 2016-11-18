@@ -13,6 +13,7 @@ import json
 import signal
 import functools
 import parlay
+import itertools
 
 
 # path to the root parlay folder
@@ -417,38 +418,36 @@ class Broker(object):
                 message_callback(reply)
 
         elif request == 'close_protocol':
-            # close the protocol with the string repr given
-            open_protocols = [str(x) for x in self._protocols]
-            reply['CONTENTS']['protocols'] = open_protocols
-
-            to_close = msg['CONTENTS']['protocol']
-            # see if it exsits
-            if to_close not in open_protocols:
-                reply['CONTENTS']['STATUS'] = "no such open protocol: " + to_close
-                message_callback(reply)
-                return
 
             new_protocol_list = []
-            try:
-                for x in self._protocols:
-                    if str(x) == to_close:
-                        x.close()
-                    else:
-                        new_protocol_list.append(x)
+            to_close = msg["CONTENTS"]["protocol"]
 
-                self._protocols = new_protocol_list
-                # recalc list
-                reply['CONTENTS']['protocols'] = [str(x) for x in self._protocols]
-                reply['CONTENTS']['STATUS'] = "ok"
+            for adapter in self.adapters:
+                protocols = adapter.get_open_protocols()
+
+                try:
+                    for x in protocols:
+                        if str(x) == to_close:
+                            adapter.untrack_open_protocol(x)
+                            x.close()
+
+                        else:
+                            new_protocol_list.append(x)
+
+                except NotImplementedError as _:
+                    reply['CONTENTS'][
+                        'STATUS'] = "Error while closing protocol. Protocol does not define close() method"
+                    message_callback(reply)
+
+                except Exception as e:
+                    reply['CONTENTS']['STATUS'] = "Error while closing protocol " + str(e)
+                    message_callback(reply)
                 message_callback(reply)
 
-            except NotImplementedError as _:
-                reply['CONTENTS']['STATUS'] = "Error while closing protocol. Protocol does not define close() method"
-                message_callback(reply)
-
-            except Exception as e:
-                reply['CONTENTS']['STATUS'] = "Error while closing protocol " + str(e)
-                message_callback(reply)
+            # recalc list
+            reply['CONTENTS']['protocols'] = [str(x) for x in new_protocol_list]
+            reply['CONTENTS']['STATUS'] = "ok"
+            message_callback(reply)
 
         elif request == "get_discovery":
             # if we're forcing a refresh, clear our whole cache
