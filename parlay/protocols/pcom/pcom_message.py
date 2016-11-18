@@ -124,15 +124,15 @@ class PCOMMessage(object):
         if msg.msg_type == "COMMAND":
             # If the message type is "COMMAND" there should be an
             # entry in the 'CONTENTS' table for the command ID
-            if msg.to in pcom_serial.command_map:
+            if msg.to in pcom_serial.PCOM_COMMAND_MAP:
                 # command will be a CommandInfo object that has a list of parameters and format string
                 command_id = msg.contents.get("COMMAND", INVALID_ID)
-                command_int_id = cls._look_up_id(pcom_serial.command_name_map, msg.to, command_id)
+                command_int_id = cls._look_up_id(pcom_serial.PCOM_COMMAND_NAME_MAP, msg.to, command_id)
                 if command_int_id is None:
                     print "Could not find integer command ID for command name:", command_id
                     return
                 # TODO: check for KeyError
-                command = pcom_serial.command_map[msg.to][command_int_id]
+                command = pcom_serial.PCOM_COMMAND_MAP[msg.to][command_int_id]
                 fmt = str(msg.contents.get('__format__', command.fmt))
                 for param in command.params:
                     # TODO: May need to change default value to error out
@@ -148,13 +148,13 @@ class PCOMMessage(object):
                 data = []
                 fmt = ''
             elif action == "SET":
-                if msg.to in pcom_serial.property_map:
+                if msg.to in pcom_serial.PCOM_PROPERTY_MAP:
                     property_id = msg.contents.get("PROPERTY", INVALID_ID)
-                    property = cls._look_up_id(pcom_serial.property_name_map, msg.to, property_id)
+                    property = cls._look_up_id(pcom_serial.PCOM_PROPERTY_NAME_MAP, msg.to, property_id)
                     if property is None:
                         print "Could not find integer property ID for property name:", property
                         return
-                    prop = pcom_serial.property_map[msg.to][property]
+                    prop = pcom_serial.PCOM_PROPERTY_MAP[msg.to][property]
                     fmt = prop.format
                     data.append(msg.contents.get('VALUE', 0))
                     data = serial_encoding.cast_data(fmt, data)
@@ -210,6 +210,18 @@ class PCOMMessage(object):
         Gets the subsystem of the message.
         """
         return (id & SUBSYSTEM_MASK) >> SUBSYSTEM_SHIFT
+
+    def _get_data(self, index):
+        """
+        Helper function for returning the data of the PCOM Message. Returns an error message if there
+        wasn't any data to get.
+        :param index:
+        :return:
+        """
+        if len(self.data) > 0:
+            return self.data[0]
+        else:
+            return None
 
     def get_tx_type_from_id(self, id):
         """
@@ -279,7 +291,7 @@ class PCOMMessage(object):
                     msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
                     msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['ACTION'] = "SET"
-                    msg['CONTENTS']['VALUE'] = self.data[0] # TODO: Support no data
+                    msg['CONTENTS']['VALUE'] = self._get_data(0)
                 elif msg_option == OrderPropertyOption.Stream_On:
                     raise Exception("Stream on not handled yet")
                 elif msg_option == OrderPropertyOption.Stream_Off:
@@ -294,12 +306,12 @@ class PCOMMessage(object):
             if self.msg_status != STATUS_SUCCESS:
                 msg['CONTENTS']['ERROR_CODE'] = self.msg_status
                 msg['TOPICS']['MSG_STATUS'] = "ERROR"
-                msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
+                msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, "")
                 msg['TOPICS']['RESPONSE_REQ'] = False
                 return msg
 
             if msg_sub_type == ResponseSubType.Command:
-                item = pcom_serial.command_map.get(self.from_, None)
+                item = pcom_serial.PCOM_COMMAND_MAP.get(self.from_, None)
 
                 if item:
                     if msg_option == ResponseCommandOption.Complete:
@@ -318,7 +330,7 @@ class PCOMMessage(object):
                     id = self.response_code
 
                     msg['CONTENTS']['PROPERTY'] = self.response_code
-                    msg['CONTENTS']['VALUE'] = self.data[0] # TODO: support empty data
+                    msg['CONTENTS']['VALUE'] = self._get_data(0)
                 elif msg_option == ResponsePropertyOption.Set_Response:
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
                     msg['CONTENTS']['PROPERTY'] = self.response_code
@@ -328,10 +340,10 @@ class PCOMMessage(object):
                     id = self.response_code
                     if type(id) == int:
                         # convert to stream name ID
-                        id = self.get_name_from_id(sender_integer_id, pcom_serial.stream_name_map, self.response_code, default_val=self.response_code)
+                        id = self.get_name_from_id(sender_integer_id, pcom_serial.PCOM_STREAM_NAME_MAP, self.response_code, default_val=self.response_code)
                     msg['TOPICS']['STREAM'] = id
                     msg['CONTENTS']['STREAM'] = id
-                    msg['CONTENTS']['VALUE'] = self.data[0]
+                    msg['CONTENTS']['VALUE'] = self._get_data(0)
                     msg['CONTENTS']['RATE'] = 1000  # Rate not obtained during discovery, using 1000 (ms) here as arbitrary value
 
         elif msg_category == MessageCategory.Notification:
@@ -339,7 +351,7 @@ class PCOMMessage(object):
             msg['CONTENTS']['EVENT'] = self.response_code
             msg['CONTENTS']['ERROR_CODE'] = self.msg_status
             msg['CONTENTS']["INFO"] = self.data
-            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.error_code_map.get(self.msg_status, "")
+            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, "")
             msg['TOPICS']['RESPONSE_REQ'] = False
 
             if msg_sub_type == NotificationSubType.Broadcast:

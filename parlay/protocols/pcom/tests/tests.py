@@ -355,9 +355,9 @@ class TestPCOMMessage(unittest.TestCase):
         self.assertEqual(PCOMMessage._look_up_id(TEST_COMMAND_MAP, TEST_ITEM_ID, 'test_command'), 100)
         self.assertEqual(PCOMMessage._look_up_id(TEST_STREAM_MAP, TEST_ITEM_ID, 'test_property_stream'), 1100)
 
-        pcom_serial.property_name_map = {TEST_ITEM_ID: {'test_property': 1100, u'chassis': 101}}
-        pcom_serial.command_name_map = {TEST_ITEM_ID: {'test_command': 100}}
-        pcom_serial.stream_name_map = {TEST_ITEM_ID: {'test_property_stream': 1100}}
+        pcom_serial.PCOM_PROPERTY_NAME_MAP = {TEST_ITEM_ID: {'test_property': 1100, u'chassis': 101}}
+        pcom_serial.PCOM_COMMAND_NAME_MAP = {TEST_ITEM_ID: {'test_command': 100}}
+        pcom_serial.PCOM_STREAM_NAME_MAP = {TEST_ITEM_ID: {'test_property_stream': 1100}}
 
         EXPECTED_PROPERTY_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x4c\x04\x00\x00\x10\x00\x00'
         EXPECTED_COMMAND_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x64\x00\x00\x00\x00\x00\x00'
