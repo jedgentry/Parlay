@@ -2,12 +2,14 @@ from twisted.internet import reactor, defer
 from parlay.protocols.meta_protocol import ProtocolMeta
 import sys
 
+
 class Adapter(object):
     """
     Adapters connect outside systems to the Broker.  The Broker *only* connects with Adapters.
     Adapters handle opening protocols in their system, discovery of their system and
     relaying pub/sub messages to the broker.
-    Currently the supported adapters are: Websocket and Pyadapter
+
+    Examples of supported adapters are: WebsocketServerAdapter, Pyadapter, FileTransportServerAdapter
     """
 
     def __init__(self):
@@ -19,24 +21,33 @@ class Adapter(object):
 
     def publish(self, msg, callback=None):
         """
-        :type msg dict
-        :type callback function
-        :arg callback :Optional the callback function to call if the broker responds directly
+        :param msg: Parlay message to publish
+        :type msg: dict
+        :param callback: Optional the callback function to call if the broker responds directly
+        :type callback: function
+        :return: None
         """
         raise NotImplementedError()
 
     def subscribe(self, fn, **kwargs):
         """
-        :kwargs The topics and their values to subscribe to
+        Subscribe to messages matching the provided topic keyword/value pairs
+        :param fn: the listener function to call with messages meeting the criteria
+        :type fn: function
+        :param kwargs: The topics and their values to subscribe to
+        :type kwargs: dict
+        :return: None
         """
         raise NotImplementedError()
 
     def register_item(self, item):
         """
-        Register an item
+        Register an item with the adapter
+        :param item: item object to register
+        :return: None
         """
         self._items.append(item)
-        #let the item know we're their adapter
+        # let the item know we're their adapter
         item._adapter = self
 
     def get_protocols(self):
@@ -61,12 +72,17 @@ class Adapter(object):
         :type protocol_args : dict
         :rtype defer.Deferred
         """
-        #NOTE: Closing a protocol is done from the Protocol.close() function
+        # NOTE: Closing a protocol is done from the Protocol.close() function
         raise LookupError()
 
     def discover(self, force):
         """
-        Return the discovery (or a deferred) for all protocols and items attached to this adapter
+        Return the discovery list (or a deferred) for all protocols and items attached to this adapter.
+
+        The final return value from this function (or its deferred) is a list of discovery dictionaries,
+        as specified under the "Item Discovery" section of the Parlay Standard Item Communications
+        Specification.
+
         :type force bool
         :param force True if this requested discover action wants to clear any caches and do a fresh discover.
         :rtype defer.Deferred
@@ -88,8 +104,7 @@ class PyAdapter(Adapter):
         super(PyAdapter, self).__init__()
 
     def publish(self, msg, callback=None):
-
-        #publish the message, and if the broker needs to respond he can publish it himself
+        # publish the message, and if the broker needs to respond he can publish it himself
         self._broker.publish(msg, callback)
 
     def subscribe(self, fn, **kwargs):
@@ -160,14 +175,13 @@ class PyAdapter(Adapter):
             d.addCallback(ok)
             return d
 
-
     def discover(self, force):
         """
         Return the discovery (or a deferred) for all protocols and items attached to this adapter
         :type force bool
         :param force True if this requested discover action wants to clear any caches and do a fresh discover.
         """
-        #clear the cache if we're told to force
+        # clear the cache if we're told to force
         if force:
             self._discovery_cache = {}
 
