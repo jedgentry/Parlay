@@ -121,6 +121,33 @@ class ParlayStandardItem(ThreadedItem):
 
         return discovery
 
+    def send_file(self, filename, receiver):
+        """
+        send file contents as an event message to a receiver
+
+        the item will send an event message.  The contents will be formatted
+        in the following way:
+
+        contents: {
+            "EVENT": "ParlaySendFileEvent"
+            "DESCRIPTION": [filename being sent as string],
+            "INFO": [contents of file as string]
+        }
+        """
+        with open(filename, "r") as file_to_send:
+            try:
+                # in the future handle files sizes that are larger than 4 GB
+                file_contents = file_to_send.read()
+            except IOError as e:
+                print e
+
+        contents = {"EVENT": "ParlaySendFileEvent",
+                    "DESCRIPTION": filename,
+                    "INFO": file_contents}
+
+        send_message(to=receiver, msg_type=MSG_TYPES.EVENT, contents=contents)
+
+
     def send_message(self, to, from_=None, contents=None, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.DATA, msg_id=None,
                      msg_status=MSG_STATUS.OK, response_req=False, extra_topics=None):
         """
