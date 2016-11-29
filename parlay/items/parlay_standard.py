@@ -121,7 +121,7 @@ class ParlayStandardItem(ThreadedItem):
 
         return discovery
 
-    def send_file(self, filename, receiver):
+    def send_file(self, filename, receiver=None):
         """
         send file contents as an event message to a receiver
 
@@ -136,20 +136,25 @@ class ParlayStandardItem(ThreadedItem):
         """
         with open(filename, "r") as file_to_send:
             try:
-                # in the future handle files sizes that are larger than 4 GB
                 file_contents = file_to_send.read()
-            except IOError as e:
-                print e
-
-        contents = {"EVENT": "ParlaySendFileEvent",
+                contents = {"EVENT": "ParlaySendFileEvent",
                     "DESCRIPTION": filename,
                     "INFO": file_contents}
+            except IOError as e:
+                print e
+                return
 
-        send_message(to=receiver, msg_type=MSG_TYPES.EVENT, contents=contents)
+        if receiver is None:
+            self.send_message(tx_type=TX_TYPES.BROADCAST, 
+                              msg_type=MSG_TYPES.EVENT, 
+                              contents=contents)
+        else:
+            self.send_message(to=receiver,
+                              msg_type=MSG_TYPES.EVENT, 
+                              contents=contents)
 
 
-    def send_message(self, to, from_=None, contents=None, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.DATA, msg_id=None,
-                     msg_status=MSG_STATUS.OK, response_req=False, extra_topics=None):
+    def send_message(self, to=None, from_=None, contents=None, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.DATA, msg_id=None, msg_status=MSG_STATUS.OK, response_req=False, extra_topics=None):
         """
         Sends a Parlay standard message.
         contents is a dictionary of contents to send
@@ -161,9 +166,12 @@ class ParlayStandardItem(ThreadedItem):
         if from_ is None:
             from_ = self.item_id
 
-        msg = {"TOPICS": {"TO": to, "FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE": msg_type, "MSG_ID": msg_id,
+        msg = {"TOPICS": {"FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE": msg_type, "MSG_ID": msg_id,
                           "MSG_STATUS": msg_status, "RESPONSE_REQ": response_req},
                "CONTENTS": contents}
+
+        if to is not None:
+            msg["TOPICS"]["TO"] = to
 
         if extra_topics is not None:
             msg["TOPICS"].update(extra_topics)
