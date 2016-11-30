@@ -1,4 +1,4 @@
-__version__ = '0.3.11'
+__version__ = '0.3.12'
 
 # twisted import
 from twisted.internet.defer import Deferred, maybeDeferred
