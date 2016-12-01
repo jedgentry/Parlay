@@ -123,7 +123,13 @@ class ParlayStandardItem(ThreadedItem):
 
     def send_file(self, filename, receiver=None):
         """
-        send file contents as an event message to a receiver
+        send file contents as an event message (EVENT is ParlaySendFileEvent) to a receiver
+
+        :param filename: path to file that needs to be sent
+        :type filename: str
+        :param receiver: ID that the file needs to be sent to. by default, the receiver is None meaning
+          the file sending event should be broadcast. If not broadcast this will generally be "UI"
+        :type receiver: str
 
         the item will send an event message.  The contents will be formatted
         in the following way:
