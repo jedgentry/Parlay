@@ -79,7 +79,6 @@ class Broker(object):
         self._run_mode = Broker.Modes.PRODUCTION  # safest default
         self.print_messages = print_messages # set to True to print all messages that go through the broker
 
-
     @staticmethod
     def get_instance():
         """
@@ -92,7 +91,7 @@ class Broker(object):
 
     @staticmethod
     def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
-              websocket_port=8085, secure_websocket_port=8086, ui_path=None):
+              websocket_port=8085, secure_websocket_port=8086, ui_path=None, print_messages=True):
         """
         Run the default Broker implementation.
         This call will not return.
@@ -102,6 +101,7 @@ class Broker(object):
         broker.https_port = https_port
         broker.websocket_port = websocket_port
         broker.secure_websocket_port = secure_websocket_port
+        broker.print_messages = print_messages
         return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
 
 
@@ -161,7 +161,6 @@ class Broker(object):
             except Exception as e:
                 print "UNCAUGHT EXCEPTION IN PROTOCOL"
                 print e
-
 
         TOPICS = msg['TOPICS']
         # for each key in the listeners list
@@ -485,7 +484,7 @@ class Broker(object):
         elif request == "shutdown":
             reply["CONTENTS"]['status'] = "ok"
             message_callback(reply)
-            #give some time for the message to propagate, and the even queue to clean
+            # give some time for the message to propagate, and the even queue to clean
             self.reactor.callLater(0.1, self.cleanup)
 
 
@@ -555,7 +554,6 @@ class Broker(object):
                   "broker.run(mode=Broker.Modes.PRODUCTION)"
             # print out the local ip to access this broker from
             print "This device is remotely accessible at http://" + self.get_local_ip() + ":" + str(self.http_port)
-
 
         self._run_mode = mode
 
@@ -656,6 +654,7 @@ def run_in_thread(fn):
     with result.
     """
     from parlay.server.reactor import run_in_thread
+
     @functools.wraps(fn)
     def decorator(*args, **kwargs):
         reactor = Broker.get_instance().reactor
