@@ -16,10 +16,18 @@ class FileTransport(FileDescriptor):
     Based heavily on twisted.internet.serialport.SerialPort
     """
 
-    def __init__(self, protocol, filename, reactor=None):
+    def __init__(self, protocol, filename, reactor=None, mode='r+'):
+        """
+        Creates an instance of FileTransport.
+
+        :param protocol: Twisted protocol instance. Must implement the {IProtocol} interface
+        :param filename: name of file to open (e.g. '/dev/ttyUSB0')
+        :param reactor: Twisted reactor instance
+        :param mode: file read/write mode (e.g. 'r', 'w', 'r+', etc...)
+        """
         FileDescriptor.__init__(self, reactor)
         self.filename = filename
-        self._f = open(filename, 'r+')
+        self._f = open(filename, mode=mode)
         fdesc.setNonBlocking(self._f)
         self.flushInput()
         self.flushOutput()
