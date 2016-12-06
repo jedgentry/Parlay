@@ -481,6 +481,10 @@ class Broker(object):
             all_d.addCallback(discovery_done)
             all_d.addErrback(discovery_error)
 
+        elif request == 'verify_broker_comms':
+            reply["CONTENTS"]['status'] = "ok"
+            message_callback(reply)
+
         elif request == "shutdown":
             reply["CONTENTS"]['status'] = "ok"
             message_callback(reply)
