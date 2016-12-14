@@ -9,9 +9,14 @@ from twisted.internet.task import LoopingCall
 from parlay.items.threaded_item import ITEM_PROXIES, ThreadedItem
 from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, \
     INPUT_TYPE_CONVERTER_LOOKUP
+import os
 import re
 import inspect
 import Queue
+
+FILE_CAP_SIZE = 400  # megabytes
+FILE_CAP_UNITS = "MB"
+SIZE_STEP = 1024  # bytes per megabyte
 
 
 class ParlayStandardItem(ThreadedItem):
@@ -121,8 +126,54 @@ class ParlayStandardItem(ThreadedItem):
 
         return discovery
 
-    def send_message(self, to, from_=None, contents=None, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.DATA, msg_id=None,
-                     msg_status=MSG_STATUS.OK, response_req=False, extra_topics=None):
+    def send_file(self, filename, receiver=None):
+        """
+        send file contents as an event message (EVENT is ParlaySendFileEvent) to a receiver
+
+        :param filename: path to file that needs to be sent
+        :type filename: str
+        :param receiver: ID that the file needs to be sent to. by default, the receiver is None meaning
+          the file sending event should be broadcast. If not broadcast this will generally be "UI"
+        :type receiver: str
+
+        the item will send an event message.  The contents will be formatted
+        in the following way:
+
+        contents: {
+            "EVENT": "ParlaySendFileEvent"
+            "DESCRIPTION": [filename being sent as string],
+            "INFO": [contents of file as string]
+        }
+        """
+        file_stats = os.stat(filename)
+
+        size_mb = (int(file_stats.st_size) // SIZE_STEP) // SIZE_STEP
+
+        if size_mb > FILE_CAP_SIZE:
+            raise IOError(" ".join(["File is too big! Please ensure the file is less than", str(FILE_CAP_SIZE), FILE_CAP_UNITS, "and try again."]))
+
+
+        with open(filename, "r") as file_to_send:
+            try:
+                file_contents = file_to_send.read()
+                contents = {"EVENT": "ParlaySendFileEvent",
+                    "DESCRIPTION": filename,
+                    "INFO": file_contents}
+            except IOError as e:
+                print e
+                return
+
+        if receiver is None:
+            self.send_message(tx_type=TX_TYPES.BROADCAST, 
+                              msg_type=MSG_TYPES.EVENT, 
+                              contents=contents)
+        else:
+            self.send_message(to=receiver,
+                              msg_type=MSG_TYPES.EVENT, 
+                              contents=contents)
+
+
+    def send_message(self, to=None, from_=None, contents=None, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.DATA, msg_id=None, msg_status=MSG_STATUS.OK, response_req=False, extra_topics=None):
         """
         Sends a Parlay standard message.
         contents is a dictionary of contents to send
@@ -134,9 +185,12 @@ class ParlayStandardItem(ThreadedItem):
         if from_ is None:
             from_ = self.item_id
 
-        msg = {"TOPICS": {"TO": to, "FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE": msg_type, "MSG_ID": msg_id,
+        msg = {"TOPICS": {"FROM": from_, "TX_TYPE": tx_type, "MSG_TYPE": msg_type, "MSG_ID": msg_id,
                           "MSG_STATUS": msg_status, "RESPONSE_REQ": response_req},
                "CONTENTS": contents}
+
+        if to is not None:
+            msg["TOPICS"]["TO"] = to
 
         if extra_topics is not None:
             msg["TOPICS"].update(extra_topics)
