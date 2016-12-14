@@ -14,8 +14,9 @@ import re
 import inspect
 import Queue
 
-FILE_CAP_SIZE = 400
-SIZE_STEP = 1024
+FILE_CAP_SIZE = 400  # megabytes
+FILE_CAP_UNITS = "MB"
+SIZE_STEP = 1024  # bytes per megabyte
 
 
 class ParlayStandardItem(ThreadedItem):
@@ -149,7 +150,7 @@ class ParlayStandardItem(ThreadedItem):
         size_mb = (int(file_stats.st_size) // SIZE_STEP) // SIZE_STEP
 
         if size_mb > FILE_CAP_SIZE:
-            raise IOError("File is too big! Please ensure the file is less than 400 MB and try again.")
+            raise IOError(" ".join(["File is too big! Please ensure the file is less than", str(FILE_CAP_SIZE), FILE_CAP_UNITS, "and try again."]))
 
 
         with open(filename, "r") as file_to_send:
