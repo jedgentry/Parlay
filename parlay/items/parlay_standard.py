@@ -9,6 +9,7 @@ from twisted.internet.task import LoopingCall
 from parlay.items.threaded_item import ITEM_PROXIES, ThreadedItem
 from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, \
     INPUT_TYPE_CONVERTER_LOOKUP
+import os
 import re
 import inspect
 import Queue
@@ -140,6 +141,14 @@ class ParlayStandardItem(ThreadedItem):
             "INFO": [contents of file as string]
         }
         """
+        file_stats = os.stat(filename)
+
+        size_mb = (int(file_stats.st_size) // 1024) // 1024
+
+        if size_mb > 400:
+            raise IOError("File is too big! Please ensure the file is less than 400 MB and try again.")
+
+
         with open(filename, "r") as file_to_send:
             try:
                 file_contents = file_to_send.read()
