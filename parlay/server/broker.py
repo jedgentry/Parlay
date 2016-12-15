@@ -14,7 +14,7 @@ import signal
 import functools
 import parlay
 import itertools
-
+import logging
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -51,8 +51,7 @@ class Broker(object):
         def __init__(self):
             raise BaseException("Broker.Modes should never be instantiated.  It is only for enumeration.")
 
-    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086,
-                 print_messages=True):
+    def __init__(self, reactor):
         assert(Broker.instance is None)
 
         # :type parlay.server.reactor.ReactorWrapper
@@ -72,12 +71,8 @@ class Broker(object):
         # the broker is a singleton
         Broker.instance = self
 
-        self.websocket_port = websocket_port
-        self.http_port = http_port
-        self.https_port = https_port
-        self.secure_websocket_port = secure_websocket_port
-        self._run_mode = Broker.Modes.PRODUCTION  # safest default
-        self.print_messages = print_messages # set to True to print all messages that go through the broker
+        logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+        self._logger = logging.getLogger(__name__)  # use this as the logger
 
     @staticmethod
     def get_instance():
@@ -91,19 +86,23 @@ class Broker(object):
 
     @staticmethod
     def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
-              websocket_port=8085, secure_websocket_port=8086, ui_path=None, print_messages=True):
+              websocket_port=8085, secure_websocket_port=8086, ui_path=None, log_level=logging.DEBUG):
         """
         Run the default Broker implementation.
         This call will not return.
         """
         broker = Broker.get_instance()
+        # do some construction stuff here
+        broker.websocket_port = websocket_port
         broker.http_port = http_port
         broker.https_port = https_port
-        broker.websocket_port = websocket_port
         broker.secure_websocket_port = secure_websocket_port
-        broker.print_messages = print_messages
-        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
+        broker._run_mode = Broker.Modes.PRODUCTION  # safest default
 
+        if log_level is not None:
+            broker._logger.setLevel(log_level)
+
+        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
 
     @staticmethod
     def start_for_test():
@@ -125,8 +124,7 @@ class Broker(object):
         :param write_method : the protocol's method to callback if the broker needs to send a response
         :type msg : dict
         """
-        if self.print_messages:
-            print msg
+        self._logger.debug(msg)
 
         if write_method is None:
             write_method = lambda _: _
