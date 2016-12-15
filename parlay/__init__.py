@@ -1,6 +1,7 @@
-__version__ = '0.3.11'
+__version__ = '0.3.12'
 
-
+# twisted import
+from twisted.internet.defer import Deferred, maybeDeferred
 # Item Public API
 from parlay.items.parlay_standard import ParlayCommandItem, ParlayProperty, parlay_command, ParlayDatastream
 from parlay.protocols.local_item import local_item
@@ -8,8 +9,8 @@ from parlay.protocols.local_item import local_item
 # Script Public API
 from utils.parlay_script import ParlayScript
 
-
 from server.broker import Broker
+
 
 # Broker public API
 Modes = Broker.Modes
@@ -39,7 +40,18 @@ def open_protocol(protocol_name, **kwargs):
         start()
 
     """
-    return Broker.call_on_start(lambda: Broker.get_instance().open_protocol(protocol_name, kwargs))
+    result = Deferred()  # actual result that will callback when it's opened
+    def do_open_protocol():
+        """
+        Actually do the opening of the protocol once the broker is running
+        :return:
+        """
+        # call the open protocol method and get its result as a deferred
+        d = maybeDeferred(Broker.get_instance().open_protocol, protocol_name, kwargs)
+        d.chainDeferred(result)  # call result with whatever our success or failure is
+
+    Broker.call_on_start(do_open_protocol)
+    return result
 
 
 class WidgetsImpl(object):

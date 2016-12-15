@@ -8,6 +8,7 @@ from parlay.testing.unittest_mixins.reactor import ReactorMixin
 from parlay.items import parlay_standard
 from parlay import parlay_command
 
+
 class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
 
     def setUp(self):
@@ -79,21 +80,16 @@ class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
                                      'TX_TYPE': 'DIRECT'},
                           'CONTENTS': {'ACTION': 'RESPONSE', 'PROPERTY': 'simple_property', 'VALUE': 10}})
 
-
     def tearDown(self):
-        #reset custom property list
+        # reset custom property list
         PropertyTestItem.custom_list = []
+
 
 class CommandTest(unittest.TestCase, AdapterMixin, ReactorMixin):
 
     def setUp(self):
         self.cmd_item_1 = CommandTestItem("ITEM_1", "ITEM_1", reactor=self.reactor, adapter=self.adapter)
         self.cmd_item_2 = CommandTestItem("ITEM_2", "ITEM_2", reactor=self.reactor, adapter=self.adapter)
-
-    def assert_command_message_equal(expected, actual):
-        for k, v in expected:
-            self.assertAlmostEqual(v, actual[k])
-        assert("MSG_ID" in actual["TOPICS"])
 
     def testLocalSyncCommand(self):
         d = defer.maybeDeferred(self.cmd_item_1.add, 2, 3)
@@ -103,42 +99,6 @@ class CommandTest(unittest.TestCase, AdapterMixin, ReactorMixin):
     def testLocalAsyncCommand(self):
         value = self.cmd_item_1.add_async(2, 3)
         self.assertEqual(value, 5)
-
-    # TODO: fix this test
-    def ___testRemoteSyncCommand(self):
-        self.cmd_item_1.remote_add(2, 3, "ITEM_2")
-        expected = {"TOPICS": {
-                        "TX_TYPE": "DIRECT",
-                        "MSG_TYPE": "COMMAND",
-                        "MSG_ID": 100,
-                        "RESPONSE_REQ": True,
-                        "FROM": "ITEM_1",
-                        "TO": "ITEM_2"
-                    },
-                    "CONTENTS": {
-                        "COMMAND": "add",
-                        "x": 2,
-                        "y": 3
-                    }}
-        self.reactor.callLater(0, self.assertEqual, self.adapter.last_published, expected)
-
-    # TODO: fix this test
-    def ___testRemoteAsyncCommand(self):
-        self.cmd_item_1.remote_add_async(2, 3, "ITEM_2")
-        expected = {"TOPICS": {
-                        "TX_TYPE": "DIRECT",
-                        "MSG_TYPE": "COMMAND",
-                        "MSG_ID": 100,
-                        "RESPONSE_REQ": True,
-                        "FROM": "ITEM_1",
-                        "TO": "ITEM_2"
-                    },
-                    "CONTENTS": {
-                        "COMMAND": "add",
-                        "x": 2,
-                        "y": 3
-                    }}
-        self.reactor.callLater(0, self.assertEqual, self.adapter.last_published, expected)
 
 
 class PropertyTestItem(parlay_standard.ParlayCommandItem):
@@ -168,14 +128,3 @@ class CommandTestItem(parlay_standard.ParlayCommandItem):
     @parlay_command(async=True)
     def add_async(self, x, y):
         return x + y
-
-    @parlay_command()
-    def remote_add(self, x, y, to):
-        cmd = self.send_parlay_command(to, "add", _timeout=2, x=x, y=y)
-        return cmd.wait_for_complete()
-
-    @parlay_command(async=True)
-    def remote_add_async(self, x, y, to):
-        cmd = self.send_parlay_command(to, "add", _timeout=2, x=x, y=y)
-        yield cmd.wait_for_complete()
-
