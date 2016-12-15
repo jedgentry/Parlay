@@ -781,9 +781,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         return
 
-    @staticmethod
-    def _initialize_reactor_command_map(reactor):
+    def _initialize_reactor_command_map(self, reactor):
         PCOM_COMMAND_MAP[reactor] = {}
+        PCOM_COMMAND_MAP[reactor][0] = CommandInfo("", [], [])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = CommandInfo("", [], ["codes"])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_STRING] = CommandInfo("H", ["code"], ["string"])
 
