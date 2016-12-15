@@ -6,6 +6,7 @@ from base import BaseItem
 from parlay.server.broker import Broker, run_in_broker
 import sys
 import json
+import logging
 
 
 # a list of Item proxy classes for Scripts
@@ -340,7 +341,12 @@ class ThreadedItem(BaseItem):
             raise KeyError("Couldn't find template proxy for:" + item_disc.get("TYPE", ""))
 
         # we have a good template class! Let's construct it
-        return template(item_disc, self)
+        try:
+            result = template(item_disc, self)
+            return result
+        except Exception as e:
+            print "Could not construct proxy Item. Caught Exception :" + str(e)
+            raise
 
     def _find_item_info(self, discovery, item_id, key):
         """

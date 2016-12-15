@@ -717,11 +717,17 @@ class ParlayStandardScriptProxy(object):
             return resp["CONTENTS"]["VALUE"]
 
         def __set__(self, instance, value):
-            msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
+            try:
+                msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
                                             direct=True, response_req=self._blocking_set,
                                             PROPERTY=self._id, ACTION="SET", VALUE=value)
-            # Wait until we're sure its set
-            resp = instance._script.send_parlay_message(msg)
+                # Wait until we're sure its set
+                resp = instance._script.send_parlay_message(msg)
+            except TypeError as e:
+                print "Could not set property to non JSON serializable type. You tried to set", self._id, "to", value
+
+            except Exception as e:
+                print "Caught general exception while trying to set", self._id, "to", value
 
         def __str__(self):
             return str(self.__get__(self._item_proxy, self._item_proxy))
