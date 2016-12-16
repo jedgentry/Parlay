@@ -604,7 +604,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
 
         if not PCOMSerial.is_port_attached:
-            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discoverring"])
+            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
+            defer.returnValue(BaseProtocol.get_discovery(self))
 
         print "----------------------------"
         print "Discovery function started!"
