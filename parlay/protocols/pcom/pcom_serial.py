@@ -248,6 +248,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             s = pcom_message.PCOMMessage.from_json_msg(message)
         except Exception as e:
             print "Could not translate JSON message to PCOM equivalent because of exception:", e
+            self.send_error_message(original_message=message, message_status="Unable to process message: {0}".format(message))
+            return d
 
         # Serialize the message and prepare for protocol wrapping.
         try:
