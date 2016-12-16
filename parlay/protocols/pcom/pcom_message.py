@@ -132,7 +132,10 @@ class PCOMMessage(object):
                     print "Could not find integer command ID for command name:", command_id
                     return
                 # TODO: check for KeyError
-                command = pcom_serial.PCOM_COMMAND_MAP[msg.to][command_int_id]
+                command = pcom_serial.PCOM_COMMAND_MAP[msg.to].get(command_int_id, None)
+                if command is None:
+                    return data, fmt
+
                 fmt = str(msg.contents.get('__format__', command.fmt))
                 for param in command.params:
                     # TODO: May need to change default value to error out
@@ -318,7 +321,8 @@ class PCOMMessage(object):
                         msg['TOPICS']['MSG_STATUS'] = "OK"
                     elif msg_option == ResponseCommandOption.Inprogress:
                         msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
-                    msg['CONTENTS']['RESULT'] = self._get_result_string(item[self.response_code].output_names)
+                    cmd = item.get(self.response_code, pcom_serial.CommandInfo("", [], []))
+                    msg['CONTENTS']['RESULT'] = self._get_result_string(cmd.output_names)
                 else:
                     msg['TOPICS']['MSG_STATUS'] = "ERROR"
                     msg['CONTENTS']['RESULT'] = {}

@@ -248,6 +248,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             s = pcom_message.PCOMMessage.from_json_msg(message)
         except Exception as e:
             print "Could not translate JSON message to PCOM equivalent because of exception:", e
+            print "Message that caused PCOM translation error:", message
+            return d
 
         # Serialize the message and prepare for protocol wrapping.
         try:
@@ -602,7 +604,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
 
         if not PCOMSerial.is_port_attached:
-            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discoverring"])
+            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
+            defer.returnValue(BaseProtocol.get_discovery(self))
 
         print "----------------------------"
         print "Discovery function started!"
@@ -776,14 +779,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         PCOM_PROPERTY_MAP[item_id][property_id] = PropertyData(name=property_name, format=property_type)
 
-        parlay_item.add_property(property_id, name=property_desc, attr_name=property_name)
-        parlay_item.add_datastream(property_name + "_stream", name=property_desc, attr_name=property_name + "_stream")
+        parlay_item.add_property(property_id, name=property_name, attr_name=property_name)
+        parlay_item.add_datastream(property_name + "_stream", name=property_name + " stream", attr_name=property_name + "_stream")
 
         return
 
-    @staticmethod
-    def _initialize_reactor_command_map(reactor):
+    def _initialize_reactor_command_map(self, reactor):
         PCOM_COMMAND_MAP[reactor] = {}
+        PCOM_COMMAND_MAP[reactor][0] = CommandInfo("", [], [])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = CommandInfo("", [], ["codes"])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_STRING] = CommandInfo("H", ["code"], ["string"])
 
