@@ -25,6 +25,7 @@ from enums import *
 from collections import namedtuple
 
 import time
+import json
 
 # Constants used in converting format chars to
 # Parlay input types
@@ -60,8 +61,6 @@ PCOM_STREAM_NAME_MAP = {}
 # name = string representing the name of the property
 # format = format describing the type of property.
 # Eg. If the property were a floating point value it would be 'f'
-
-PropertyData = namedtuple('PropertyData', 'name format')
 
 
 class PCOMSerial(BaseProtocol, LineReceiver):
@@ -102,8 +101,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     is_port_attached = False
 
+    import_discovery_file =  None
+    export_discovery_file = None
+
     @classmethod
-    def open(cls, adapter, port):
+    def open(cls, adapter, port, import_disc_file=None, export_disc_file=None):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
@@ -111,6 +113,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
         '"""
+        cls.import_discovery_file = import_disc_file
+        cls.export_discovery_file = export_disc_file
+
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter, port)
@@ -550,6 +555,92 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self._attached_item_d = None
         d.callback(None)
 
+    def load_discovery_from_file(self):
+
+        try:
+            discovery_file = open(PCOMSerial.import_discovery_file)
+        except Exception as e:
+            print "Could not open discovery file because of exception: ", e
+            return
+
+        data = json.load(discovery_file)
+        if len(data) == 0:
+            print "No data loaded from JSON file"
+            discovery_file.close()
+            return
+
+        discovery_msg = self.process_data_file(data)
+        discovery_file.close()
+        return discovery_msg
+
+    def process_data_file(self, data):
+
+        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_PROPERTY_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_STREAM_NAME_MAP, PCOM_COMMAND_MAP, PCOM_COMMAND_NAME_MAP
+
+
+        def _convert_item_ids_to_int(map):
+            return {int(k): v for k,v in map.items()}
+
+        def _convert_command_and_prop_ids(map):
+            for k, v in map.items():
+                for command_id, cmd_info in v.items():
+                    if command_id.isdigit():
+                        map[k][int(command_id)] = cmd_info
+                        del map[k][command_id]
+
+
+        PCOM_COMMAND_MAP = data["PCOM_COMMAND_MAP"]
+        PCOM_COMMAND_MAP = _convert_item_ids_to_int(PCOM_COMMAND_MAP)
+        _convert_command_and_prop_ids(PCOM_COMMAND_MAP)
+
+
+        PCOM_PROPERTY_MAP = data["PCOM_PROPERTY_MAP"]
+        PCOM_PROPERTY_MAP = _convert_item_ids_to_int(PCOM_PROPERTY_MAP)
+        _convert_command_and_prop_ids(PCOM_PROPERTY_MAP)
+
+        PCOM_COMMAND_NAME_MAP = data["PCOM_COMMAND_NAME_MAP"]
+        PCOM_COMMAND_NAME_MAP = _convert_item_ids_to_int(PCOM_COMMAND_NAME_MAP)
+
+        PCOM_ERROR_CODE_MAP = data["PCOM_ERROR_CODE_MAP"]
+        PCOM_ERROR_CODE_MAP = _convert_item_ids_to_int(PCOM_ERROR_CODE_MAP)
+
+        PCOM_PROPERTY_NAME_MAP = data["PCOM_PROPERTY_NAME_MAP"]
+        PCOM_PROPERTY_NAME_MAP = _convert_item_ids_to_int(PCOM_PROPERTY_NAME_MAP)
+
+        PCOM_STREAM_NAME_MAP = data["PCOM_STREAM_NAME_MAP"]
+        PCOM_STREAM_NAME_MAP = _convert_item_ids_to_int(PCOM_STREAM_NAME_MAP)
+
+        discovery_msg = data["DISCOVERY"]
+
+        for item in discovery_msg["CHILDREN"]:
+            self.adapter.subscribe(self.add_message_to_queue, TO=item["ID"])
+
+        return discovery_msg
+
+    def write_discovery_info_to_file(self, file_name, discovery_msg):
+        try:
+            discovery_file = open(file_name, "w")
+        except:
+            print "Could not open file:", file_name
+            return
+
+        dict_to_write = {}
+        dict_to_write["PCOM_COMMAND_MAP"] = PCOM_COMMAND_MAP
+        dict_to_write["PCOM_PROPERTY_MAP"] = PCOM_PROPERTY_MAP
+        dict_to_write["PCOM_COMMAND_NAME_MAP"] = PCOM_COMMAND_NAME_MAP
+        dict_to_write["PCOM_ERROR_CODE_MAP"] = PCOM_ERROR_CODE_MAP
+        dict_to_write["PCOM_PROPERTY_MAP"] = PCOM_PROPERTY_MAP
+        dict_to_write["PCOM_PROPERTY_NAME_MAP"] = PCOM_PROPERTY_NAME_MAP
+        dict_to_write["PCOM_STREAM_NAME_MAP"] = PCOM_STREAM_NAME_MAP
+        dict_to_write["DISCOVERY"] = discovery_msg
+        json.dump(dict_to_write, discovery_file)
+        discovery_file.close()
+
+    @staticmethod
+    def build_command_info(format, input_params, output_params):
+        return {"format": format, "input params": input_params, "output params": output_params}
+
+
     @staticmethod
     def initialize_command_maps(item_id):
         """
@@ -558,7 +649,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: None
         """
 
-
         # initialize the maps for this item
         PCOM_COMMAND_MAP[item_id] = {}
         PCOM_PROPERTY_MAP[item_id] = {}
@@ -566,19 +656,20 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_PROPERTY_NAME_MAP[item_id] = {}
         PCOM_STREAM_NAME_MAP[item_id] = {}
 
-        PCOM_COMMAND_MAP[item_id][RESET_ITEM] = CommandInfo("", "", "")
-        PCOM_COMMAND_MAP[item_id][GET_ITEM_NAME] = CommandInfo("", [], ["Item name"])
-        PCOM_COMMAND_MAP[item_id][GET_ITEM_TYPE] = CommandInfo("", [], ["Item type"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_IDS] = CommandInfo("", [], ["Command IDs"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_IDS] = CommandInfo("", [], ["Property IDs"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_NAME] = CommandInfo("H", ["command_id"], ["Command name"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = CommandInfo("H", ["command_id"],
-                                                                           ["Command input format"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = CommandInfo("H", ["command_id"], ["Command input names"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = CommandInfo("H", ["command_id"], ["Command output names"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_NAME] = CommandInfo("H", ["property_id"], ["Property name"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_TYPE] = CommandInfo("H", ["property_id"], ["Property type"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_DESC] = CommandInfo("H", ["property_id"], ["Property desc"])
+
+
+        PCOM_COMMAND_MAP[item_id][RESET_ITEM] = PCOMSerial.build_command_info("", [], [])
+        PCOM_COMMAND_MAP[item_id][GET_ITEM_NAME] = PCOMSerial.build_command_info("", [], ["Item name"])
+        PCOM_COMMAND_MAP[item_id][GET_ITEM_TYPE] = PCOMSerial.build_command_info("", [], ["Item type"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_IDS] = PCOMSerial.build_command_info("", [], ["Command IDs"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_IDS] = PCOMSerial.build_command_info("", [], ["Property IDs"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_NAME] = PCOMSerial.build_command_info("H", ["command_id"], ["Command name"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input format"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input names"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input output"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_NAME] = PCOMSerial.build_command_info("H", ["property_id"], ["Property name"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_TYPE] = PCOMSerial.build_command_info("H", ["property_id"], ["Property type"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_DESC] = PCOMSerial.build_command_info("H", ["property_id"], ["Property desc"])
 
         PCOM_COMMAND_MAP[item_id]["reset_item"] = RESET_ITEM
         PCOM_COMMAND_MAP[item_id]["get_item_name"] = GET_ITEM_NAME
@@ -606,6 +697,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if not PCOMSerial.is_port_attached:
             self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
             defer.returnValue(BaseProtocol.get_discovery(self))
+
+        if PCOMSerial.import_discovery_file is None:
+            print "No discovery file specified, retrieving information from board"
+        else:
+            discovery_msg = self.load_discovery_from_file()
+            defer.returnValue(discovery_msg)
 
         print "----------------------------"
         print "Discovery function started!"
@@ -639,7 +736,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # the ParlayStandardItem objects that represent the items we discovered.
         # By calling BaseProtocol's get_discovery() function we can get that information
         # to the adapter and furthermore to the broker.
-        defer.returnValue(BaseProtocol.get_discovery(self))
+        discovery_msg = BaseProtocol.get_discovery(self)
+        if PCOMSerial.export_discovery_file is not None:
+            self.write_discovery_info_to_file(PCOMSerial.export_discovery_file, discovery_msg )
+
+        defer.returnValue(discovery_msg)
 
 
     @staticmethod
@@ -674,7 +775,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         c_input_names = command_info_list[2]
         c_output_desc = command_info_list[3]
 
-        PCOM_COMMAND_MAP[item_id][command_id] = CommandInfo(c_input_format, c_input_names,
+        PCOM_COMMAND_MAP[item_id][command_id] = PCOMSerial.build_command_info(c_input_format, c_input_names,
                                                       c_output_desc)
 
         PCOM_COMMAND_NAME_MAP[item_id][c_name] = command_id
@@ -686,6 +787,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
             command_subfields.append(local_subfields)
         return
+
+    @staticmethod
+    def build_property_data(name, fmt):
+        return {"name": name, "format": fmt}
 
     @staticmethod
     def tokenize_format_char_string(format_chars):
@@ -777,7 +882,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_PROPERTY_NAME_MAP[item_id][property_name] = property_id
         PCOM_STREAM_NAME_MAP[item_id][property_name + "_stream"] = property_id
 
-        PCOM_PROPERTY_MAP[item_id][property_id] = PropertyData(name=property_name, format=property_type)
+        PCOM_PROPERTY_MAP[item_id][property_id] = PCOMSerial.build_property_data(property_name, property_type)
 
         parlay_item.add_property(property_id, name=property_name, attr_name=property_name)
         parlay_item.add_datastream(property_name + "_stream", name=property_name + " stream", attr_name=property_name + "_stream")
@@ -786,9 +891,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     def _initialize_reactor_command_map(self, reactor):
         PCOM_COMMAND_MAP[reactor] = {}
-        PCOM_COMMAND_MAP[reactor][0] = CommandInfo("", [], [])
-        PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = CommandInfo("", [], ["codes"])
-        PCOM_COMMAND_MAP[reactor][GET_ERROR_STRING] = CommandInfo("H", ["code"], ["string"])
+        PCOM_COMMAND_MAP[reactor][0] = PCOMSerial.build_command_info("", [], [])
+        PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = PCOMSerial.build_command_info("", [], ["codes"])
+        PCOM_COMMAND_MAP[reactor][GET_ERROR_STRING] = PCOMSerial.build_command_info("H", ["code"], ["string"])
 
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, subsystem):
@@ -1019,21 +1124,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self._on_packet(*packet_tuple)
         except FailCRC:
             print "Failed CRC"
-
-
-
-
-class CommandInfo:
-    """
-    CommandInfo is class used to store the information of the commands
-    received from the embedded device.
-    """
-
-    def __init__(self, fmt, parameters, output_names):
-        self.fmt = fmt
-        self.params = parameters
-        self.output_names = output_names
-
 
 class ACKInfo:
     """
