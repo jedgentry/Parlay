@@ -30,7 +30,7 @@ class PCOMMessage(object):
     VALID_JSON_MESSAGE_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
 
     def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None, attributes=0,
-                 response_code=None, response_req=None, msg_status=None, contents=None, data=None, data_fmt=None, topics=None):
+                 response_code=None, response_req=None, msg_status=None, contents=None, data=None, data_fmt=None, topics=None, description=''):
 
         # TODO: Change response_req to response_code
 
@@ -48,6 +48,8 @@ class PCOMMessage(object):
         self._data = []
         self._response_code = None
         self._topics = None
+
+        self.description = description
 
         self.to = to
         self.from_ = from_
@@ -309,7 +311,7 @@ class PCOMMessage(object):
             if self.msg_status != STATUS_SUCCESS:
                 msg['CONTENTS']['ERROR_CODE'] = self.msg_status
                 msg['TOPICS']['MSG_STATUS'] = "ERROR"
-                msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, "")
+                msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
                 msg['TOPICS']['RESPONSE_REQ'] = False
                 return msg
 
@@ -355,7 +357,7 @@ class PCOMMessage(object):
             msg['CONTENTS']['EVENT'] = self.response_code
             msg['CONTENTS']['ERROR_CODE'] = self.msg_status
             msg['CONTENTS']["INFO"] = self.data
-            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, "")
+            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
             msg['TOPICS']['RESPONSE_REQ'] = False
 
             if msg_sub_type == NotificationSubType.Broadcast:
