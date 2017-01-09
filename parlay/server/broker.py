@@ -15,6 +15,7 @@ import functools
 import parlay
 import itertools
 import logging
+import advertiser
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -604,6 +605,10 @@ class Broker(object):
                 # give the reactor some time to init before opening the browser
                 self.reactor.callLater(.5, lambda: webbrowser.open_new_tab("http://localhost:"+str(self.http_port)))
 
+
+        # add advertising
+        reactor.listenMulticast(self.websocket_port, advertiser.ParlayAdvertiser(),
+                                listenMultiple=True)
         self.reactor.callWhenRunning(self._started.callback, None)
         self.reactor.run()
 

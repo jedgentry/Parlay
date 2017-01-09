@@ -98,7 +98,8 @@ setup(
     test_suite='parlay/tests',
     entry_points={
         'console_scripts': [
-              'parlay = parlay.__main__:main'
+              'parlay = parlay.__main__:main',
+              'findparlay = parlay.server.advertiser:main'
           ]
     }
 )
