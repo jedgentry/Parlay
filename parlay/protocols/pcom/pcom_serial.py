@@ -99,6 +99,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     # timeout before resend in secs
     ACK_TIMEOUT = 10
 
+    ERROR_STATUS = DISCOVERY_CODE << 16
+
     is_port_attached = False
 
     import_discovery_file =  None
@@ -213,7 +215,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
-    def send_error_message(self, original_message, message_status):
+    def send_error_message(self, original_message, message_status, description=''):
         """
         Sends a notification error to the destination ID.
 
@@ -221,11 +223,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param message_status: Message status code that translates to an error message.
         :return:
         """
-
-        error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
-                                             msg_status=message_status, msg_id=original_message.msg_id)
-
         try:
+            response_type = MessageCategory.Order_Response << CATEGORY_SHIFT
+            error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
+                                             msg_status=message_status, msg_id=original_message.msg_id, msg_type=response_type, description=description)
             json_msg = error_msg.to_json_msg()
             self.adapter.publish(json_msg)
         except Exception as e:
@@ -262,7 +263,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         except Exception as e:
             print "Unable to encode pcom message"
             print "Exception:", e
-            self.send_error_message(original_message=s, message_status="Unable to encode message: {0}".format(s))
+            self.send_error_message(original_message=s, message_status=self.ERROR_STATUS, description="Unable to encode message: {0} because of exception: {1}".format(message, e))
             return d
 
         need_ack = True
