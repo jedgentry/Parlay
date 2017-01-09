@@ -107,7 +107,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     export_discovery_file = None
 
     @classmethod
-    def open(cls, adapter, port, import_disc_file=None, export_disc_file=None):
+    def open(cls, adapter, port, import_discovery_file=None, export_discovery_file=None):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
@@ -115,8 +115,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
         '"""
-        cls.import_discovery_file = import_disc_file
-        cls.export_discovery_file = export_disc_file
+        cls.import_discovery_file = import_discovery_file
+        cls.export_discovery_file = export_discovery_file
 
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
@@ -558,17 +558,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     def load_discovery_from_file(self):
 
+        discovery_msg = {}
+
         try:
             discovery_file = open(PCOMSerial.import_discovery_file)
         except Exception as e:
             print "Could not open discovery file because of exception: ", e
-            return
+            return discovery_msg
 
         data = json.load(discovery_file)
         if len(data) == 0:
             print "No data loaded from JSON file"
             discovery_file.close()
-            return
+            return discovery_msg
 
         discovery_msg = self.process_data_file(data)
         discovery_file.close()
@@ -578,9 +580,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_PROPERTY_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_STREAM_NAME_MAP, PCOM_COMMAND_MAP, PCOM_COMMAND_NAME_MAP
 
-
         def _convert_item_ids_to_int(map):
-            return {int(k): v for k,v in map.items()}
+            return {int(k): v for k, v in map.items()}
 
         def _convert_command_and_prop_ids(map):
             for k, v in map.items():
@@ -589,11 +590,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
                         map[k][int(command_id)] = cmd_info
                         del map[k][command_id]
 
-
         PCOM_COMMAND_MAP = data["PCOM_COMMAND_MAP"]
         PCOM_COMMAND_MAP = _convert_item_ids_to_int(PCOM_COMMAND_MAP)
         _convert_command_and_prop_ids(PCOM_COMMAND_MAP)
-
 
         PCOM_PROPERTY_MAP = data["PCOM_PROPERTY_MAP"]
         PCOM_PROPERTY_MAP = _convert_item_ids_to_int(PCOM_PROPERTY_MAP)
@@ -619,13 +618,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         return discovery_msg
 
     def write_discovery_info_to_file(self, file_name, discovery_msg):
+
         try:
             discovery_file = open(file_name, "w")
-        except:
-            print "Could not open file:", file_name
+        except Exception as e:
+            print "Could not open file:", file_name, "because of exception:", e
             return
 
-        dict_to_write = {}
+        dict_to_write = dict()
         dict_to_write["PCOM_COMMAND_MAP"] = PCOM_COMMAND_MAP
         dict_to_write["PCOM_PROPERTY_MAP"] = PCOM_PROPERTY_MAP
         dict_to_write["PCOM_COMMAND_NAME_MAP"] = PCOM_COMMAND_NAME_MAP
@@ -656,8 +656,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_COMMAND_NAME_MAP[item_id] = {}
         PCOM_PROPERTY_NAME_MAP[item_id] = {}
         PCOM_STREAM_NAME_MAP[item_id] = {}
-
-
 
         PCOM_COMMAND_MAP[item_id][RESET_ITEM] = PCOMSerial.build_command_info("", [], [])
         PCOM_COMMAND_MAP[item_id][GET_ITEM_NAME] = PCOMSerial.build_command_info("", [], ["Item name"])
@@ -739,7 +737,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # to the adapter and furthermore to the broker.
         discovery_msg = BaseProtocol.get_discovery(self)
         if PCOMSerial.export_discovery_file is not None:
-            self.write_discovery_info_to_file(PCOMSerial.export_discovery_file, discovery_msg )
+            self.write_discovery_info_to_file(PCOMSerial.export_discovery_file, discovery_msg)
 
         defer.returnValue(discovery_msg)
 
