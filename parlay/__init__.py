@@ -1,5 +1,9 @@
 __version__ = '0.3.14'
 
+# ignore all warnings for now. These messages cause confusion for users on a production system
+import warnings
+warnings.filterwarnings("ignore")
+
 # twisted import
 from twisted.internet.defer import Deferred, maybeDeferred
 # Item Public API
