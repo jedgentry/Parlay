@@ -765,11 +765,22 @@ class ParlayStandardScriptProxy(object):
         def get(self):
             if not self._subscribed:
                 msg = self._item_proxy._script.make_msg(self._item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
-                                              direct=True, response_req=False, STREAM=self._id)
+                                              direct=True, response_req=False, STREAM=self._id, STOP=False)
 
                 self._item_proxy._script.send_parlay_message(msg)
                 self._subscribed = True
             return self._val
+
+        def stop(self):
+            """
+            Stop streaming
+            :return:
+            """
+            msg = self._item_proxy._script.make_msg(self._item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
+                                                    direct=True, response_req=False, STREAM=self._id, STOP=True)
+
+            self._item_proxy._script.send_parlay_message(msg)
+            self._subscribed = False
 
         def _update_val_listener(self, msg):
             """
