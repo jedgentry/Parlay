@@ -884,7 +884,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_PROPERTY_MAP[item_id][property_id] = PCOMSerial.build_property_data(property_name, property_type)
 
         parlay_item.add_property(property_id, name=property_name, attr_name=property_name)
-        parlay_item.add_datastream(property_name + "_stream", name=property_name + " stream", attr_name=property_name + "_stream")
+        parlay_item.add_datastream(property_name + "_stream", name=property_name + "_stream", attr_name=property_name + "_stream")
 
         return
 
