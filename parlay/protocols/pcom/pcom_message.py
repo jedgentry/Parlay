@@ -138,8 +138,8 @@ class PCOMMessage(object):
                 if command is None:
                     return data, fmt
 
-                fmt = str(msg.contents.get('__format__', command.fmt))
-                for param in command.params:
+                fmt = str(msg.contents.get('__format__', command["format"]))
+                for param in command["input params"]:
                     # TODO: May need to change default value to error out
                     data.append(msg.contents.get(str(param), 0))
 
@@ -160,7 +160,7 @@ class PCOMMessage(object):
                         print "Could not find integer property ID for property name:", property
                         return
                     prop = pcom_serial.PCOM_PROPERTY_MAP[msg.to][property]
-                    fmt = prop.format
+                    fmt = prop["format"]
                     data.append(msg.contents.get('VALUE', 0))
                     data = serial_encoding.cast_data(fmt, data)
 
@@ -323,8 +323,8 @@ class PCOMMessage(object):
                         msg['TOPICS']['MSG_STATUS'] = "OK"
                     elif msg_option == ResponseCommandOption.Inprogress:
                         msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
-                    cmd = item.get(self.response_code, pcom_serial.CommandInfo("", [], []))
-                    msg['CONTENTS']['RESULT'] = self._get_result_string(cmd.output_names)
+                    cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
+                    msg['CONTENTS']['RESULT'] = self._get_result_string(cmd["output params"])
                 else:
                     msg['TOPICS']['MSG_STATUS'] = "ERROR"
                     msg['CONTENTS']['RESULT'] = {}
