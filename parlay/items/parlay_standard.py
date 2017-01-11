@@ -6,13 +6,14 @@ from twisted.internet import defer, threads
 from twisted.python import failure
 from parlay.server.broker import Broker, run_in_broker, run_in_thread
 from twisted.internet.task import LoopingCall
-from parlay.items.threaded_item import ITEM_PROXIES, ThreadedItem
+from parlay.items.threaded_item import ITEM_PROXIES, ThreadedItem, ListenerStatus
 from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, \
     INPUT_TYPE_CONVERTER_LOOKUP
 import os
 import re
 import inspect
 import Queue
+import datetime
 
 FILE_CAP_SIZE = 400  # megabytes
 FILE_CAP_UNITS = "MB"
@@ -737,6 +738,8 @@ class ParlayStandardScriptProxy(object):
         Proxy class for a parlay stream
         """
 
+        MAX_LOG_SIZE = 1000000
+
         def __init__(self, id, item_proxy, rate):
             self._id = id
             self._item_proxy = item_proxy
@@ -746,6 +749,8 @@ class ParlayStandardScriptProxy(object):
             self._new_value = defer.Deferred()
             self._reactor = self._item_proxy._script._reactor
             self._subscribed = False
+            self._is_logging = False
+            self._log = []
 
             item_proxy._script.add_listener(self._update_val_listener)
 
@@ -765,7 +770,8 @@ class ParlayStandardScriptProxy(object):
         def get(self):
             if not self._subscribed:
                 msg = self._item_proxy._script.make_msg(self._item_proxy.item_id, None, msg_type=MSG_TYPES.STREAM,
-                                              direct=True, response_req=False, STREAM=self._id, STOP=False)
+                                                        direct=True, response_req=False, STREAM=self._id, STOP=False,
+                                                        RATE=self._rate)
 
                 self._item_proxy._script.send_parlay_message(msg)
                 self._subscribed = True
@@ -790,13 +796,62 @@ class ParlayStandardScriptProxy(object):
             if topics.get("MSG_TYPE", "") == MSG_TYPES.STREAM and topics.get("STREAM", "") == self._id \
                     and 'VALUE' in contents:
                 new_val = contents["VALUE"]
+                if self._is_logging:
+                    self._add_to_log(new_val)
                 self._listener(new_val)
                 self._val = new_val
                 temp = self._new_value
                 self._new_value = defer.Deferred() # set up a new one
                 temp.callback(new_val)
-            return False  # never eat me!
+            return ListenerStatus.KEEP_LISTENER
 
+        def _add_to_log(self, update_val):
+            """
+            Helper function for adding the latest val to the log list
+            """
+            if len(self._log) >= self.MAX_LOG_SIZE:  # handle overflow
+                # NOTE: pop() then append() is faster than list[1:].append()
+                self._log.pop(0)
+
+            self._log.append(self._create_data_entry(update_val))  # if adequate list size, append normally
+
+        def start_logging(self, rate):
+            """
+            Script function that enables logging. When a new value is pushed to the datastream
+            the value will get pushed to the end of the log.
+
+            """
+            self._rate = rate
+            self.get()
+            self._is_logging = True
+
+        def stop_logging(self):
+            """
+            Script function that disables logging.
+            """
+            self.stop()
+            self._is_logging = False  # reset logging variable
+
+        def clear_log(self):
+            """
+            Resets the internal log
+            """
+
+            self._log = []
+
+        def get_log(self):
+            """
+            Public interface to get the stream log
+            """
+            return self._log
+
+        @staticmethod
+        def _create_data_entry(update_val):
+            """
+            Creates a data entry with val and timestamp
+            """
+
+            return datetime.datetime.now(), update_val
 
     def __init__(self, discovery, script):
         """
