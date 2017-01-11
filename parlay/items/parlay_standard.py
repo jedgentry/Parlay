@@ -850,6 +850,13 @@ class ParlayStandardScriptProxy(object):
 
             self._log = []
 
+        def get_log(self):
+            """
+            Public interface to get the stream log
+            :return:
+            """
+            return self._log
+
         @staticmethod
         def _get_timestamp():
             return str(datetime.datetime.now())
