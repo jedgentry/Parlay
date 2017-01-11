@@ -166,7 +166,8 @@ class PCOMMessage(object):
 
         elif msg.msg_type == "STREAM":
             # no data or format string for stream messages
-            return [], ''
+            rate = msg.contents.get("RATE", 1)  # default rate = 1 Hz
+            return [rate], 'f'
 
         return data, fmt
 
@@ -237,7 +238,6 @@ class PCOMMessage(object):
         subsystem_id = self.get_subsystem(id)
         return "BROADCAST" if subsystem_id == BROADCAST_ID else "DIRECT"
 
-
     def get_name_from_id(self, item_id, map, id_to_find, default_val="No name found"):
         """
         Gets name from item ID. Assuming name is the KEY and ID is the value in <map> dictionary
@@ -274,7 +274,6 @@ class PCOMMessage(object):
         msg['TOPICS']['MSG_ID'] = self.msg_id
 
         msg['TOPICS']['TX_TYPE'] = "DIRECT"
-
 
         msg_category = self.category()
         msg_sub_type = self.sub_type()
@@ -350,7 +349,6 @@ class PCOMMessage(object):
                     msg['TOPICS']['STREAM'] = id
                     msg['CONTENTS']['STREAM'] = id
                     msg['CONTENTS']['VALUE'] = self._get_data(0)
-                    msg['CONTENTS']['RATE'] = 1000  # Rate not obtained during discovery, using 1000 (ms) here as arbitrary value
 
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"
