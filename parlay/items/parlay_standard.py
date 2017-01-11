@@ -846,18 +846,12 @@ class ParlayStandardScriptProxy(object):
             return self._log
 
         @staticmethod
-        def _get_timestamp():
-            """
-            Returns the current date and time in string format
-            """
-            return str(datetime.datetime.now())
-
-        def _create_data_entry(self, update_val):
+        def _create_data_entry(update_val):
             """
             Creates a data entry with val and timestamp
             """
 
-            return self._get_timestamp(), update_val
+            return datetime.datetime.now(), update_val
 
     def __init__(self, discovery, script):
         """
