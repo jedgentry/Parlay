@@ -807,11 +807,7 @@ class ParlayStandardScriptProxy(object):
 
         def _add_to_log(self, update_val):
             """
-            _add_to_queue()
-
             Helper function for adding the latest val to the log list
-
-            :return:
             """
             if len(self._log) >= self.MAX_LOG_SIZE:  # handle overflow
                 # NOTE: pop() then append() is faster than list[1:].append()
@@ -821,8 +817,6 @@ class ParlayStandardScriptProxy(object):
 
         def start_logging(self, rate):
             """
-            start_logging()
-
             Script function that enables logging. When a new value is pushed to the datastream
             the value will get pushed to the end of the log.
 
@@ -833,18 +827,13 @@ class ParlayStandardScriptProxy(object):
 
         def stop_logging(self):
             """
-            stop_logging()
-
             Script function that disables logging.
-
             """
             self.stop()
             self._is_logging = False  # reset logging variable
 
         def clear_log(self):
             """
-            clear_log()
-
             Resets the internal log
             """
 
@@ -853,12 +842,14 @@ class ParlayStandardScriptProxy(object):
         def get_log(self):
             """
             Public interface to get the stream log
-            :return:
             """
             return self._log
 
         @staticmethod
         def _get_timestamp():
+            """
+            Returns the current date and time in string format
+            """
             return str(datetime.datetime.now())
 
         def _create_data_entry(self, update_val):
