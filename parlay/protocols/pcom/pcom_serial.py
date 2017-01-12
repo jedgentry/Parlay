@@ -115,6 +115,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
         '"""
+
         cls.import_discovery_file = import_discovery_file
         cls.export_discovery_file = export_discovery_file
 
@@ -126,6 +127,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             cls.is_port_attached = True
         except Exception as E:
             print "Unable to open port because of error (exception):", E
+            raise E
 
         return protocol
 
