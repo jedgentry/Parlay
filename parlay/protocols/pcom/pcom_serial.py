@@ -115,6 +115,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
         '"""
+
         cls.import_discovery_file = import_discovery_file
         cls.export_discovery_file = export_discovery_file
 
@@ -126,6 +127,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             cls.is_port_attached = True
         except Exception as E:
             print "Unable to open port because of error (exception):", E
+            raise E
 
         return protocol
 
@@ -883,8 +885,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         PCOM_PROPERTY_MAP[item_id][property_id] = PCOMSerial.build_property_data(property_name, property_type)
 
-        parlay_item.add_property(property_id, name=property_name, attr_name=property_name)
-        parlay_item.add_datastream(property_name + "_stream", name=property_name + " stream", attr_name=property_name + "_stream")
+        parlay_item.add_property(property_id, name=property_name, attr_name=property_name, input=PCOMSerial._get_input_type(property_type))
+        parlay_item.add_datastream(property_name + "_stream", name=property_name + "_stream", attr_name=property_name + "_stream")
 
         return
 
