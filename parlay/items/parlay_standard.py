@@ -994,3 +994,5 @@ class CommandHandle(object):
         """
         msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.PROGRESS and
                                         msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
+
+        return msg
