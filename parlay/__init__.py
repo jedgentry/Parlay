@@ -1,4 +1,4 @@
-__version__ = '0.3.15'
+__version__ = '0.4.0'
 
 # ignore all warnings for now. These messages cause confusion for users on a production system
 import warnings
