@@ -36,15 +36,15 @@ def find_files(directory, pattern):
                 yield _modulename, _filename
 
 
-if not os.path.exists(UI_LOCATION + "/index.html"):
-    # wget the dist file and put it in /ui/dist
-    response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
-    html = response.read()
-    if not os.path.exists(UI_LOCATION):
-        os.makedirs(UI_LOCATION)
 
-    with open(os.path.join(UI_LOCATION, "index.html"), 'w+') as index_file:
-        index_file.write(html)
+# wget the dist file and put it in /ui/dist
+response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
+html = response.read()
+if not os.path.exists(UI_LOCATION):
+    os.makedirs(UI_LOCATION)
+
+with open(os.path.join(UI_LOCATION, "index.html"), 'w+') as index_file:
+    index_file.write(html)
 
 
 package_data_files = [os.path.relpath(filename, "parlay") for _, filename in find_files(UI_LOCATION, "*")]
