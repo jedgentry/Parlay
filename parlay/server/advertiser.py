@@ -61,7 +61,7 @@ class ParlayConsumer(DatagramProtocol):
         table = [["name", "URL"]]
         table.extend([ (v, k) for k,v in self.found_hosts.iteritems()])
         # print the table
-        row_format = "{:<15}" * (len(table))
+        row_format = "{:<35}" * (len(table[0]))
         for row in table:
             print row_format.format(*row)
 
