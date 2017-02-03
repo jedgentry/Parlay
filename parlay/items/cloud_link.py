@@ -10,27 +10,29 @@ from twisted.internet.threads import blockingCallFromThread
 from twisted.web.client import Agent, readBody
 from twisted.web.http_headers import Headers
 import base64
-from autobahn.twisted.websocket import WebSocketClientFactory, WebSocketServerProtocol, WebSocketClientProtocol
+from autobahn.twisted.websocket import WebSocketClientFactory, WebSocketServerProtocol, WebSocketClientProtocol, connectWS
 import requests
 import json
 from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
+from base64 import b64encode, b64decode
+from twisted.internet import ssl
 
 class CloudLinkSettings(object):
     """
     Class level settings to set for cloudLink
     """
     PRIVATE_KEY_LOCATION = None
-    PRIVATE_KEY_PASSPHRASE = None # can be none, but I recommend a passphrase anyway. It may or may not be more secure
-
+    PRIVATE_KEY_PASSPHRASE = None  # can be none, but I recommend a passphrase anyway. It may or may not be more secure
 
 
 @parlay.local_item()
 class CloudLink(parlay.ParlayCommandItem):
 
-    base_link_uri = parlay.ParlayProperty(val_type=str, default="http://localhost:5056/channels")
+    base_link_uri = parlay.ParlayProperty(val_type=str, default="https://daphne.parlay.cloud/channels")
+    #base_link_uri = parlay.ParlayProperty(val_type=str, default="http://localhost:5056/channels")
 
     def __init__(self):
         parlay.ParlayCommandItem.__init__(self, "parlay.items.cloud_link", "Cloud Link")
@@ -71,12 +73,13 @@ class CloudLink(parlay.ParlayCommandItem):
         yield self.get_channel()
         # cool, now set up the websocket connection to that channel
         reactor = self._adapter.reactor
-
-
+        #self.channel_uri = "ws" + self.channel_uri[3:]
+        print "attempting to connect to", self.channel_uri
         self.cloud_factory = WebSocketClientFactory(self.channel_uri,  reactor=reactor)
+        self.cloud_factory.openHandshakeTimeout = 20
         self.cloud_factory.protocol = CloudLinkWebsocketClient
 
-        reactor.connectTCP(self.cloud_factory.host, self.cloud_factory.port, self.cloud_factory)
+        reactor.connectSSL(self.cloud_factory.host, self.cloud_factory.port, self.cloud_factory, ssl.ClientContextFactory())
 
     @run_in_thread
     def get_channel(self):
@@ -85,16 +88,23 @@ class CloudLink(parlay.ParlayCommandItem):
 
         token = r.json()["token"]
         # get the private Key
-        private_key = RSA.importKey(CloudLinkSettings.PRIVATE_KEY_LOCATION,
-                                    passphrase=CloudLinkSettings.PRIVATE_KEY_PASSPHRASE)
+        with open(CloudLinkSettings.PRIVATE_KEY_LOCATION,'r') as key_file:
+            private_key = RSA.importKey(key_file.read(),
+                                        passphrase=CloudLinkSettings.PRIVATE_KEY_PASSPHRASE)
 
 
         # sign the token with our private key
         signature = PKCS1_v1_5.new(private_key).sign(SHA256.new(token))
 
         # get the randomly assigned channel for my UUID
-        r = requests.get(str(self.base_link_uri) + "/get_device_channel", params={"UUID": self.uuid, "signature": signature})
-        self.channel_uri = r.json()["channel"]
+        r = requests.get(str(self.base_link_uri) + "/get_device_group",
+                         params={"UUID": self.uuid, "signature": b64encode(signature)})
+        if r.ok:
+            self.channel_uri = r.json()["channel"]
+        elif r.status_code == 400:
+            raise Exception("UUID or Token not registered with Cloud.")
+        elif r.status_code == 403:
+            raise Exception("Signature didn't verify correctly. Bad private key or signature.")
 
 
 class CloudLinkWebsocketClient(WebSocketClientProtocol):
@@ -136,17 +146,21 @@ class CloudLinkWebsocketClient(WebSocketClientProtocol):
         try:
             # special logic for subscriptions. If we want to subscribe, then push it to the cloud
             msg = json.loads(payload)
+            print msg
 
             # special logic for subscriptions. If we want to subscribe, then push it to the cloud
             if msg["TOPICS"].get('type') == 'subscribe':
                 self._adapter.subscribe(self.send_message_to_cloud_channel, **(msg["CONTENTS"].get("TOPICS", {})))
 
             else:
-                self._adapter.publish(msg)
+                self._adapter.publish(msg, self.send_message_to_cloud_channel)
         except Exception as e:
             print "Exception on message" + str(payload) + "  " + str(e)
 
 
 if __name__ == "__main__":
+    # if run as main entry point, setup test key files
+    CloudLinkSettings.PRIVATE_KEY_LOCATION = '/home/varx/.ssh/test_parlay_device'
+    CloudLinkSettings.PRIVATE_KEY_PASSPHRASE = None
     c = CloudLink()
-    parlay.start()
+    parlay.start(ui_path="/home/varx/Projects/Promenade/Parlay/ParlayUI/dist/")
