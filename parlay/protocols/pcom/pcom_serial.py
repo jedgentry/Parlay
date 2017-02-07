@@ -29,7 +29,6 @@ import json
 
 # Constants used in converting format chars to
 # Parlay input types
-PCOM_SERIAL_EXPANSION_CHARS = "23456789"
 PCOM_SERIAL_NUMBER_INPUT_CHARS = "BbHhIiQqfd"
 PCOM_SERIAL_STRING_INPUT_CHARS = "?csx"
 PCOM_SERIAL_ARRAY_INPUT_CHARS = '*'
@@ -773,7 +772,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return
 
         c_name = command_info_list[0]
-        c_input_format = command_info_list[1]
+        c_input_format = expand_fmt_string(command_info_list[1])
         c_input_names = command_info_list[2]
         c_output_desc = command_info_list[3]
 
@@ -832,16 +831,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         for parameter, format_token in zip(c_input_names, PCOMSerial._expand_format_tokens(format_tokens)):
             local_subfields.append(parlay_item.create_field(msg_key=parameter, label=parameter,
                                                             input=PCOMSerial._get_input_type(format_token), required=True))
-
-    @staticmethod
-    def _expand_format_tokens(format_tokens):
-        expanded_format_tokens = ''
-        for index in range(len(format_tokens)):
-            if format_tokens[index] in PCOM_SERIAL_EXPANSION_CHARS and index <= len(format_tokens) - 2:
-                expanded_format_tokens += (format_tokens[index + 1] * (int(format_tokens[index]) - 1))
-                continue
-            expanded_format_tokens += format_tokens[index]
-        return expanded_format_tokens
 
     @staticmethod
     def _get_input_type(format_char):
