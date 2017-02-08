@@ -34,8 +34,7 @@ class CloudLinkSettings(object):
 class CloudLink(parlay.ParlayCommandItem):
 
     connected_to_cloud = parlay.ParlayProperty(val_type=bool, default=False, read_only=True)
-    base_link_uri = parlay.ParlayProperty(val_type=str, default="https://dev.parlay.cloud/channels")
-    #base_link_uri = parlay.ParlayProperty(val_type=str, default="http://localhost:5056/channels")
+    base_link_uri = parlay.ParlayProperty(val_type=str, default="https://pub1.parlay.cloud/channels")
 
     def __init__(self):
         parlay.ParlayCommandItem.__init__(self, "parlay.items.cloud_link", "Cloud Link")
