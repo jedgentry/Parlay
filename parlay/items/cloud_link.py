@@ -19,6 +19,8 @@ from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from base64 import b64encode, b64decode
 from twisted.internet import ssl
+import time
+
 
 class CloudLinkSettings(object):
     """
@@ -31,7 +33,8 @@ class CloudLinkSettings(object):
 @parlay.local_item()
 class CloudLink(parlay.ParlayCommandItem):
 
-    base_link_uri = parlay.ParlayProperty(val_type=str, default="https://daphne.parlay.cloud/channels")
+    connected_to_cloud = parlay.ParlayProperty(val_type=bool, default=False, read_only=True)
+    base_link_uri = parlay.ParlayProperty(val_type=str, default="https://dev.parlay.cloud/channels")
     #base_link_uri = parlay.ParlayProperty(val_type=str, default="http://localhost:5056/channels")
 
     def __init__(self):
@@ -68,18 +71,22 @@ class CloudLink(parlay.ParlayCommandItem):
         :param uuid: the UUID of this device. The uuid determines which channel you are connected to
         :return:
         """
-        self.uuid = uuid
+        if self. connected_to_cloud:
+            raise RuntimeError("Already Connected to cloud")
+
+        self.uuid = uuid.strip()
 
         yield self.get_channel()
         # cool, now set up the websocket connection to that channel
         reactor = self._adapter.reactor
         #self.channel_uri = "ws" + self.channel_uri[3:]
         print "attempting to connect to", self.channel_uri
-        self.cloud_factory = WebSocketClientFactory(self.channel_uri,  reactor=reactor)
-        self.cloud_factory.openHandshakeTimeout = 20
+        self.cloud_factory = CloudLinkWebsocketClientFactory(self, self.channel_uri,  reactor=reactor)
         self.cloud_factory.protocol = CloudLinkWebsocketClient
-
-        reactor.connectSSL(self.cloud_factory.host, self.cloud_factory.port, self.cloud_factory, ssl.ClientContextFactory())
+        if self.channel_uri.startswith("wss"):
+            reactor.connectSSL(self.cloud_factory.host, self.cloud_factory.port, self.cloud_factory, ssl.ClientContextFactory())
+        else:
+            reactor.connectTCP(self.cloud_factory.host, self.cloud_factory.port, self.cloud_factory)
 
     @run_in_thread
     def get_channel(self):
@@ -107,6 +114,16 @@ class CloudLink(parlay.ParlayCommandItem):
             raise Exception("Signature didn't verify correctly. Bad private key or signature.")
 
 
+
+class CloudLinkWebsocketClientFactory(WebSocketClientFactory):
+    """
+    Websocket Client library that keeps track of the cloud item for the CloudLinkWebsocketClient
+    """
+    def __init__(self, cloud_item, *args, **kwargs):
+        WebSocketClientFactory.__init__(self, *args, **kwargs)
+        self.cloud_item = cloud_item
+
+
 class CloudLinkWebsocketClient(WebSocketClientProtocol):
     """
     The websocket client that will bridge all messages between the broker and the cloud channel
@@ -128,14 +145,17 @@ class CloudLinkWebsocketClient(WebSocketClientProtocol):
 
     def onConnect(self, response):
         print "Connected to cloud"
+        self.factory.cloud_item.connected_to_cloud = True
 
     def connectionLost(self, reason):
         print "connection lost:", str(reason)
+        self.factory.cloud_item.connected_to_cloud = False
 
 
     def onMessage(self, payload, isBinary):
         """
-        When we get a message from the cloud link, publish it on our broker
+        When we get a message from the cloud link, publish it on our broker   PRIVATE_KEY_LOCATION
+        `
         :param payload:
         :param isBinary:
         :return:
@@ -144,7 +164,6 @@ class CloudLinkWebsocketClient(WebSocketClientProtocol):
             return  # Binary messages aren't supported
 
         try:
-            # special logic for subscriptions. If we want to subscribe, then push it to the cloud
             msg = json.loads(payload)
             print msg
 
@@ -157,10 +176,28 @@ class CloudLinkWebsocketClient(WebSocketClientProtocol):
         except Exception as e:
             print "Exception on message" + str(payload) + "  " + str(e)
 
+@parlay.local_item()
+class CloudStressTest(parlay.ParlayCommandItem):
+
+    data = parlay.ParlayDatastream(val_type=float, default=0.0)
+    sleep_time = parlay.ParlayProperty(val_type=float, default=1)
+
+    @parlay.parlay_command()
+    def count_up(self, max):
+        """
+
+        :param max:
+        :type max int
+        :return:
+        """
+        for x in xrange(max):
+            self.data = x
+            time.sleep(self.sleep_time)
 
 if __name__ == "__main__":
     # if run as main entry point, setup test key files
     CloudLinkSettings.PRIVATE_KEY_LOCATION = '/home/varx/.ssh/test_parlay_device'
     CloudLinkSettings.PRIVATE_KEY_PASSPHRASE = None
     c = CloudLink()
+    d = CloudStressTest()
     parlay.start(ui_path="/home/varx/Projects/Promenade/Parlay/ParlayUI/dist/")
