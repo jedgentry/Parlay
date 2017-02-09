@@ -1207,11 +1207,10 @@ class SlidingACKWindow:
 
                 self._last_acked_map[sequence_number % self.WINDOW_SIZE] = sequence_number
 
-            if sequence_number in self._window:
                 del self._window[sequence_number]
-            if len(self._queue) > 0:
-                ack_to_add = self._queue.pop(0)
-                self.add_to_window(ack_to_add)
+                if len(self._queue) > 0:
+                    ack_to_add = self._queue.pop(0)
+                    self.add_to_window(ack_to_add)
 
     def reset_window(self):
 
