@@ -71,6 +71,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     # The item ID of the protocol during discovery.
     DISCOVERY_CODE = 0xfefe
+    PCOM_RESET_ID = 0xfefe
 
     # The minimum event ID. Some event IDs may need to be reserved
     # in the future.
@@ -144,12 +145,25 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         return default_args
 
+    def reset(self):
+
+        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_COMMAND_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_PROPERTY_NAME_MAP, \
+                        PCOM_STREAM_NAME_MAP
+
+        self._event_id_generator = message_id_generator((2 ** self.NUM_EVENT_ID_BITS))
+        self._seq_num = message_id_generator((2 ** self.SEQ_BITS))
+
+        self._ack_window.reset_window()
+
+        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+        self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
+
     def close(self):
         """
         Simply close the connection
         :return:
         """
-
+        self.reset()
         self.transport.loseConnection()
         return defer.succeed(None)
 
@@ -772,7 +786,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return
 
         c_name = command_info_list[0]
-        c_input_format = command_info_list[1]
+        c_input_format = expand_fmt_string(command_info_list[1])
         c_input_names = command_info_list[2]
         c_output_desc = command_info_list[3]
 
@@ -828,7 +842,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         format_tokens = PCOMSerial.tokenize_format_char_string(c_input_format)
 
-        for parameter, format_token in zip(c_input_names, format_tokens):
+        for parameter, format_token in zip(c_input_names, expand_fmt_string(format_tokens)):
             local_subfields.append(parlay_item.create_field(msg_key=parameter, label=parameter,
                                                             input=PCOMSerial._get_input_type(format_token), required=True))
 
@@ -1071,6 +1085,15 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         raise Exception('Using line received!')
 
+    def _is_reset_msg(self, msg):
+
+        if "CONTENTS" in msg:
+            if "EVENT" in msg["CONTENTS"]:
+                if msg["CONTENTS"]["EVENT"] == self.PCOM_RESET_ID:
+                    return True
+
+        return False
+
     def _on_packet(self, sequence_num, ack_expected, is_ack, is_nak, msg):
         """
         This will get called with every new serial packet.
@@ -1092,7 +1115,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         parlay_msg = msg.to_json_msg()
         # print "---> Message to be published: ", parlay_msg
-        self.adapter.publish(parlay_msg, self.transport.write)
+
+        if self._is_reset_msg(parlay_msg):
+            self.reset()
+            print "PCOM: Reset message received! Resetting... "
 
         # If we need to ack, ACK!
         if ack_expected:
@@ -1100,6 +1126,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self.transport.write(ack)
             # print "---> ACK MESSAGE SENT"
             # print [hex(ord(x)) for x in ack]
+
+        self.adapter.publish(parlay_msg, self.transport.write)
 
         # also send it to discovery listener locally
         self._discovery_listener(msg)
@@ -1125,6 +1153,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self._on_packet(*packet_tuple)
         except FailCRC:
             print "Failed CRC"
+        except e:
+            print "Could not decode message because of exception", e
+
 
 class ACKInfo:
     """
@@ -1176,10 +1207,20 @@ class SlidingACKWindow:
 
                 self._last_acked_map[sequence_number % self.WINDOW_SIZE] = sequence_number
 
-            del self._window[sequence_number]
-            if len(self._queue) > 0:
-                ack_to_add = self._queue.pop(0)
-                self.add_to_window(ack_to_add)
+                del self._window[sequence_number]
+                if len(self._queue) > 0:
+                    ack_to_add = self._queue.pop(0)
+                    self.add_to_window(ack_to_add)
+
+    def reset_window(self):
+
+        # remove all deferreds
+        for seq_num in self._window:
+            self._window[seq_num].deferred.callback(seq_num)
+
+        self._window = {}
+        self._queue = []
+        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
 
     def ack_timeout_errback(self, timeout_failure):
         """
@@ -1200,6 +1241,7 @@ class SlidingACKWindow:
             self.ack_timeout(ack_to_send.deferred, PCOMSerial.ACK_TIMEOUT, ack_to_send.sequence_number)
             return self.TIMEOUT
 
+        del self._window[timeout_failure.value.sequence_number]
         return self.EXPIRED
 
     def add_to_window(self, ack_info):
