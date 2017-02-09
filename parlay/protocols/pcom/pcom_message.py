@@ -166,8 +166,9 @@ class PCOMMessage(object):
 
         elif msg.msg_type == "STREAM":
             # no data or format string for stream messages
-            rate = msg.contents.get("RATE", 1)  # default rate = 1 Hz
-            return [rate], 'f'
+            rate = msg.contents.get("RATE", None)  # default rate = 1 Hz
+            data = [rate] if rate else []
+            fmt = 'f' if rate else ''
 
         return data, fmt
 
