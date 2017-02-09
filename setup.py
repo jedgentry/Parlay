@@ -6,7 +6,7 @@ import fnmatch
 import urllib2
 
 
-UI_VERSION = "0.0.17"
+UI_VERSION = "0.0.18"
 UI_LOCATION = "parlay/ui/dist"
 DOCS_LOCATION = "parlay/docs/_build/html"
 
