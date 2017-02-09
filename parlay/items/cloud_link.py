@@ -32,7 +32,7 @@ class CloudLinkSettings(object):
     PRIVATE_KEY_PASSPHRASE = None  # can be none, but I recommend a passphrase anyway. It may or may not be more secure
     UUID_LOCATION = None # A file that contains My device UUID given by the cloud
 
-    CLOUD_SERVER_ADDRESS = "http://localhost:5056" # ""https://pub1.parlay.cloud"
+    CLOUD_SERVER_ADDRESS = "https://pub1.parlay.cloud"
 
 @parlay.local_item()
 class CloudLink(parlay.ParlayCommandItem):
