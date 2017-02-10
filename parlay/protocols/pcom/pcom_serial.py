@@ -530,14 +530,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     def connectionMade(self):
         """
         The initializer for the protocol. This function is called when a connection to the server
-        (broker in our case) has been established. Keep this function LIGHT, it should not take a long time
-        to fetch the subsystem and item IDs. The user typically shouldn't notice.
-
-        I wrote a function _get_attached_items() that is called here and also when a discovery takes place.
-        :return: None
+        (broker in our case) has been established.
         """
-
-        self._get_attached_items()
         return
 
     @defer.inlineCallbacks
@@ -712,6 +706,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if not PCOMSerial.is_port_attached:
             self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
             defer.returnValue(BaseProtocol.get_discovery(self))
+
+        self._get_attached_items()
 
         if PCOMSerial.import_discovery_file is None:
             print "No discovery file specified, retrieving information from board"
