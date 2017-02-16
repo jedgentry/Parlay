@@ -104,11 +104,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     is_port_attached = False
 
-    import_discovery_file =  None
-    export_discovery_file = None
+    discovery_file = None
 
     @classmethod
-    def open(cls, adapter, port, import_discovery_file=None, export_discovery_file=None):
+    def open(cls, adapter, port, discovery_file=None):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
@@ -117,8 +116,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: returns the instantiated protocol object
         '"""
 
-        cls.import_discovery_file = import_discovery_file
-        cls.export_discovery_file = export_discovery_file
+        cls.discovery_file = discovery_file
 
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
@@ -180,6 +178,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # the UI
         self.items = []
         self._error_codes = []
+        self._loaded_from_file = False
 
         # The list of connected item IDs found in the initial sweep in
         # connectionMade()
@@ -571,7 +570,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         discovery_msg = {}
 
         try:
-            discovery_file = open(PCOMSerial.import_discovery_file)
+            discovery_file = open(PCOMSerial.discovery_file)
         except Exception as e:
             print "Could not open discovery file because of exception: ", e
             return discovery_msg
@@ -645,6 +644,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         dict_to_write["PCOM_STREAM_NAME_MAP"] = PCOM_STREAM_NAME_MAP
         dict_to_write["DISCOVERY"] = discovery_msg
         json.dump(dict_to_write, discovery_file)
+        print "Discovery written to:", file_name
         discovery_file.close()
 
     @staticmethod
@@ -704,20 +704,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
 
         if not PCOMSerial.is_port_attached:
+            print "No serial port connected to PCOM"
             self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
             defer.returnValue(BaseProtocol.get_discovery(self))
 
+        if PCOMSerial.discovery_file is not None:
+            discovery_msg = self.load_discovery_from_file()
+            if discovery_msg != {}:
+                self._loaded_from_file = True
+                defer.returnValue(discovery_msg)
+
         self._get_attached_items()
 
-        if PCOMSerial.import_discovery_file is None:
-            print "No discovery file specified, retrieving information from board"
-        else:
-            discovery_msg = self.load_discovery_from_file()
-            defer.returnValue(discovery_msg)
-
-        print "----------------------------"
-        print "Discovery function started!"
-        print "----------------------------"
+        print "Unable to load discovery from file, fetching items from embedded system..."
 
         t1 = time.time()
 
@@ -748,8 +747,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # By calling BaseProtocol's get_discovery() function we can get that information
         # to the adapter and furthermore to the broker.
         discovery_msg = BaseProtocol.get_discovery(self)
-        if PCOMSerial.export_discovery_file is not None:
-            self.write_discovery_info_to_file(PCOMSerial.export_discovery_file, discovery_msg)
+
+        if PCOMSerial.discovery_file is not None and self._loaded_from_file is False:
+            self.write_discovery_info_to_file(PCOMSerial.discovery_file, discovery_msg)
 
         defer.returnValue(discovery_msg)
 
@@ -856,9 +856,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         if format_char in PCOM_SERIAL_NUMBER_INPUT_CHARS:
             return INPUT_TYPES.NUMBER
-        elif format_char[0] == PCOM_SERIAL_STRING_INPUT_CHARS:
+        elif format_char[0] == PCOM_SERIAL_ARRAY_INPUT_CHARS:
             return INPUT_TYPES.ARRAY
-        elif format_char in PCOM_SERIAL_ARRAY_INPUT_CHARS:
+        elif format_char in PCOM_SERIAL_STRING_INPUT_CHARS:
             return INPUT_TYPES.STRING
         else:
             print "Invalid format character", format_char, "defaulting to INPUT TYPE STRING"
