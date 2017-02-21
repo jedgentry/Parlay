@@ -145,9 +145,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     def reset(self):
 
-        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_COMMAND_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_PROPERTY_NAME_MAP, \
-                        PCOM_STREAM_NAME_MAP
-
         self._event_id_generator = message_id_generator((2 ** self.NUM_EVENT_ID_BITS))
         self._seq_num = message_id_generator((2 ** self.SEQ_BITS))
 
@@ -708,13 +705,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
             defer.returnValue(BaseProtocol.get_discovery(self))
 
+        self._get_attached_items()
+        
         if PCOMSerial.discovery_file is not None:
             discovery_msg = self.load_discovery_from_file()
             if discovery_msg != {}:
                 self._loaded_from_file = True
                 defer.returnValue(discovery_msg)
 
-        self._get_attached_items()
 
         print "Unable to load discovery from file, fetching items from embedded system..."
 
