@@ -706,13 +706,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             defer.returnValue(BaseProtocol.get_discovery(self))
 
         self._get_attached_items()
-        
+
         if PCOMSerial.discovery_file is not None:
             discovery_msg = self.load_discovery_from_file()
             if discovery_msg != {}:
                 self._loaded_from_file = True
                 defer.returnValue(discovery_msg)
 
+        self._loaded_from_file = False
 
         print "Unable to load discovery from file, fetching items from embedded system..."
 
@@ -849,8 +850,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
          :return:
          """
 
-        if len(format_char) < 1:
+        if len(format_char) == 0:
             return INPUT_TYPES.STRING
+        if len(format_char) > 1:
+            return INPUT_TYPES.ARRAY
 
         if format_char in PCOM_SERIAL_NUMBER_INPUT_CHARS:
             return INPUT_TYPES.NUMBER
