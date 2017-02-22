@@ -137,8 +137,9 @@ def encode_pcom_message(msg):
     payload = struct.pack("<HHHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), msg.msg_status,
                           serialize_msg_type(msg), serialize_msg_attrs(msg))
 
+    # NOTE: struct.pack() does not support unicode so msg.format_string must be cast to str
     if msg.format_string:
-        payload += struct.pack("%ds" % len(msg.format_string), msg.format_string)
+        payload += struct.pack("%ds" % len(msg.format_string), str(msg.format_string))
 
     # NULL terminate the format_string,
     # or if there isn't a format_string we just
