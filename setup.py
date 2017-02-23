@@ -84,7 +84,9 @@ setup(
         "secure": ["cryptography>=1.2.1",
                    "pyOpenSSL>=0.15.1",
                    "cffi>=1.5.0",
-                   "service-identity >=14.0.0"]
+                   "service-identity >=14.0.0",
+                   "requests",
+                   "ipaddress>=1.0.16"]
     },
     classifiers=[
         'Development Status :: 4 - Beta',
