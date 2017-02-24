@@ -161,7 +161,11 @@ class PCOMMessage(object):
                         return
                     prop = pcom_serial.PCOM_PROPERTY_MAP[msg.to][property]
                     fmt = prop["format"]
-                    data.append(msg.contents.get('VALUE', 0))
+                    content_data = msg.contents.get('VALUE', 0)
+                    if type(content_data) == list:  # we have a variable property list
+                        data = content_data
+                    else:
+                        data.append(content_data)
                     data = serial_encoding.cast_data(fmt, data)
 
         elif msg.msg_type == "STREAM":
@@ -218,17 +222,18 @@ class PCOMMessage(object):
         """
         return (id & SUBSYSTEM_MASK) >> SUBSYSTEM_SHIFT
 
-    def _get_data(self, index):
+    def _get_data(self):
         """
         Helper function for returning the data of the PCOM Message. Returns an error message if there
         wasn't any data to get.
         :param index:
         :return:
         """
-        if len(self.data) > 0:
+        if len(self.data) == 1:
             return self.data[0]
-        else:
-            return None
+        if len(self.data) > 1:
+            return self.data
+        return None
 
     def get_tx_type_from_id(self, id):
         """
@@ -296,7 +301,7 @@ class PCOMMessage(object):
                     msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
                     msg['CONTENTS']['PROPERTY'] = self.response_code
                     msg['CONTENTS']['ACTION'] = "SET"
-                    msg['CONTENTS']['VALUE'] = self._get_data(0)
+                    msg['CONTENTS']['VALUE'] = self._get_data()
                 elif msg_option == OrderPropertyOption.Stream_On:
                     raise Exception("Stream on not handled yet")
                 elif msg_option == OrderPropertyOption.Stream_Off:
@@ -336,7 +341,7 @@ class PCOMMessage(object):
                     id = self.response_code
 
                     msg['CONTENTS']['PROPERTY'] = self.response_code
-                    msg['CONTENTS']['VALUE'] = self._get_data(0)
+                    msg['CONTENTS']['VALUE'] = self._get_data()
                 elif msg_option == ResponsePropertyOption.Set_Response:
                     msg['CONTENTS']['ACTION'] = "RESPONSE"
                     msg['CONTENTS']['PROPERTY'] = self.response_code
@@ -349,7 +354,7 @@ class PCOMMessage(object):
                         id = self.get_name_from_id(sender_integer_id, pcom_serial.PCOM_STREAM_NAME_MAP, self.response_code, default_val=self.response_code)
                     msg['TOPICS']['STREAM'] = id
                     msg['CONTENTS']['STREAM'] = id
-                    msg['CONTENTS']['VALUE'] = self._get_data(0)
+                    msg['CONTENTS']['VALUE'] = self._get_data()
 
         elif msg_category == MessageCategory.Notification:
             msg['TOPICS']["MSG_TYPE"] = "EVENT"

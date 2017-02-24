@@ -156,7 +156,6 @@ def encode_pcom_message(msg):
 
     return payload
 
-
 def flatten(data):
     """
     Flattens an irregular data list into one list.
