@@ -4,6 +4,7 @@ from twisted.web.client import Agent, readBody
 from twisted.web.http_headers import Headers
 import base64
 from autobahn.twisted.websocket import WebSocketClientFactory, WebSocketServerProtocol, WebSocketClientProtocol, connectWS
+from twisted.internet.protocol import ReconnectingClientFactory
 import requests
 import json
 from base64 import b64encode, b64decode
@@ -34,6 +35,7 @@ class CloudLinkSettings(object):
 
     CLOUD_SERVER_ADDRESS = "https://pub1.parlay.cloud"
 
+
 @parlay.local_item()
 class CloudLink(parlay.ParlayCommandItem):
 
@@ -47,6 +49,7 @@ class CloudLink(parlay.ParlayCommandItem):
         self._http_agent = Agent(self._reactor)
         self.channel_uri = None
         self.cloud_factory = None
+
         if CloudLinkSettings.PRIVATE_KEY_LOCATION is None:
             raise RuntimeError("CloudLinkSettings.PRIVATE_KEY_LOCATION must be set for cloud to work")
 
@@ -153,10 +156,12 @@ class CloudLink(parlay.ParlayCommandItem):
         yield self.get_channel()
         # cool, now set up the websocket connection to that channel
         reactor = self._adapter.reactor
-        #self.channel_uri = "ws" + self.channel_uri[3:]
+
         print "attempting to connect to", self.channel_uri
         self.cloud_factory = CloudLinkWebsocketClientFactory(self, self.channel_uri,  reactor=reactor)
         self.cloud_factory.protocol = CloudLinkWebsocketClient
+        self.cloud_factory.continueTrying = True  # attempt to reconnect
+
         if self.channel_uri.startswith("wss"):
             reactor.connectSSL(self.cloud_factory.host, self.cloud_factory.port, self.cloud_factory, ssl.ClientContextFactory())
         else:
@@ -189,14 +194,28 @@ class CloudLink(parlay.ParlayCommandItem):
         elif r.status_code == 403:
             raise Exception("Signature didn't verify correctly. Bad private key or signature.")
 
+    @parlay.parlay_command(async=True)
+    def disconnect_from_cloud(self):
+        self.cloud_factory.continueTrying = False  # stop retrying
+        self.cloud_factory.disconnect()
 
-class CloudLinkWebsocketClientFactory(WebSocketClientFactory):
+
+class CloudLinkWebsocketClientFactory(WebSocketClientFactory, ReconnectingClientFactory):
     """
     Websocket Client library that keeps track of the cloud item for the CloudLinkWebsocketClient
     """
     def __init__(self, cloud_item, *args, **kwargs):
         WebSocketClientFactory.__init__(self, *args, **kwargs)
         self.cloud_item = cloud_item
+        self.connected_protocol = None
+
+    def disconnect(self):
+        if self.connected_protocol is not None:
+            self.connected_protocol.transport.loseConnection()
+
+    def buildProtocol(self, addr):
+        self.connected_protocol = WebSocketClientFactory.buildProtocol(self, addr)
+        return self.connected_protocol
 
 
 class CloudLinkWebsocketClient(WebSocketClientProtocol):
@@ -226,7 +245,6 @@ class CloudLinkWebsocketClient(WebSocketClientProtocol):
         print "connection lost:", str(reason)
         self.factory.cloud_item.connected_to_cloud = False
 
-
     def onMessage(self, payload, isBinary):
         """
         When we get a message from the cloud link, publish it on our broker   PRIVATE_KEY_LOCATION
@@ -250,6 +268,7 @@ class CloudLinkWebsocketClient(WebSocketClientProtocol):
                 self._adapter.publish(msg, self.send_message_to_cloud_channel)
         except Exception as e:
             print "Exception on message" + str(payload) + "  " + str(e)
+
 
 @parlay.local_item()
 class CloudStressTest(parlay.ParlayCommandItem):
