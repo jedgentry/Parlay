@@ -569,8 +569,8 @@ class ParlayCommandItem(ParlayStandardItem):
                 self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
                                    msg_status=MSG_STATUS.ERROR)
 
-        # handle data stream messages
-        if msg_type == "STREAM":
+        # handle data stream messages (that aren't value messages)
+        if msg_type == "STREAM" and 'VALUE' not in contents:
             try:
                 stream_id = str(contents["STREAM"])
                 remove = contents.get("STOP", False)
