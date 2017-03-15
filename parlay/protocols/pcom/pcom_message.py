@@ -96,8 +96,6 @@ class PCOMMessage(object):
         else:
             return name
 
-
-
     @classmethod
     def _get_data_format(cls, msg):
         """
@@ -234,7 +232,8 @@ class PCOMMessage(object):
         subsystem_id = self.get_subsystem(id)
         return "BROADCAST" if subsystem_id == BROADCAST_ID else "DIRECT"
 
-    def get_name_from_id(self, item_id, map, id_to_find, default_val="No name found"):
+    @staticmethod
+    def get_name_from_id(item_id, map, id_to_find, default_val="No name found"):
         """
         Gets name from item ID. Assuming name is the KEY and ID is the value in <map> dictionary
 
@@ -255,46 +254,221 @@ class PCOMMessage(object):
 
         return default_val
 
+    def _build_parlay_command_message(self, msg):
+        """
+        Adds fields to Parlay message <msg> in accordance with command spec (3/15/2017).
+
+        Command messages have:
+        1) TOPICS -> MSG_TYPE -> COMMAND
+        2) CONTENTS -> COMMAND -> COMMAND ID
+        3) CONTENTS -> COMMAND NAME (optional)
+
+        :param msg: Parlay message to be modified
+        :return: None
+        """
+
+        destination_integer_id = self.to
+        msg['TOPICS']['MSG_TYPE'] = "COMMAND"
+        msg['CONTENTS']['COMMAND'] = self.response_code
+        msg['CONTENTS']['COMMAND_NAME'] = self.get_name_from_id(destination_integer_id,
+                                                                pcom_serial.PCOM_COMMAND_NAME_MAP,
+                                                                self.response_code)
+
+    def _build_parlay_property_get_msg(self, msg):
+        """
+        Adds fields to Parlay message <msg> in accordance with property GET spec (3/15/2017)
+
+        Property GET messages have:
+        1) TOPICS -> MSG_TYPE -> PROPERTY
+        2) CONTENTS -> PROPERTY -> PROPERTY ID
+        3) CONTENTS -> ACTION -> GET
+
+        :param msg: Parlay message that will be modified
+        :return: None
+        """
+
+        msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
+        msg['CONTENTS']['PROPERTY'] = self.response_code
+        msg['CONTENTS']['ACTION'] = "GET"
+
+    def _build_parlay_property_set_msg(self, msg):
+        """
+        Adds fields to Parlay message <msg> in accordance with property SET spec (3/15/2017)
+
+        Property SET messages have:
+        1) TOPICS -> MSG_TYPE -> PROPERTY
+        2) CONTENTS -> PROPERTY -> PROPERTY ID
+        3) CONTENTS -> ACTION -> SET
+        4) CONTENTS -> VALUE -> PROPERTY VALUE
+
+        :param msg: Parlay message (dictionary) that will be modified.
+        :return: None
+        """
+
+        msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
+        msg['CONTENTS']['PROPERTY'] = self.response_code
+        msg['CONTENTS']['ACTION'] = "SET"
+        msg['CONTENTS']['VALUE'] = self._get_data()
+
+    def _build_parlay_error_response_msg(self, msg):
+        """
+        Adds fields to Parlay message <msg> in accordance with Parlay error response spec. (3/15/2017)
+
+        Parlay error responses have:
+        1) CONTENTS -> ERROR_CODE -> ERROR STATUS # (from embedded board)
+        2) CONTENTS -> DESCRIPTION -> ERROR DESCRIPTION
+        3) TOPICS -> MSG_STATUS -> ERROR
+        4) TOPICS -> RESPONSE_REQ -> False
+
+        :param msg: Parlay message (dictionary) that will be modified.
+        :return: None
+        """
+
+        msg['CONTENTS']['ERROR_CODE'] = self.msg_status
+        msg['TOPICS']['MSG_STATUS'] = "ERROR"
+        msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
+        msg['TOPICS']['RESPONSE_REQ'] = False
+
+    def _build_parlay_command_response(self, msg):
+        """
+        Adds fields to Parlay message <msg> in accordance with Parlay command response spec. (3/15/2017)
+
+        Parlay command responses have:
+        1) TOPICS -> MSG_STATUS -> PROGRESS/OK
+        2) CONTENTS -> DATA depending on result
+
+        :param msg: Parlay message (dictionary) that will be modified.
+        :return: None
+        """
+        msg_option = self.option()
+        item = pcom_serial.PCOM_COMMAND_MAP.get(self.from_, None)
+
+        if item:
+            if msg_option == ResponseCommandOption.Complete:
+                msg['TOPICS']['MSG_STATUS'] = "OK"
+            elif msg_option == ResponseCommandOption.Inprogress:
+                msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
+            cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
+            self._build_contents_map(cmd["output params"], msg["CONTENTS"])
+        else:
+            msg['TOPICS']['MSG_STATUS'] = "ERROR"
+            msg["CONTENTS"]["DESCRIPTION"] = "PCOM ERROR: Could not find item:", self.from_
+
+    def _build_parlay_property_response(self, msg):
+        """
+        Adds fields to Parlay message <msg> in accordance with Parlay property response spec. (3/15/2017)
+
+        :param msg: Parlay message (dictionary) that will be modified.
+        :return: None
+        """
+        sender_integer_id = self.from_
+        msg_option = self.option()
+
+        msg['TOPICS']['MSG_STATUS'] = "OK"
+        if msg_option == ResponsePropertyOption.Get_Response:
+            msg['CONTENTS']['ACTION'] = "RESPONSE"
+            id = self.response_code
+
+            msg['CONTENTS']['PROPERTY'] = self.response_code
+            msg['CONTENTS']['VALUE'] = self._get_data()
+        elif msg_option == ResponsePropertyOption.Set_Response:
+            msg['CONTENTS']['ACTION'] = "RESPONSE"
+            msg['CONTENTS']['PROPERTY'] = self.response_code
+            pass  # NOTE: set responses do not have a 'value' field
+        elif msg_option == ResponsePropertyOption.Stream_Response:
+            msg['TOPICS']['MSG_TYPE'] = "STREAM"
+            id = self.response_code
+            if type(id) == int:
+                # convert to stream name ID
+                id = self.get_name_from_id(sender_integer_id, pcom_serial.PCOM_STREAM_NAME_MAP, self.response_code,
+                                           default_val=self.response_code)
+            msg['TOPICS']['STREAM'] = id
+            msg['CONTENTS']['STREAM'] = id
+            msg['CONTENTS']['VALUE'] = self._get_data()
+
+    def _build_parlay_notification(self, msg):
+        """
+        Adds fields to Parlay message <msg> in accordance with Parlay notification spec. (3/15/2017)
+
+        :param msg: Parlay message (dictionary) that will be modified.
+        :return: None
+        """
+
+        msg['TOPICS']["MSG_TYPE"] = "EVENT"
+        msg['CONTENTS']['EVENT'] = self.response_code
+        msg['CONTENTS']['ERROR_CODE'] = self.msg_status
+        msg['CONTENTS']["INFO"] = self.data
+        msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
+        msg['TOPICS']['RESPONSE_REQ'] = False
+
+    def _build_broadcast(self, msg):
+        """
+        Changes message to type BROADCAST.
+
+        :param msg: Parlay message (dictionary) that will be modified.
+        :return: None
+        """
+
+        msg_option = self.option()
+        if msg_option == BroadcastNotificationOptions.External:
+            msg['TOPICS']['TX_TYPE'] = "BROADCAST"
+            if "TO" in msg['TOPICS']:
+                del msg['TOPICS']['TO']
+        else:
+            raise Exception("Received internal broadcast message")
+
+    def _add_notification_msg_status(self, msg):
+        """
+        Adds status fields to Parlay message <msg>
+
+        :param msg: Parlay message (dictionary) that will be modified.
+        :return: None
+        """
+
+        if self.msg_status == 0:
+            msg['TOPICS']['MSG_STATUS'] = "INFO"
+        elif self.msg_status > 0:
+            msg['TOPICS']['MSG_STATUS'] = "ERROR"
+        else:
+            msg['TOPICS']['MSG_STATUS'] = "WARNING"
+
     def to_json_msg(self):
         """
-        :return:
+        Converts from PCOMMessage type to Parlay JSON message. Returns message when translation is complete.
+        :return: Parlay JSON message equivalent of this object
         """
 
-        destination_id = self._get_name_from_id(self.to)
-        destination_integer_id = self.to
-        sender_integer_id = self.from_
-
+        # Initialize our potential JSON message
         msg = {'TOPICS': {}, 'CONTENTS': {}}
-        msg['TOPICS']['TO'] = destination_id
+
+        msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
         msg['TOPICS']['MSG_ID'] = self.msg_id
 
+        # Default the message transmission type to "DIRECt".
+        # This may be changed later if the message is a broadcast notification.
         msg['TOPICS']['TX_TYPE'] = "DIRECT"
 
+        # Retrieve our message components
         msg_category = self.category()
         msg_sub_type = self.sub_type()
         msg_option = self.option()
 
         msg['TOPICS']['RESPONSE_REQ'] = self._is_response_req()
 
+        # Handle Parlay command messages
         if msg_category == MessageCategory.Order:
             if msg_sub_type == OrderSubType.Command:
                 if msg_option == OrderCommandOption.Normal:
-                    msg['TOPICS']['MSG_TYPE'] = "COMMAND"
-                    msg['CONTENTS']['COMMAND'] = self.response_code
-                    msg['CONTENTS']['COMMAND_NAME'] = self.get_name_from_id(destination_integer_id,
-                                                                            pcom_serial.PCOM_COMMAND_NAME_MAP,
-                                                                            self.response_code)
+                    self._build_parlay_command_message(msg)
+
             elif msg_sub_type == OrderSubType.Property:
                 if msg_option == OrderPropertyOption.Get_Property:
-                    msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
-                    msg['CONTENTS']['PROPERTY'] = self.response_code
-                    msg['CONTENTS']['ACTION'] = "GET"
+                    self._build_parlay_property_get_msg(msg)
+
                 elif msg_option == OrderPropertyOption.Set_Property:
-                    msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
-                    msg['CONTENTS']['PROPERTY'] = self.response_code
-                    msg['CONTENTS']['ACTION'] = "SET"
-                    msg['CONTENTS']['VALUE'] = self._get_data()
+                    self._build_parlay_property_set_msg(msg)
+
                 elif msg_option == OrderPropertyOption.Stream_On:
                     raise Exception("Stream on not handled yet")
                 elif msg_option == OrderPropertyOption.Stream_Off:
@@ -303,69 +477,26 @@ class PCOMMessage(object):
             else:
                 raise Exception("Unhandled message subtype {}", msg_sub_type)
 
+        # Handle Parlay responses
         elif msg_category == MessageCategory.Order_Response:
             msg['TOPICS']['MSG_TYPE'] = "RESPONSE"
 
             if self.msg_status != STATUS_SUCCESS:
-                msg['CONTENTS']['ERROR_CODE'] = self.msg_status
-                msg['TOPICS']['MSG_STATUS'] = "ERROR"
-                msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
-                msg['TOPICS']['RESPONSE_REQ'] = False
+                self._build_parlay_error_response_msg(msg)
                 return msg
 
             if msg_sub_type == ResponseSubType.Command:
-                item = pcom_serial.PCOM_COMMAND_MAP.get(self.from_, None)
-
-                if item:
-                    if msg_option == ResponseCommandOption.Complete:
-                        msg['TOPICS']['MSG_STATUS'] = "OK"
-                    elif msg_option == ResponseCommandOption.Inprogress:
-                        msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
-                    cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
-                    self._build_contents_map(cmd["output params"], msg["CONTENTS"])
-                    msg["CONTENTS"]["STATUS"] = self.msg_status
-                    msg["CONTENTS"]["STATUS_NAME"] = "COMMAND COMPLETE"
-                else:
-                    msg['TOPICS']['MSG_STATUS'] = "ERROR"
-                    msg["CONTENTS"]["DESCRIPTION"] = "PCOM ERROR: Could not find item:", self.from_
+                self._build_parlay_command_response(msg)
 
             elif msg_sub_type == ResponseSubType.Property:
-                msg['TOPICS']['MSG_STATUS'] = "OK"
-                if msg_option == ResponsePropertyOption.Get_Response:
-                    msg['CONTENTS']['ACTION'] = "RESPONSE"
-                    id = self.response_code
+                self._build_parlay_property_response(msg)
 
-                    msg['CONTENTS']['PROPERTY'] = self.response_code
-                    msg['CONTENTS']['VALUE'] = self._get_data()
-                elif msg_option == ResponsePropertyOption.Set_Response:
-                    msg['CONTENTS']['ACTION'] = "RESPONSE"
-                    msg['CONTENTS']['PROPERTY'] = self.response_code
-                    pass # NOTE: set responses do not have a 'value' field
-                elif msg_option == ResponsePropertyOption.Stream_Response:
-                    msg['TOPICS']['MSG_TYPE'] = "STREAM"
-                    id = self.response_code
-                    if type(id) == int:
-                        # convert to stream name ID
-                        id = self.get_name_from_id(sender_integer_id, pcom_serial.PCOM_STREAM_NAME_MAP, self.response_code, default_val=self.response_code)
-                    msg['TOPICS']['STREAM'] = id
-                    msg['CONTENTS']['STREAM'] = id
-                    msg['CONTENTS']['VALUE'] = self._get_data()
-
+        # Handle Parlay notifications
         elif msg_category == MessageCategory.Notification:
-            msg['TOPICS']["MSG_TYPE"] = "EVENT"
-            msg['CONTENTS']['EVENT'] = self.response_code
-            msg['CONTENTS']['ERROR_CODE'] = self.msg_status
-            msg['CONTENTS']["INFO"] = self.data
-            msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
-            msg['TOPICS']['RESPONSE_REQ'] = False
+            self._build_parlay_notification(msg)
 
             if msg_sub_type == NotificationSubType.Broadcast:
-                if msg_option == BroadcastNotificationOptions.External:
-                    msg['TOPICS']['TX_TYPE'] = "BROADCAST"
-                    if "TO" in msg['TOPICS']:
-                        del msg['TOPICS']['TO']
-                else:
-                    raise Exception("Received internal broadcast message")
+                self._build_broadcast(msg)
 
             elif msg_option == NotificationSubType.Direct:
                 msg['TOPICS']['TX_TYPE'] = "DIRECT"
@@ -373,38 +504,41 @@ class PCOMMessage(object):
             else:
                 raise Exception("Unhandled notification type")
 
-            if self.msg_status == 0:
-                msg['TOPICS']['MSG_STATUS'] = "INFO"
-            elif self.msg_status > 0:
-                msg['TOPICS']['MSG_STATUS'] = "ERROR"
-            else:
-                msg['TOPICS']['MSG_STATUS'] = "WARNING"
+            self._add_notification_msg_status(msg)
 
         return msg
 
     def _build_contents_map(self, output_param_names, contents_map):
         """
-        Given the output names of a command and a data list, returns a dictionary of output_names -> data
+        Given the output names of a command and a data list, modifies <contents_map> accordingly.
 
-        :param output_param_names: The output names of a command found during discovery
-        :param data_list: The data passed to the protocol from the command
-        :return: a dictionary of output names mapped to their data segments
+        :param output_param_names: The output names of a command found during discovery.
+        :param contents_map: The map that will be produced as part of a Parlay JSON message.
+        :return: None
         """
 
-        # If the first output parameter is a list then simply return
-        # a all of the data
+        # If we don't have any data we do not need add anything to the contents
+        # dictionary.
         if len(self.data) == 0:
             return
 
+        # If there is only one output parameter we need to add a "RESULT" key to the
+        # contents dictionary and fill it with our data as per Parlay spec 3/15/2017.
         if len(output_param_names) == 1:
             contents_map["RESULT"] = self.data[0] if len(self.data) == 1 else self.data
             return
 
+        # If the number of output parameters does not match the number of data pieces
+        # we can not reliably add { output_name -> data } pairs to the CONTENTS dictionary
+        # so we should report an error and not add anything to CONTENTS.
         if len(output_param_names) != len(self.data):
             print "PCOM ERROR: Could not produce contents dictionary for data:", self.data, "and output parameters:", \
                         output_param_names
             return
 
+        # If we got here we know that the number of output parameters is the same
+        # as the number of data pieces so we can match our output parameters to data pieces
+        # 1:1. Simply zip them together and throw them in the CONTENTS dictionary.
         contents_map.update(dict(zip(output_param_names, self.data)))
 
     def category(self):
@@ -424,7 +558,7 @@ class PCOMMessage(object):
     def data(self, value):
         if hasattr(value, '__iter__'):
             self._data = list(value)
-        elif value == None:
+        elif value is None:
             self._data = []
         else:
             self._data = [value]

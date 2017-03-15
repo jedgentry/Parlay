@@ -426,3 +426,9 @@ class TestPCOMMessage(unittest.TestCase):
         self.test_pcom_message.data = []
         self.test_pcom_message._build_contents_map(["p1"], test_contents)
         self.assertEqual({}, test_contents)
+
+        # Test no parameter names
+        test_contents = {}
+        self.test_pcom_message.data = [1, 2, 3, 4]
+        self.test_pcom_message._build_contents_map([], test_contents)
+        self.assertEqual({}, test_contents)
