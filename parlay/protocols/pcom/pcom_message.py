@@ -35,19 +35,9 @@ class PCOMMessage(object):
         # TODO: Change response_req to response_code
 
         # private variables only accessed through @property functions
-
-        self._msg_type = None
-        self._to = None
-        self._from_ = None
-        self._tx_type = None
-        self._response_req = None
-        self._msg_status = None
-        self._contents = None
         self._attributes = None
         self._format_string = ''
         self._data = []
-        self._response_code = None
-        self._topics = None
 
         self.description = description
 
@@ -333,6 +323,8 @@ class PCOMMessage(object):
                         msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
                     cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
                     self._build_contents_map(cmd["output params"], msg["CONTENTS"])
+                    msg["CONTENTS"]["STATUS"] = self.msg_status
+                    msg["CONTENTS"]["STATUS_NAME"] = "COMMAND COMPLETE"
                 else:
                     msg['TOPICS']['MSG_STATUS'] = "ERROR"
                     msg["CONTENTS"]["DESCRIPTION"] = "PCOM ERROR: Could not find item:", self.from_
@@ -401,15 +393,16 @@ class PCOMMessage(object):
 
         # If the first output parameter is a list then simply return
         # a all of the data
-        if len(output_param_names) == 0:
+        if len(self.data) == 0:
             return
 
         if len(output_param_names) == 1:
-            if len(self.data) != 1:
-                print "PCOM ERROR: Command response data:", self.data, "did not match output parameters:", \
-                    output_param_names
-                return
-            contents_map["RESULT"] = self.data[0]
+            contents_map["RESULT"] = self.data[0] if len(self.data) == 1 else self.data
+            return
+
+        if len(output_param_names) != len(self.data):
+            print "PCOM ERROR: Could not produce contents dictionary for data:", self.data, "and output parameters:", \
+                        output_param_names
             return
 
         contents_map.update(dict(zip(output_param_names, self.data)))
@@ -422,30 +415,6 @@ class PCOMMessage(object):
 
     def option(self):
         return (self.msg_type & OPTION_MASK) >> OPTION_SHIFT
-
-    @property
-    def to(self):
-        return self._to
-
-    @to.setter
-    def to(self, value):
-        self._to = value
-
-    @property
-    def from_(self):
-        return self._from_
-
-    @from_.setter
-    def from_(self, value):
-        self._from_ = value
-
-    @property
-    def msg_status(self):
-        return self._msg_status
-
-    @msg_status.setter
-    def msg_status(self, value):
-        self._msg_status = value
 
     @property
     def data(self):
@@ -461,51 +430,6 @@ class PCOMMessage(object):
             self._data = [value]
 
     @property
-    def format_string(self):
-        return self._format_string
-
-    @format_string.setter
-    def format_string(self, value):
-        self._format_string = value
-
-    @property
-    def msg_type(self):
-        return self._msg_type
-
-
-    @msg_type.setter
-    def msg_type(self, value):
-        self._msg_type = value
-
-    @property
-    def command(self):
-        return self._command
-
-    @command.setter
-    def command(self, value):
-        self._event = None
-        self._status = None
-        self._command = value
-
-    @property
-    def response_code(self):
-        return self._response_code
-
-    @response_code.setter
-    def response_code(self, value):
-        self._response_code = value
-
-    @property
-    def event(self):
-        return self._event
-
-    @event.setter
-    def event(self, value):
-        self._event = value
-        self._status = None
-        self._command = None
-
-    @property
     def attributes(self):
         return self._attributes
 
@@ -514,11 +438,3 @@ class PCOMMessage(object):
         self._attributes = value
         if value is not None:
             self.priority = value & 0x01
-
-    @property
-    def msg_status(self):
-        return self._msg_status
-
-    @msg_status.setter
-    def msg_status(self, value):
-        self._msg_status = value

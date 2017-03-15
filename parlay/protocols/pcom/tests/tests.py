@@ -393,7 +393,7 @@ class TestPCOMMessage(unittest.TestCase):
         test_contents = {}
         self.test_pcom_message.data = [1]
         self.test_pcom_message._build_contents_map(["TEST_PARAM"], test_contents)
-        self.assertEqual(test_contents, {"RESULT": 1})
+        self.assertTrue(test_contents, {"RESULT": 1})
 
         # Test 2 data entries
         test_contents = {}
@@ -409,14 +409,20 @@ class TestPCOMMessage(unittest.TestCase):
         self.assertEqual(test_contents, {"TEST_PARAM_1": 1, "TEST_PARAM_2": 2, "TEST_PARAM_3": 3, "TEST_PARAM_4": 4,
                                          "TEST_PARAM_5": 5})
 
-        # Test error condition where data length is not equal to number of parameters
+        # Test list
         test_contents = {}
         self.test_pcom_message.data = [1, 2]
         self.test_pcom_message._build_contents_map(["TEST_PARAM_1"], test_contents)
-        self.assertEqual({}, test_contents)
+        self.assertEqual({"RESULT": [1, 2]}, test_contents)
 
         # Test different data types
         test_contents = {}
         self.test_pcom_message.data = [[1, 2, 3, 4], "hello", u"hello", (5, 6)]
         self.test_pcom_message._build_contents_map(["p1", "p2", "p3", "p4"], test_contents)
         self.assertEqual({"p1": [1, 2, 3, 4], "p2": "hello", "p3": u"hello", "p4": (5, 6)}, test_contents)
+
+        # Test no data error condition
+        test_contents = {}
+        self.test_pcom_message.data = []
+        self.test_pcom_message._build_contents_map(["p1"], test_contents)
+        self.assertEqual({}, test_contents)
