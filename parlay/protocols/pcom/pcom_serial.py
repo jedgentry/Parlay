@@ -150,7 +150,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         self._ack_window.reset_window()
 
-        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+        self._ack_table = {seq_num : defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
     def close(self):
@@ -223,7 +223,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self._in_progress = False
         self._discovery_deferred = defer.Deferred()
 
-        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+        self._ack_table = {seq_num : defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
 
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
@@ -1150,7 +1150,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self._on_packet(*packet_tuple)
         except FailCRC:
             print "Failed CRC"
-        except e:
+        except Exception as e:
             print "Could not decode message because of exception", e
 
 
@@ -1183,7 +1183,7 @@ class SlidingACKWindow:
         self.MAX_ACK_SEQ = 16
         # Initialize lack_acked_map so that none of the first ACKs think they are
         # duplicates. -1 works because no ACK has sequence number -1
-        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
+        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
 
     def ack_received_callback(self, sequence_number):
         """
@@ -1217,7 +1217,7 @@ class SlidingACKWindow:
 
         self._window = {}
         self._queue = []
-        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
+        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
 
     def ack_timeout_errback(self, timeout_failure):
         """

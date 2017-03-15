@@ -343,6 +343,8 @@ class TestPCOMMessage(unittest.TestCase):
     STREAM_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 5, u'FROM': u'DeviceSession', u'MSG_TYPE': u'STREAM'},
                     u'CONTENTS': {u'STOP': False, u'STREAM': u'test_property_stream'}}
 
+    test_pcom_message = PCOMMessage()
+
     def test_property_and_command_names(self):
         TEST_ITEM_ID = 343
         TEST_PROPERTY_MAP = {TEST_ITEM_ID: {'test_property': 1100}}
@@ -379,4 +381,42 @@ class TestPCOMMessage(unittest.TestCase):
         msg = PCOMMessage.from_json_msg(self.STREAM_NAME_MSG)
         self.assertEqual(EXPECTED_STREAM_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
 
+    def test_build_command_map(self):
 
+        # Test empty data and parameter list
+        self.test_pcom_message.data = []
+        test_contents = {}
+        self.test_pcom_message._build_contents_map([], test_contents)
+        self.assertEqual(test_contents, {})
+
+        # Test 1 data entry and 1 parameter, "RESULT" should be a key in contents
+        test_contents = {}
+        self.test_pcom_message.data = [1]
+        self.test_pcom_message._build_contents_map(["TEST_PARAM"], test_contents)
+        self.assertEqual(test_contents, {"RESULT": 1})
+
+        # Test 2 data entries
+        test_contents = {}
+        self.test_pcom_message.data = [1, 2]
+        self.test_pcom_message._build_contents_map(["TEST_PARAM_1", "TEST_PARAM_2"], test_contents)
+        self.assertEqual(test_contents, {"TEST_PARAM_1": 1, "TEST_PARAM_2": 2})
+
+        # Test multiple data entries
+        test_contents = {}
+        self.test_pcom_message.data = [1, 2, 3, 4, 5]
+        self.test_pcom_message._build_contents_map(["TEST_PARAM_1", "TEST_PARAM_2", "TEST_PARAM_3",
+                                                    "TEST_PARAM_4", "TEST_PARAM_5"], test_contents)
+        self.assertEqual(test_contents, {"TEST_PARAM_1": 1, "TEST_PARAM_2": 2, "TEST_PARAM_3": 3, "TEST_PARAM_4": 4,
+                                         "TEST_PARAM_5": 5})
+
+        # Test error condition where data length is not equal to number of parameters
+        test_contents = {}
+        self.test_pcom_message.data = [1, 2]
+        self.test_pcom_message._build_contents_map(["TEST_PARAM_1"], test_contents)
+        self.assertEqual({}, test_contents)
+
+        # Test different data types
+        test_contents = {}
+        self.test_pcom_message.data = [[1, 2, 3, 4], "hello", u"hello", (5, 6)]
+        self.test_pcom_message._build_contents_map(["p1", "p2", "p3", "p4"], test_contents)
+        self.assertEqual({"p1": [1, 2, 3, 4], "p2": "hello", "p3": u"hello", "p4": (5, 6)}, test_contents)

@@ -292,6 +292,9 @@ class PCOMMessage(object):
                 if msg_option == OrderCommandOption.Normal:
                     msg['TOPICS']['MSG_TYPE'] = "COMMAND"
                     msg['CONTENTS']['COMMAND'] = self.response_code
+                    msg['CONTENTS']['COMMAND_NAME'] = self.get_name_from_id(destination_integer_id,
+                                                                            pcom_serial.PCOM_COMMAND_NAME_MAP,
+                                                                            self.response_code)
             elif msg_sub_type == OrderSubType.Property:
                 if msg_option == OrderPropertyOption.Get_Property:
                     msg['TOPICS']['MSG_TYPE'] = "PROPERTY"
@@ -329,10 +332,10 @@ class PCOMMessage(object):
                     elif msg_option == ResponseCommandOption.Inprogress:
                         msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
                     cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
-                    msg['CONTENTS']['RESULT'] = self._get_result_string(cmd["output params"])
+                    self._build_contents_map(cmd["output params"], msg["CONTENTS"])
                 else:
                     msg['TOPICS']['MSG_STATUS'] = "ERROR"
-                    msg['CONTENTS']['RESULT'] = {}
+                    msg["CONTENTS"]["DESCRIPTION"] = "PCOM ERROR: Could not find item:", self.from_
 
             elif msg_sub_type == ResponseSubType.Property:
                 msg['TOPICS']['MSG_STATUS'] = "OK"
@@ -387,7 +390,7 @@ class PCOMMessage(object):
 
         return msg
 
-    def _get_result_string(self, output_param_names):
+    def _build_contents_map(self, output_param_names, contents_map):
         """
         Given the output names of a command and a data list, returns a dictionary of output_names -> data
 
@@ -398,11 +401,18 @@ class PCOMMessage(object):
 
         # If the first output parameter is a list then simply return
         # a all of the data
-        if len(output_param_names) > 0 and output_param_names[0][-2:] == "[]":
-            return {output_param_names[0]: self.data}
-        # Otherwise return a map of output names -> data
-        else:
-            return dict(zip(output_param_names, self.data))
+        if len(output_param_names) == 0:
+            return
+
+        if len(output_param_names) == 1:
+            if len(self.data) != 1:
+                print "PCOM ERROR: Command response data:", self.data, "did not match output parameters:", \
+                    output_param_names
+                return
+            contents_map["RESULT"] = self.data[0]
+            return
+
+        contents_map.update(dict(zip(output_param_names, self.data)))
 
     def category(self):
         return (self.msg_type & CATEGORY_MASK) >> CATEGORY_SHIFT
