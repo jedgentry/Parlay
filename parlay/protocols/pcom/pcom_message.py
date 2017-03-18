@@ -432,6 +432,30 @@ class PCOMMessage(object):
         else:
             msg['TOPICS']['MSG_STATUS'] = "WARNING"
 
+    def _build_parlay_stream_msg(self, msg, is_on):
+        """
+        Adds fields to Parlay message <msg> for stream commands.
+        NOTE: The stream ID is put in contents and topics because some Parlay implementations check for it in
+        TOPICS and some check for it in CONTENTS.
+
+        :param msg: Parlay dictionary message that will be modified.
+        :param is_on: Whether the stream command is turning the stream on or off.
+        :return:
+        """
+
+        sender_integer_id = self.from_
+
+        msg["TOPICS"]["MSG_TYPE"] = "STREAM"
+        if type(id) == int:
+            # convert to stream name ID
+            id = self.get_name_from_id(sender_integer_id, pcom_serial.PCOM_STREAM_NAME_MAP, self.response_code,
+                                       default_val=self.response_code)
+
+        msg["TOPICS"]["STREAM"] = id
+        msg["CONTENTS"]["STREAM"] = id
+        msg["CONTENTS"]["STOP"] = is_on
+        # TODO: Find out from Frances what the data looks like for stream commands
+
     def to_json_msg(self):
         """
         Converts from PCOMMessage type to Parlay JSON message. Returns message when translation is complete.
@@ -470,9 +494,9 @@ class PCOMMessage(object):
                     self._build_parlay_property_set_msg(msg)
 
                 elif msg_option == OrderPropertyOption.Stream_On:
-                    raise Exception("Stream on not handled yet")
+                    self._build_parlay_stream_msg(msg, is_on=True)
                 elif msg_option == OrderPropertyOption.Stream_Off:
-                    raise Exception("Stream off not handled yet")
+                    self._build_parlay_stream_msg(msg, is_on=False)
 
             else:
                 raise Exception("Unhandled message subtype {}", msg_sub_type)

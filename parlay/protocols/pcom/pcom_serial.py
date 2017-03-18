@@ -555,12 +555,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
         self._subsystem_ids = [int(response.data[0])]
-        # print "Subsystems found:", response.data[1]
-
-        # TODO: Explain this in comments
-        d = self._attached_item_d
-        self._attached_item_d = None
-        d.callback(None)
 
     def load_discovery_from_file(self):
 
@@ -749,6 +743,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         if PCOMSerial.discovery_file is not None and self._loaded_from_file is False:
             self.write_discovery_info_to_file(PCOMSerial.discovery_file, discovery_msg)
+
+        if self._discovery_deferred:
+            self._discovery_deferred.callback(discovery_msg)
 
         defer.returnValue(discovery_msg)
 
