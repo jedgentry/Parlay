@@ -556,6 +556,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
         self._subsystem_ids = [int(response.data[0])]
 
+        d = self._attached_item_d
+        self._attached_item_d = None
+        d.callback(None)
+
     def load_discovery_from_file(self):
 
         discovery_msg = {}
@@ -696,7 +700,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         if not PCOMSerial.is_port_attached:
             print "No serial port connected to PCOM"
-            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
+            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Open serial port before discovering"])
             defer.returnValue(BaseProtocol.get_discovery(self))
 
         self._get_attached_items()
@@ -958,12 +962,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         print "Fetching items from subsystem ID: ", subsystem_id
 
         REACTOR = subsystem_id << self.SUBSYSTEM_SHIFT
+        # Fetch error codes
+        self._initialize_reactor_command_map(REACTOR)
         response = yield self.send_command(REACTOR, "DIRECT")
         self._item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
 
-
-        # Fetch error codes
-        self._initialize_reactor_command_map(REACTOR)
         response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_CODES)
         self._error_codes = [int(error_code) for error_code in response.data]
 
@@ -1135,8 +1138,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        # print "--->Line received was called!"
-        # print [hex(ord(x)) for x in line]
+        print "--->Line received was called!"
+        print [hex(ord(x)) for x in line]
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()

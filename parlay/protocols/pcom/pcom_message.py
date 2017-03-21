@@ -343,16 +343,23 @@ class PCOMMessage(object):
         msg_option = self.option()
         item = pcom_serial.PCOM_COMMAND_MAP.get(self.from_, None)
 
-        if item:
+        if item or self.response_code == 0:
             if msg_option == ResponseCommandOption.Complete:
                 msg['TOPICS']['MSG_STATUS'] = "OK"
             elif msg_option == ResponseCommandOption.Inprogress:
                 msg['TOPICS']['MSG_STATUS'] = "PROGRESS"
-            cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
-            self._build_contents_map(cmd["output params"], msg["CONTENTS"])
+
         else:
-            msg['TOPICS']['MSG_STATUS'] = "ERROR"
+            msg["TOPICS"]["MSG_STATUS"] = "ERROR"
             msg["CONTENTS"]["DESCRIPTION"] = "PCOM ERROR: Could not find item:", self.from_
+
+        if self.response_code == 0:
+            self._build_contents_map(["Subsystems"], msg["CONTENTS"])
+            return
+
+        cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
+        self._build_contents_map(cmd["output params"], msg["CONTENTS"])
+
 
     def _build_parlay_property_response(self, msg):
         """
