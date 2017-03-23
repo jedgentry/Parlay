@@ -98,17 +98,16 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     ACK_DIFFERENTIAL = 8
 
     # timeout before resend in secs
-    ACK_TIMEOUT = 10
+    ACK_TIMEOUT = 3
 
     ERROR_STATUS = DISCOVERY_CODE << 16
 
     is_port_attached = False
 
-    import_discovery_file =  None
-    export_discovery_file = None
+    discovery_file = None
 
     @classmethod
-    def open(cls, adapter, port, import_discovery_file=None, export_discovery_file=None):
+    def open(cls, adapter, port, discovery_file=None):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
@@ -117,12 +116,20 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: returns the instantiated protocol object
         '"""
 
-        cls.import_discovery_file = import_discovery_file
-        cls.export_discovery_file = export_discovery_file
-
+        cls.discovery_file = discovery_file
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter, port)
+
+        cls._open_port(protocol, port, adapter)
+
+        if not cls.is_port_attached:
+            raise Exception("Unable to find connected embedded device.")
+
+        return protocol
+
+    @classmethod
+    def _open_port(cls, protocol, port, adapter):
         try:
             SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
             cls.is_port_attached = True
@@ -130,7 +137,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             print "Unable to open port because of error (exception):", E
             raise E
 
-        return protocol
+    @staticmethod
+    def _filter_com_ports(potential_com_ports):
+
+        def _is_valid_port(port):
+            return "STM32 Virtual ComPort" in port[1] or "USB Serial Converter" in port[1]
+
+        result_list = []
+        for port in potential_com_ports:
+            if len(port) > 1:
+                if _is_valid_port(port):
+                    result_list.append(port)
+
+        return result_list if result_list else potential_com_ports
 
     @classmethod
     def get_open_params_defaults(cls):
@@ -139,23 +158,23 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: default args: the default arguments provided to the user in the UI
         """
 
-        default_args = BaseProtocol.get_open_params_defaults()
-        potential_serials = [port_list[0] for port_list in list_ports.comports()]
-        default_args['port'] = potential_serials
+        cls.default_args = BaseProtocol.get_open_params_defaults()
+        print "Available COM ports:", list_ports.comports()
 
-        return default_args
+        filtered_comports = cls._filter_com_ports(list_ports.comports())
+        potential_serials = [port_list[0] for port_list in filtered_comports]
+        cls.default_args['port'] = potential_serials
+
+        return cls.default_args
 
     def reset(self):
-
-        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_COMMAND_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_PROPERTY_NAME_MAP, \
-                        PCOM_STREAM_NAME_MAP
 
         self._event_id_generator = message_id_generator((2 ** self.NUM_EVENT_ID_BITS))
         self._seq_num = message_id_generator((2 ** self.SEQ_BITS))
 
         self._ack_window.reset_window()
 
-        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+        self._ack_table = {seq_num : defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
     def close(self):
@@ -174,12 +193,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
         :param adapter: The adapter that will serve as an interface for interacting with the broker
         """
+
         self._port = port
         # A list of items that we will need to discover for.
         # The base protocol will use this dictionary to feed items to
         # the UI
         self.items = []
         self._error_codes = []
+        self._loaded_from_file = False
 
         # The list of connected item IDs found in the initial sweep in
         # connectionMade()
@@ -227,7 +248,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self._in_progress = False
         self._discovery_deferred = defer.Deferred()
 
-        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+        self._ack_table = {seq_num : defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
 
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
@@ -530,14 +551,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     def connectionMade(self):
         """
         The initializer for the protocol. This function is called when a connection to the server
-        (broker in our case) has been established. Keep this function LIGHT, it should not take a long time
-        to fetch the subsystem and item IDs. The user typically shouldn't notice.
-
-        I wrote a function _get_attached_items() that is called here and also when a discovery takes place.
-        :return: None
+        (broker in our case) has been established.
         """
-
-        self._get_attached_items()
         return
 
     @defer.inlineCallbacks
@@ -565,9 +580,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
         self._subsystem_ids = [int(response.data[0])]
-        # print "Subsystems found:", response.data[1]
 
-        # TODO: Explain this in comments
         d = self._attached_item_d
         self._attached_item_d = None
         d.callback(None)
@@ -577,7 +590,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         discovery_msg = {}
 
         try:
-            discovery_file = open(PCOMSerial.import_discovery_file)
+            discovery_file = open(PCOMSerial.discovery_file)
         except Exception as e:
             print "Could not open discovery file because of exception: ", e
             return discovery_msg
@@ -651,6 +664,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         dict_to_write["PCOM_STREAM_NAME_MAP"] = PCOM_STREAM_NAME_MAP
         dict_to_write["DISCOVERY"] = discovery_msg
         json.dump(dict_to_write, discovery_file)
+        print "Discovery written to:", file_name
         discovery_file.close()
 
     @staticmethod
@@ -676,12 +690,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_COMMAND_MAP[item_id][RESET_ITEM] = PCOMSerial.build_command_info("", [], [])
         PCOM_COMMAND_MAP[item_id][GET_ITEM_NAME] = PCOMSerial.build_command_info("", [], ["Item name"])
         PCOM_COMMAND_MAP[item_id][GET_ITEM_TYPE] = PCOMSerial.build_command_info("", [], ["Item type"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_IDS] = PCOMSerial.build_command_info("", [], ["Command IDs"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_IDS] = PCOMSerial.build_command_info("", [], ["Property IDs"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_IDS] = PCOMSerial.build_command_info("", [], ["Command IDs[]"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_IDS] = PCOMSerial.build_command_info("", [], ["Property IDs[]"])
         PCOM_COMMAND_MAP[item_id][GET_COMMAND_NAME] = PCOMSerial.build_command_info("H", ["command_id"], ["Command name"])
         PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input format"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input names"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input output"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input names[]"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input output description"])
         PCOM_COMMAND_MAP[item_id][GET_PROPERTY_NAME] = PCOMSerial.build_command_info("H", ["property_id"], ["Property name"])
         PCOM_COMMAND_MAP[item_id][GET_PROPERTY_TYPE] = PCOMSerial.build_command_info("H", ["property_id"], ["Property type"])
         PCOM_COMMAND_MAP[item_id][GET_PROPERTY_DESC] = PCOMSerial.build_command_info("H", ["property_id"], ["Property desc"])
@@ -710,18 +724,21 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
 
         if not PCOMSerial.is_port_attached:
-            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
+            print "No serial port connected to PCOM"
+            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Open serial port before discovering"])
             defer.returnValue(BaseProtocol.get_discovery(self))
 
-        if PCOMSerial.import_discovery_file is None:
-            print "No discovery file specified, retrieving information from board"
-        else:
-            discovery_msg = self.load_discovery_from_file()
-            defer.returnValue(discovery_msg)
+        self._get_attached_items()
 
-        print "----------------------------"
-        print "Discovery function started!"
-        print "----------------------------"
+        if PCOMSerial.discovery_file is not None:
+            discovery_msg = self.load_discovery_from_file()
+            if discovery_msg != {}:
+                self._loaded_from_file = True
+                defer.returnValue(discovery_msg)
+
+        self._loaded_from_file = False
+
+        print "Unable to load discovery from file, fetching items from embedded system..."
 
         t1 = time.time()
 
@@ -752,8 +769,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # By calling BaseProtocol's get_discovery() function we can get that information
         # to the adapter and furthermore to the broker.
         discovery_msg = BaseProtocol.get_discovery(self)
-        if PCOMSerial.export_discovery_file is not None:
-            self.write_discovery_info_to_file(PCOMSerial.export_discovery_file, discovery_msg)
+
+        if PCOMSerial.discovery_file is not None and self._loaded_from_file is False:
+            self.write_discovery_info_to_file(PCOMSerial.discovery_file, discovery_msg)
+
+        if self._discovery_deferred:
+            self._discovery_deferred.callback(discovery_msg)
 
         defer.returnValue(discovery_msg)
 
@@ -855,14 +876,16 @@ class PCOMSerial(BaseProtocol, LineReceiver):
          :return:
          """
 
-        if len(format_char) < 1:
+        if len(format_char) == 0:
             return INPUT_TYPES.STRING
+        if len(format_char) > 1:
+            return INPUT_TYPES.ARRAY
 
         if format_char in PCOM_SERIAL_NUMBER_INPUT_CHARS:
             return INPUT_TYPES.NUMBER
-        elif format_char[0] == PCOM_SERIAL_STRING_INPUT_CHARS:
+        elif format_char[0] == PCOM_SERIAL_ARRAY_INPUT_CHARS:
             return INPUT_TYPES.ARRAY
-        elif format_char in PCOM_SERIAL_ARRAY_INPUT_CHARS:
+        elif format_char in PCOM_SERIAL_STRING_INPUT_CHARS:
             return INPUT_TYPES.STRING
         else:
             print "Invalid format character", format_char, "defaulting to INPUT TYPE STRING"
@@ -964,12 +987,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         print "Fetching items from subsystem ID: ", subsystem_id
 
         REACTOR = subsystem_id << self.SUBSYSTEM_SHIFT
+        # Fetch error codes
+        self._initialize_reactor_command_map(REACTOR)
         response = yield self.send_command(REACTOR, "DIRECT")
         self._item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
 
-
-        # Fetch error codes
-        self._initialize_reactor_command_map(REACTOR)
         response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_CODES)
         self._error_codes = [int(error_code) for error_code in response.data]
 
@@ -1144,6 +1166,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # print "--->Line received was called!"
         # print [hex(ord(x)) for x in line]
 
+        # self.byte_accumulator += len(line) + 1
+        # print self.byte_accumulator
+
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
         start_byte_index = (line.rfind(START_BYTE_STR) + 1)
@@ -1153,7 +1178,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self._on_packet(*packet_tuple)
         except FailCRC:
             print "Failed CRC"
-        except e:
+        except Exception as e:
             print "Could not decode message because of exception", e
 
 
@@ -1186,7 +1211,7 @@ class SlidingACKWindow:
         self.MAX_ACK_SEQ = 16
         # Initialize lack_acked_map so that none of the first ACKs think they are
         # duplicates. -1 works because no ACK has sequence number -1
-        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
+        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
 
     def ack_received_callback(self, sequence_number):
         """
@@ -1220,7 +1245,7 @@ class SlidingACKWindow:
 
         self._window = {}
         self._queue = []
-        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
+        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
 
     def ack_timeout_errback(self, timeout_failure):
         """
@@ -1253,6 +1278,9 @@ class SlidingACKWindow:
 
         ack_info.deferred.addCallback(self.ack_received_callback)
         ack_info.deferred.addErrback(self.ack_timeout_errback)
+
+        # print "SENT -- >"
+        # print [hex(ord(x)) for x in ack_info.packet]
 
         ack_info.transport.write(ack_info.packet)
         self.ack_timeout(ack_info.deferred, PCOMSerial.ACK_TIMEOUT, ack_info.sequence_number)
@@ -1302,7 +1330,6 @@ class SlidingACKWindow:
         d.addCallback(clean_up_timer)
 
 
-
 class TimeoutException(Exception):
     """
     A custom exception used to be passed to the timeout errback for ACKs.
@@ -1312,7 +1339,6 @@ class TimeoutException(Exception):
 
     def __init__(self, sequence_number):
         self.sequence_number = sequence_number
-
 
 
 
