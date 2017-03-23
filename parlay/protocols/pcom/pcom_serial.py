@@ -785,6 +785,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if self._discovery_deferred:
             self._discovery_deferred.callback(discovery_msg)
 
+        # reset discovery deferred
+        self._discovery_deferred = defer.Deferred()
+
         defer.returnValue(discovery_msg)
 
 
