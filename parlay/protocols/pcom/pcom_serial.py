@@ -56,6 +56,10 @@ PCOM_PROPERTY_NAME_MAP = {}
 # item ID -> Stream name -> Stream ID
 PCOM_STREAM_NAME_MAP = {}
 
+# Store a map of item ID to item names
+# item ID -> item name
+PCOM_ITEM_NAME_MAP = {}
+
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
 # name = string representing the name of the property
@@ -144,10 +148,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return "STM32 Virtual ComPort" in port[1] or "USB Serial Converter" in port[1]
 
         result_list = []
-        for port in potential_com_ports:
-            if len(port) > 1:
-                if _is_valid_port(port):
-                    result_list.append(port)
+        try:
+            for port in potential_com_ports:
+                if len(port) > 1:
+                    if _is_valid_port(port):
+                        result_list.append(port)
+        except Exception as e:
+            print "could not filter ports because of exception:", e
+            return potential_com_ports
 
         return result_list if result_list else potential_com_ports
 
@@ -316,7 +324,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return d
 
         # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
-
 
         # Write to serial line! Good luck packet.
         self._ack_window.add(ACKInfo(sequence_num, 0, packet, self.transport))
@@ -989,6 +996,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         REACTOR = subsystem_id << self.SUBSYSTEM_SHIFT
         # Fetch error codes
         self._initialize_reactor_command_map(REACTOR)
+        PCOM_ITEM_NAME_MAP[REACTOR] = "REACTOR"
         response = yield self.send_command(REACTOR, "DIRECT")
         self._item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
 
@@ -1010,6 +1018,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
             item_name = str(response.data[0])
 
+            PCOM_ITEM_NAME_MAP[item_id] = item_name
             parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)
 
             response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
@@ -1163,8 +1172,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        # print "--->Line received was called!"
-        # print [hex(ord(x)) for x in line]
+        print "--->Line received was called!"
+        print [hex(ord(x)) for x in line]
 
         # self.byte_accumulator += len(line) + 1
         # print self.byte_accumulator

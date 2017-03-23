@@ -29,6 +29,8 @@ class PCOMMessage(object):
 
     VALID_JSON_MESSAGE_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
 
+    GLOBAL_ERROR_CODE_ID = 0xff
+
     def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None, attributes=0,
                  response_code=None, response_req=None, msg_status=None, contents=None, data=None, data_fmt=None, topics=None, description=''):
 
@@ -324,10 +326,20 @@ class PCOMMessage(object):
         :return: None
         """
 
+        def _get_item_name_from_error_code(error_code):
+            return (self.from_ & 0xff00) | (error_code >> 8)
+
+        def _get_specific_code(error_code):
+            if error_code >> 8 != self.GLOBAL_ERROR_CODE_ID:
+                return error_code & 0xFF
+            return error_code
+
         msg['CONTENTS']['ERROR_CODE'] = self.msg_status
         msg['TOPICS']['MSG_STATUS'] = "ERROR"
         msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
         msg['TOPICS']['RESPONSE_REQ'] = False
+        msg['CONTENTS']['ERROR ORIGIN'] = pcom_serial.PCOM_ITEM_NAME_MAP.get(_get_item_name_from_error_code(self.msg_status), "REACTOR")
+        msg['CONTENTS']['ITEM SPECIFIC ERROR CODE'] = _get_specific_code(self.msg_status)
 
     def _build_parlay_command_response(self, msg):
         """
@@ -359,7 +371,6 @@ class PCOMMessage(object):
 
         cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
         self._build_contents_map(cmd["output params"], msg["CONTENTS"])
-
 
     def _build_parlay_property_response(self, msg):
         """
@@ -474,6 +485,7 @@ class PCOMMessage(object):
 
         msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
+        msg['TOPICS']['FROM_NAME'] = pcom_serial.PCOM_ITEM_NAME_MAP.get(self.from_, "")
         msg['TOPICS']['MSG_ID'] = self.msg_id
 
         # Default the message transmission type to "DIRECt".
