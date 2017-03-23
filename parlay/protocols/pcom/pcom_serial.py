@@ -98,7 +98,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     ACK_DIFFERENTIAL = 8
 
     # timeout before resend in secs
-    ACK_TIMEOUT = 10
+    ACK_TIMEOUT = 3
 
     ERROR_STATUS = DISCOVERY_CODE << 16
 
@@ -117,10 +117,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         '"""
 
         cls.discovery_file = discovery_file
-
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter, port)
+
+        cls._open_port(protocol, port, adapter)
+
+        if not cls.is_port_attached:
+            raise Exception("Unable to find connected embedded device.")
+
+        return protocol
+
+    @classmethod
+    def _open_port(cls, protocol, port, adapter):
         try:
             SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
             cls.is_port_attached = True
@@ -128,7 +137,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             print "Unable to open port because of error (exception):", E
             raise E
 
-        return protocol
+    @staticmethod
+    def _filter_com_ports(potential_com_ports):
+
+        def _is_valid_port(port):
+            return "STM32 Virtual ComPort" in port[1] or "USB Serial Converter" in port[1]
+
+        result_list = []
+        for port in potential_com_ports:
+            if len(port) > 1:
+                if _is_valid_port(port):
+                    result_list.append(port)
+
+        return result_list if result_list else potential_com_ports
 
     @classmethod
     def get_open_params_defaults(cls):
@@ -137,11 +158,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: default args: the default arguments provided to the user in the UI
         """
 
-        default_args = BaseProtocol.get_open_params_defaults()
-        potential_serials = [port_list[0] for port_list in list_ports.comports()]
-        default_args['port'] = potential_serials
+        cls.default_args = BaseProtocol.get_open_params_defaults()
+        print "Available COM ports:", list_ports.comports()
 
-        return default_args
+        filtered_comports = cls._filter_com_ports(list_ports.comports())
+        potential_serials = [port_list[0] for port_list in filtered_comports]
+        cls.default_args['port'] = potential_serials
+
+        return cls.default_args
 
     def reset(self):
 
@@ -169,6 +193,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
         :param adapter: The adapter that will serve as an interface for interacting with the broker
         """
+
         self._port = port
         # A list of items that we will need to discover for.
         # The base protocol will use this dictionary to feed items to
@@ -1138,8 +1163,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        print "--->Line received was called!"
-        print [hex(ord(x)) for x in line]
+        # print "--->Line received was called!"
+        # print [hex(ord(x)) for x in line]
+
+        # self.byte_accumulator += len(line) + 1
+        # print self.byte_accumulator
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
@@ -1251,6 +1279,9 @@ class SlidingACKWindow:
         ack_info.deferred.addCallback(self.ack_received_callback)
         ack_info.deferred.addErrback(self.ack_timeout_errback)
 
+        # print "SENT -- >"
+        # print [hex(ord(x)) for x in ack_info.packet]
+
         ack_info.transport.write(ack_info.packet)
         self.ack_timeout(ack_info.deferred, PCOMSerial.ACK_TIMEOUT, ack_info.sequence_number)
         self._window[ack_info.sequence_number] = ack_info
@@ -1299,7 +1330,6 @@ class SlidingACKWindow:
         d.addCallback(clean_up_timer)
 
 
-
 class TimeoutException(Exception):
     """
     A custom exception used to be passed to the timeout errback for ACKs.
@@ -1309,7 +1339,6 @@ class TimeoutException(Exception):
 
     def __init__(self, sequence_number):
         self.sequence_number = sequence_number
-
 
 
 
