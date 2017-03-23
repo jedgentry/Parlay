@@ -326,19 +326,21 @@ class PCOMMessage(object):
         :return: None
         """
 
-        def _get_item_name_from_error_code(error_code):
-            return (self.from_ & 0xff00) | (error_code >> 8)
+        def _get_id_name_from_error_code(error_code):
+            if error_code >> pcom_serial.PCOMSerial.SUBSYSTEM_SHIFT == self.GLOBAL_ERROR_CODE_ID:
+                return self.from_
+            return (self.from_ & pcom_serial.PCOMSerial.SUBSYSTEM_ID_MASK) | (error_code >> pcom_serial.PCOMSerial.SUBSYSTEM_SHIFT)
 
         def _get_specific_code(error_code):
-            if error_code >> 8 != self.GLOBAL_ERROR_CODE_ID:
-                return error_code & 0xFF
+            if error_code >> pcom_serial.PCOMSerial.SUBSYSTEM_SHIFT != self.GLOBAL_ERROR_CODE_ID:
+                return error_code & pcom_serial.PCOMSerial.ITEM_ID_MASK
             return error_code
 
         msg['CONTENTS']['ERROR_CODE'] = self.msg_status
         msg['TOPICS']['MSG_STATUS'] = "ERROR"
         msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
         msg['TOPICS']['RESPONSE_REQ'] = False
-        msg['CONTENTS']['ERROR ORIGIN'] = pcom_serial.PCOM_ITEM_NAME_MAP.get(_get_item_name_from_error_code(self.msg_status), "REACTOR")
+        msg['CONTENTS']['ERROR ORIGIN'] = pcom_serial.PCOM_ITEM_NAME_MAP.get(_get_id_name_from_error_code(self.msg_status), "REACTOR")
         msg['CONTENTS']['ITEM SPECIFIC ERROR CODE'] = _get_specific_code(self.msg_status)
 
     def _build_parlay_command_response(self, msg):

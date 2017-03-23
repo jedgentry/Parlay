@@ -89,6 +89,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     EMBD_REACTOR_ID = 0
     BROADCAST_SUBSYSTEM_ID = 0x8000
     SUBSYSTEM_SHIFT = 8
+    SUBSYSTEM_ID_MASK = 0xFF00
+    ITEM_ID_MASK = 0xFF
 
     # Number of bits we have for sequence number
     SEQ_BITS = 4
@@ -1172,11 +1174,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return:
         """
 
-        print "--->Line received was called!"
-        print [hex(ord(x)) for x in line]
-
-        # self.byte_accumulator += len(line) + 1
-        # print self.byte_accumulator
+        # print "--->Line received was called!"
+        # print [hex(ord(x)) for x in line]
 
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
