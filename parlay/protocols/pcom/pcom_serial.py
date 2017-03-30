@@ -279,6 +279,20 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         except Exception as e:
             print "Unhandled exception in function: to_json_msg():", e
 
+    def broadcast_error_message(self, error_id, description, info):
+
+        try:
+
+            json_msg = {
+                {"TOPICS": {
+                    "TX_TYPE": "BROADCAST",
+                    "MSG_TYPE": "ERROR",
+                    "MSG_ID": self._event_id_generator.next(),
+
+                }}}
+        except:
+            pass
+
     def _message_queue_handler(self, message):
         """
         This is the callback function given to the MessageQueue object that is called
@@ -547,6 +561,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # If we need to wait the result should be a deferred object.
         if response_req:
             result = defer.Deferred()
+            result.addErrback()
             # Add the correct mapping to the dictionary
             self._discovery_msg_ids[event_id] = result
 
@@ -556,6 +571,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # Return the Deferred object if we need to
         return result
+
+    def _command_timeout_errback(self):
+        """
+
+        :return:
+        """
 
     def connectionMade(self):
         """
@@ -1283,6 +1304,7 @@ class SlidingACKWindow:
             return self.TIMEOUT
 
         del self._window[timeout_failure.value.sequence_number]
+
         return self.EXPIRED
 
     def add_to_window(self, ack_info):
