@@ -258,7 +258,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self._in_progress = False
         self._discovery_deferred = defer.Deferred()
 
-        self._ack_table = {seq_num : defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
+        self._ack_table = {seq_num: defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
 
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
@@ -616,7 +616,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     def process_data_file(self, data):
 
-        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_PROPERTY_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_STREAM_NAME_MAP, PCOM_COMMAND_MAP, PCOM_COMMAND_NAME_MAP
+        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_PROPERTY_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_STREAM_NAME_MAP, \
+            PCOM_COMMAND_MAP, PCOM_COMMAND_NAME_MAP, PCOM_ITEM_NAME_MAP
 
         def _convert_item_ids_to_int(map):
             return {int(k): v for k, v in map.items()}
@@ -648,6 +649,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_STREAM_NAME_MAP = data["PCOM_STREAM_NAME_MAP"]
         PCOM_STREAM_NAME_MAP = _convert_item_ids_to_int(PCOM_STREAM_NAME_MAP)
 
+        PCOM_ITEM_NAME_MAP = data["PCOM_ITEM_NAME_MAP"]
+        PCOM_ITEM_NAME_MAP = _convert_item_ids_to_int(PCOM_ITEM_NAME_MAP)
+
         discovery_msg = data["DISCOVERY"]
 
         for item in discovery_msg["CHILDREN"]:
@@ -671,6 +675,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         dict_to_write["PCOM_PROPERTY_MAP"] = PCOM_PROPERTY_MAP
         dict_to_write["PCOM_PROPERTY_NAME_MAP"] = PCOM_PROPERTY_NAME_MAP
         dict_to_write["PCOM_STREAM_NAME_MAP"] = PCOM_STREAM_NAME_MAP
+        dict_to_write["PCOM_ITEM_NAME_MAP"] = PCOM_ITEM_NAME_MAP
         dict_to_write["DISCOVERY"] = discovery_msg
         json.dump(dict_to_write, discovery_file)
         print "Discovery written to:", file_name
