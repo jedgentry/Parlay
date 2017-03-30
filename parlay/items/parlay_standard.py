@@ -271,7 +271,7 @@ class ParlayProperty(object):
     """
 
     def __init__(self, default=None, val_type=str, read_only=False, write_only=False,
-                 custom_read=None, custom_write=None):
+                 custom_read=None, custom_write=None, callback=lambda _:_):
         """
         Init method for the ParlayProperty class
 
@@ -291,6 +291,8 @@ class ParlayProperty(object):
         self._val_type = val_type
         self._custom_read = custom_read
         self._custom_write = custom_write
+        self._callback = callback
+        self.listeners = {}  # dict: item instance -> { dict: requester_id -> listener}
         # can't be both read and write only
         assert(not(self._read_only and write_only))
 
@@ -313,39 +315,6 @@ class ParlayProperty(object):
         val = value if self._val_type is None else self._val_type(value)
         self._val_lookup[instance] = val if self._custom_write is None else self._custom_write(val)
 
-
-class ParlayDatastream(object):
-    """
-    A convenience class for creating datastreams within ParlayCommandItems.
-
-    Example Usage::
-
-        class Balloon(ParlayCommandItem):
-            altitude = ParlayDatastream(default=0, units="ft")
-    """
-
-    def __init__(self, default=None, val_type=None, units="", callback=lambda _: _):
-        """
-        Init method for ParlayDatastream class
-
-        :param default: default value for the streaming data
-        :param units: optional string indicating units, to be returned during discovery
-        :param callback: a functiomn to call with the new value every time this datastream changes
-        :return:
-        """
-        self._default_val = default
-        self.listeners = {}  # dict: item instance -> { dict: requester_id -> listener}
-        self.units = units
-        self.broker = Broker.get_instance()
-        self._vals = {}  # dict: item instance -> value
-        self._val_type = val_type
-        self._callback = callback
-
-    def __get__(self, instance, objtype=None):
-        return self._vals.get(instance, self._default_val)
-
-    def __set__(self, instance, value):
-        self._vals[instance] = value  # set the actual value
         for listener in self.listeners.get(instance, {}).values():
             listener(value)  # call any listeners
         self._callback(value)  # call my callback
@@ -367,6 +336,13 @@ class ParlayDatastream(object):
             del listener_dict[requester_id]
 
 
+class ParlayDatastream(ParlayProperty):
+    """Deprecated"""
+
+    units = None  # deprecated units
+    def __init__(self, *args, **kwargs):
+        print "DATASTREAMS ARE DEPRECATED"
+        ParlayProperty.__init__(self, *args, read_only=True, **kwargs)
 
 
 class BadStatusError(Exception):
