@@ -1038,9 +1038,9 @@ class CommandHandle(object):
         # if the  status is OK, then get the result, optherwise get the description
         status = msg["TOPICS"].get("MSG_STATUS", None)
         if status == MSG_STATUS.OK:
-            return msg["CONTENTS"]["RESULT"]
+            return msg["CONTENTS"].get("RESULT", msg["CONTENTS"])
         elif status == MSG_STATUS.ERROR:
-            raise BadStatusError("Error returned from item", msg["CONTENTS"].get("DESCRIPTION", ""))
+            raise BadStatusError("Error returned from item:", msg["CONTENTS"].get("DESCRIPTION", ""))
 
     @run_in_thread
     def wait_for_ack(self):
