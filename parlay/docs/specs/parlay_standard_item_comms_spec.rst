@@ -42,9 +42,10 @@ The Parlay-defined keys of the "TOPICS" object are as follows:
 |                 |             | A Response to this message will                   |
 |                 |             | use the same number.                              |
 +-----------------+-------------+---------------------------------------------------+
-| "MSG\_STATUS"   | No          | See `Valid Values for MSG\_STATUS                 |
+| "MSG\_STATUS"   | Conditional | See `Valid Values for MSG\_STATUS                 |
 |                 |             | key <#valid-values-for-MSG_STATUS-key>`__ section |
-|                 |             | below                                             |
+|                 |             | below. Required for message with                  |
+|                 |             | MSG\_TYPE = "RESPONSE".                           |
 +-----------------+-------------+---------------------------------------------------+
 | "FROM"          | Yes         | The ID of the object this is message is from      |
 +-----------------+-------------+---------------------------------------------------+
@@ -87,29 +88,31 @@ fields in the "CONTENTS" object are defined the discovery information
 provided by the Protocol. However, some fields are required based on the
 value of the MSG\_TYPE field in the TOPICS object:
 
-+------------------+-----------------+-------------+----------------------------------------+
-| TOPICS/MSG\_TYPE | CONTENTS Key    | Required?   | Value                                  |
-|                  |                 |             |                                        |
-+==================+=================+=============+========================================+
-| "COMMAND"        | "COMMAND"       | Yes         | Command identifier (string or number)  |
-+------------------+-----------------+-------------+----------------------------------------+
-| "COMMAND"        | "COMMAND\_NAME" | No          | String name of command for display     |
-|                  |                 |             | (default display is the Command        |
-|                  |                 |             | identifier)                            |
-+------------------+-----------------+-------------+----------------------------------------+
-| "RESPONSE"       | "STATUS"        | Yes         | Response status identifier (string or  |
-|                  |                 |             | number)                                |
-+------------------+-----------------+-------------+----------------------------------------+
-| "RESPONSE"       | "STATUS\_NAME"  | No          | String name of status for display      |
-|                  |                 |             | (default display is the Response       |
-|                  |                 |             | status identifier                      |
-+------------------+-----------------+-------------+----------------------------------------+
-| "EVENT"          | "EVENT"         | Yes         | Event identifier (string or number)    |
-+------------------+-----------------+-------------+----------------------------------------+
-| "EVENT"          | "EVENT\_NAME"   | No          | String name of event identifier for    |
-|                  |                 |             | display (default display is the event  |
-|                  |                 |             | identifier                             |
-+------------------+-----------------+-------------+----------------------------------------+
++------------------+----------------------+-------------+----------------------------------------+
+| TOPICS/MSG\_TYPE | CONTENTS Key         | Required?   | Value                                  |
+|                  |                      |             |                                        |
++==================+======================+=============+========================================+
+| "COMMAND"        | "COMMAND"            | Yes         | Command identifier (string or number)  |
++------------------+----------------------+-------------+----------------------------------------+
+| "COMMAND"        | "COMMAND\_NAME"      | No          | String name of command for display     |
+|                  |                      |             | (default display is the Command        |
+|                  |                      |             | identifier)                            |
++------------------+----------------------+-------------+----------------------------------------+
+| "RESPONSE"       | "RESULT"             | Conditional | Required if there is only one response |
+|                  |                      |             | parameter for the command. Should      |
+|                  |                      |             | contain the response data.             |
++------------------+----------------------+-------------+----------------------------------------+
+| "RESPONSE"       | "<OUTPUT\_PARAMETER>"| Conditional | For responses that have more than one  |
+|                  |                      |             | piece of data a map of output          |
+|                  |                      |             | parameters to data should be placed in | 
+|                  |                      |             | CONTENTS.                              |
++------------------+----------------------+-------------+----------------------------------------+
+| "EVENT"          | "EVENT"              | Yes         | Event identifier (string or number)    |
++------------------+----------------------+-------------+----------------------------------------+
+| "EVENT"          | "EVENT\_NAME"        | No          | String name of event identifier for    |
+|                  |                      |             | display (default display is the event  |
+|                  |                      |             | identifier                             |
++------------------+----------------------+-------------+----------------------------------------+
 
 If a message is "MSG\_TYPE": "EVENT", or "MSG\_TYPE": "RESPONSE" and
 "MSG\_STATUS": "ERROR", then the Parlay Standard Item UI can display
