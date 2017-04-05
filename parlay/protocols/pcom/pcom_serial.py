@@ -1059,12 +1059,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         property_desc = property_info_list[2]
 
         PCOM_PROPERTY_NAME_MAP[item_id][property_name] = property_id
-        PCOM_STREAM_NAME_MAP[item_id][property_name + "_stream"] = property_id
+        PCOM_STREAM_NAME_MAP[item_id][property_name] = property_id
 
         PCOM_PROPERTY_MAP[item_id][property_id] = PCOMSerial.build_property_data(property_name, property_type)
 
         parlay_item.add_property(property_id, name=property_name, attr_name=property_name, input=PCOMSerial._get_input_type(property_type))
-        parlay_item.add_datastream(property_name + "_stream", name=property_name + "_stream", attr_name=property_name + "_stream")
+        parlay_item.add_datastream(property_name, name=property_name, attr_name=property_name)
 
         return
 
