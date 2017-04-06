@@ -7,7 +7,6 @@ from twisted.python import failure
 from parlay.server.broker import run_in_broker, run_in_thread
 
 
-
 class ParlayStandardScriptProxy(object):
     """
     A proxy class for the script to use, that will auto-detect discovery information and allow script writers to
@@ -306,7 +305,6 @@ class CommandHandle(object):
         # add our listener
         self._script.add_listener(self._generic_on_message)
 
-
     def _generic_on_message(self, msg):
         """
         Listener function that powers the handle.
@@ -355,7 +353,7 @@ class CommandHandle(object):
         # if the  status is OK, then get the result, optherwise get the description
         status = msg["TOPICS"].get("MSG_STATUS", None)
         if status == MSG_STATUS.OK:
-            return msg["CONTENTS"]["RESULT"]
+            return msg["CONTENTS"].get("RESULT", msg["CONTENTS"])
         elif status == MSG_STATUS.ERROR:
             raise BadStatusError("Error returned from item", msg["CONTENTS"].get("DESCRIPTION", ""))
 

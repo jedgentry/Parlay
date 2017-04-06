@@ -15,9 +15,11 @@ conversion to and from a JSON message.
 from parlay.protocols.utils import message_id_generator
 
 import pcom_serial
-
+import logging
 import serial_encoding
 from enums import *
+
+logger = logging.getLogger(__name__)
 
 
 class PCOMMessage(object):
@@ -28,6 +30,8 @@ class PCOMMessage(object):
     _item_id_generator = message_id_generator(0xffff, 0xfc00)
 
     VALID_JSON_MESSAGE_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
+
+    GLOBAL_ERROR_CODE_ID = 0xff
 
     def __init__(self, to=None, from_=None, msg_id=0, tx_type=None, msg_type=None, attributes=0,
                  response_code=None, response_req=None, msg_status=None, contents=None, data=None, data_fmt=None, topics=None, description=''):
@@ -119,7 +123,7 @@ class PCOMMessage(object):
                 command_id = msg.contents.get("COMMAND", INVALID_ID)
                 command_int_id = cls._look_up_id(pcom_serial.PCOM_COMMAND_NAME_MAP, msg.to, command_id)
                 if command_int_id is None:
-                    print "Could not find integer command ID for command name:", command_id
+                    logger.error("Could not find integer command ID for command name: {0}".format(command_id))
                     return
                 # TODO: check for KeyError
                 command = pcom_serial.PCOM_COMMAND_MAP[msg.to].get(command_int_id, None)
@@ -145,7 +149,7 @@ class PCOMMessage(object):
                     property_id = msg.contents.get("PROPERTY", INVALID_ID)
                     property = cls._look_up_id(pcom_serial.PCOM_PROPERTY_NAME_MAP, msg.to, property_id)
                     if property is None:
-                        print "Could not find integer property ID for property name:", property
+                        logger.error("Could not find integer property ID for property name: {0}".format(property))
                         return
                     prop = pcom_serial.PCOM_PROPERTY_MAP[msg.to][property]
                     fmt = prop["format"]
@@ -324,10 +328,22 @@ class PCOMMessage(object):
         :return: None
         """
 
+        def _get_id_name_from_error_code(error_code):
+            if error_code >> pcom_serial.PCOMSerial.SUBSYSTEM_SHIFT == self.GLOBAL_ERROR_CODE_ID:
+                return self.from_
+            return (self.from_ & pcom_serial.PCOMSerial.SUBSYSTEM_ID_MASK) | (error_code >> pcom_serial.PCOMSerial.SUBSYSTEM_SHIFT)
+
+        def _get_specific_code(error_code):
+            if error_code >> pcom_serial.PCOMSerial.SUBSYSTEM_SHIFT != self.GLOBAL_ERROR_CODE_ID:
+                return error_code & pcom_serial.PCOMSerial.ITEM_ID_MASK
+            return error_code
+
         msg['CONTENTS']['ERROR_CODE'] = self.msg_status
         msg['TOPICS']['MSG_STATUS'] = "ERROR"
         msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
         msg['TOPICS']['RESPONSE_REQ'] = False
+        msg['CONTENTS']['ERROR ORIGIN'] = pcom_serial.PCOM_ITEM_NAME_MAP.get(_get_id_name_from_error_code(self.msg_status), "REACTOR")
+        msg['CONTENTS']['ITEM SPECIFIC ERROR CODE'] = _get_specific_code(self.msg_status)
 
     def _build_parlay_command_response(self, msg):
         """
@@ -359,7 +375,6 @@ class PCOMMessage(object):
 
         cmd = item.get(self.response_code, pcom_serial.PCOMSerial.build_command_info("", [], []))
         self._build_contents_map(cmd["output params"], msg["CONTENTS"])
-
 
     def _build_parlay_property_response(self, msg):
         """
@@ -474,6 +489,7 @@ class PCOMMessage(object):
 
         msg['TOPICS']['TO'] = self._get_name_from_id(self.to)
         msg['TOPICS']['FROM'] = self._get_name_from_id(self.from_)
+        msg['TOPICS']['FROM_NAME'] = pcom_serial.PCOM_ITEM_NAME_MAP.get(self.from_, "")
         msg['TOPICS']['MSG_ID'] = self.msg_id
 
         # Default the message transmission type to "DIRECt".
@@ -563,8 +579,8 @@ class PCOMMessage(object):
         # we can not reliably add { output_name -> data } pairs to the CONTENTS dictionary
         # so we should report an error and not add anything to CONTENTS.
         if len(output_param_names) != len(self.data):
-            print "PCOM ERROR: Could not produce contents dictionary for data:", self.data, "and output parameters:", \
-                        output_param_names
+            logger.error("[PCOM] ERROR: Could not produce contents dictionary for data: {0} and"
+                         " output parameters: {1}".format(self.data, output_param_names))
             return
 
         # If we got here we know that the number of output parameters is the same

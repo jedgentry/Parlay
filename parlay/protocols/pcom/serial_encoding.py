@@ -506,7 +506,7 @@ def decode_pcom_message(binary_msg):
     # It's possible to receive empty strings for parameter requests.
     # In the case that we do receive an empty string we should not store it in data
     msg.data = filter(lambda x: x != '', msg.data)
-    # print msg.data
+
     return msg
 
 
@@ -603,11 +603,10 @@ def pack_little_endian(type_string, data_list):
     return a
 
 
-# TESTING PURPOSES
-
 def hex_print(buf):
     """
-    :param buf:
+    Prints the characters of buffer in hexidecimal
+    :param buf: buffer to be printed
     :return:
     """
     print [hex(ord(x)) for x in buf]
@@ -662,7 +661,6 @@ def unstuff_packet(packet):
     packet_len = len(packet)
 
     if sum_packet(packet) != 0:
-        print "WARNING PACKET DIDNT ADD UP TO ZERO"
         raise FailCRC
 
     if packet_len < 1:
