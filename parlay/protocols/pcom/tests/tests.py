@@ -7,6 +7,26 @@ import parlay.protocols.pcom.serial_encoding as serial_encoding
 import parlay.protocols.pcom.pcom_serial as pcom_serial
 
 
+class TestPCOMSerial(unittest.TestCase):
+
+    VALID_ST_PORT = ['/dev/cu.usbmodem1451321', 'STM32 Virtual ComPort in FS Mod',
+                     'USB VID:PID=483:5740 SNR=326737643036']
+    VALID_USB_SERIAL_CONVERTER = ['/dev/cu.usbserial-FT96JSLO', 'USB Serial Converter',
+                                  'USB VID:PID=403:6001 SNR=FT96JSLO']
+
+    def test_com_port_filter(self):
+        port_list = [['/dev/cu.lpss-serial2', 'n/a', 'n/a'], ['/dev/cu.lpss-serial1', 'n/a', 'n/a'],
+                            ['/dev/cu.Bluetooth-Incoming-Port', 'n/a', 'n/a'],
+                            ['/dev/cu.usbmodem1451333', 'STM32 STLink',
+                             'USB VID:PID=483:374b SNR=066DFF575450707267193734'], self.VALID_ST_PORT]
+
+        self.assertEqual(pcom_serial.PCOMSerial._filter_com_ports(port_list), [self.VALID_ST_PORT])
+        port_list.remove(self.VALID_ST_PORT)
+        self.assertEqual(pcom_serial.PCOMSerial._filter_com_ports(port_list), port_list)
+        port_list.append(self.VALID_USB_SERIAL_CONVERTER)
+        self.assertEqual(pcom_serial.PCOMSerial._filter_com_ports(port_list), [self.VALID_USB_SERIAL_CONVERTER])
+
+
 class TestSerialEncoding(unittest.TestCase):
 
     b_msg_id = 20

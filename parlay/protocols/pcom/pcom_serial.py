@@ -100,6 +100,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     # baud rate of communication over serial line
     BAUD_RATE = 115200
 
+    STM_VCP_STRING = "STM32 Virtual ComPort"
+    USB_SERIAL_CONV_STRING = "USB Serial Converter"
+
     # ACK window size
     WINDOW_SIZE = 8
 
@@ -149,7 +152,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     def _filter_com_ports(potential_com_ports):
 
         def _is_valid_port(port_name):
-            return "[PCOM] STM32 Virtual ComPort" in port_name[1] or "USB Serial Converter" in port_name[1]
+            return PCOMSerial.STM_VCP_STRING in port_name[1] or PCOMSerial.USB_SERIAL_CONV_STRING in port_name[1]
 
         result_list = []
         try:
