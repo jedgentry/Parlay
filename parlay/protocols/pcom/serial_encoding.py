@@ -137,8 +137,9 @@ def encode_pcom_message(msg):
     payload = struct.pack("<HHHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), msg.msg_status,
                           serialize_msg_type(msg), serialize_msg_attrs(msg))
 
+    # NOTE: struct.pack() does not support unicode so msg.format_string must be cast to str
     if msg.format_string:
-        payload += struct.pack("%ds" % len(msg.format_string), msg.format_string)
+        payload += struct.pack("%ds" % len(msg.format_string), str(msg.format_string))
 
     # NULL terminate the format_string,
     # or if there isn't a format_string we just
@@ -154,7 +155,6 @@ def encode_pcom_message(msg):
         payload += struct.pack("<" + translate_fmt_str(msg.format_string, msg.data), *flattened_data)
 
     return payload
-
 
 def flatten(data):
     """
@@ -506,7 +506,7 @@ def decode_pcom_message(binary_msg):
     # It's possible to receive empty strings for parameter requests.
     # In the case that we do receive an empty string we should not store it in data
     msg.data = filter(lambda x: x != '', msg.data)
-    # print msg.data
+
     return msg
 
 
@@ -603,11 +603,10 @@ def pack_little_endian(type_string, data_list):
     return a
 
 
-# TESTING PURPOSES
-
 def hex_print(buf):
     """
-    :param buf:
+    Prints the characters of buffer in hexidecimal
+    :param buf: buffer to be printed
     :return:
     """
     print [hex(ord(x)) for x in buf]
@@ -662,7 +661,6 @@ def unstuff_packet(packet):
     packet_len = len(packet)
 
     if sum_packet(packet) != 0:
-        print "WARNING PACKET DIDNT ADD UP TO ZERO"
         raise FailCRC
 
     if packet_len < 1:

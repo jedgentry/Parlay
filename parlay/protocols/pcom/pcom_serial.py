@@ -15,14 +15,14 @@ from twisted.internet import reactor
 
 from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
-from parlay.protocols.utils import message_id_generator, timeout, MessageQueue, TimeoutError, delay
+from parlay.protocols.utils import message_id_generator, MessageQueue
 
 from serial.tools import list_ports
 
+import logging
+
 from serial_encoding import *
 from enums import *
-
-from collections import namedtuple
 
 import time
 import json
@@ -56,6 +56,12 @@ PCOM_PROPERTY_NAME_MAP = {}
 # item ID -> Stream name -> Stream ID
 PCOM_STREAM_NAME_MAP = {}
 
+# Store a map of item ID to item names
+# item ID -> item name
+PCOM_ITEM_NAME_MAP = {}
+
+logger = logging.getLogger(__name__)
+
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
 # name = string representing the name of the property
@@ -85,6 +91,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     EMBD_REACTOR_ID = 0
     BROADCAST_SUBSYSTEM_ID = 0x8000
     SUBSYSTEM_SHIFT = 8
+    SUBSYSTEM_ID_MASK = 0xFF00
+    ITEM_ID_MASK = 0xFF
 
     # Number of bits we have for sequence number
     SEQ_BITS = 4
@@ -98,39 +106,62 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     ACK_DIFFERENTIAL = 8
 
     # timeout before resend in secs
-    ACK_TIMEOUT = 10
+    ACK_TIMEOUT = 1
 
     ERROR_STATUS = DISCOVERY_CODE << 16
+    DISCOVERY_TIMEOUT_ID = (DISCOVERY_CODE + 1) << 16
+    MESSAGE_TIMEOUT_ERROR_ID = (DISCOVERY_CODE + 2) << 16
 
     is_port_attached = False
 
-    import_discovery_file =  None
-    export_discovery_file = None
+    discovery_file = None
 
     @classmethod
-    def open(cls, adapter, port, import_discovery_file=None, export_discovery_file=None):
+    def open(cls, adapter, port, discovery_file=None):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
         :param port: the serial port device to use.
-        :param baudrate: the baudrate that will be set by user.
         :return: returns the instantiated protocol object
         '"""
 
-        cls.import_discovery_file = import_discovery_file
-        cls.export_discovery_file = export_discovery_file
-
+        cls.discovery_file = discovery_file
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter, port)
+
+        cls._open_port(protocol, port, adapter)
+
+        if not cls.is_port_attached:
+            raise Exception("Unable to find connected embedded device.")
+
+        return protocol
+
+    @classmethod
+    def _open_port(cls, protocol, port, adapter):
         try:
             SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
             cls.is_port_attached = True
         except Exception as E:
-            print "Unable to open port because of error (exception):", E
-            raise E
+            logger.error("[PCOM] Unable to open port because of error (exception): {0}".format(E))
 
-        return protocol
+    @staticmethod
+    def _filter_com_ports(potential_com_ports):
+
+        def _is_valid_port(port_name):
+            return "[PCOM] STM32 Virtual ComPort" in port_name[1] or "USB Serial Converter" in port_name[1]
+
+        result_list = []
+        try:
+            for port in potential_com_ports:
+                if len(port) > 1:
+                    if _is_valid_port(port):
+                        result_list.append(port)
+        except Exception as e:
+            logger.error("[PCOM] Could not filter ports because of exception: {0}".format(e))
+            return potential_com_ports
+
+        return result_list if result_list else potential_com_ports
 
     @classmethod
     def get_open_params_defaults(cls):
@@ -139,23 +170,23 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: default args: the default arguments provided to the user in the UI
         """
 
-        default_args = BaseProtocol.get_open_params_defaults()
-        potential_serials = [port_list[0] for port_list in list_ports.comports()]
-        default_args['port'] = potential_serials
+        cls.default_args = BaseProtocol.get_open_params_defaults()
+        logger.info("[PCOM] Available COM ports: {0}".format(list_ports.comports()))
 
-        return default_args
+        filtered_comports = cls._filter_com_ports(list_ports.comports())
+        potential_serials = [port_list[0] for port_list in filtered_comports]
+        cls.default_args['port'] = potential_serials
+
+        return cls.default_args
 
     def reset(self):
-
-        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_COMMAND_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_PROPERTY_NAME_MAP, \
-                        PCOM_STREAM_NAME_MAP
 
         self._event_id_generator = message_id_generator((2 ** self.NUM_EVENT_ID_BITS))
         self._seq_num = message_id_generator((2 ** self.SEQ_BITS))
 
         self._ack_window.reset_window()
 
-        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+        self._ack_table = {seq_num: defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
     def close(self):
@@ -174,12 +205,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
         :param adapter: The adapter that will serve as an interface for interacting with the broker
         """
+
         self._port = port
         # A list of items that we will need to discover for.
         # The base protocol will use this dictionary to feed items to
         # the UI
         self.items = []
         self._error_codes = []
+        self._loaded_from_file = False
 
         # The list of connected item IDs found in the initial sweep in
         # connectionMade()
@@ -194,6 +227,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # The buffer that we will be storing the data that arrives via the serial connection
         self._binary_buffer = bytearray()
+        self._subsystem_ids = []
 
         self.adapter = adapter
 
@@ -224,10 +258,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # Store discovered item IDs so that we do not push duplicates to the
         # item requesting the discovery
 
-        self._in_progress = False
+        self._discovery_in_progress = False
         self._discovery_deferred = defer.Deferred()
 
-        self._ack_table = {seq_num : defer.Deferred() for seq_num in range(2**self.SEQ_BITS)}
+        self._ack_table = {seq_num: defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
 
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
 
@@ -237,16 +271,43 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         :param original_message: PCOM Message object that holds the IDs of the sender and receiver
         :param message_status: Message status code that translates to an error message.
+        :param description: description for the error message to be thrown in CONTENTS
         :return:
         """
         try:
             response_type = MessageCategory.Order_Response << CATEGORY_SHIFT
             error_msg = pcom_message.PCOMMessage(to=original_message.from_, from_=original_message.to,
-                                             msg_status=message_status, msg_id=original_message.msg_id, msg_type=response_type, description=description)
+                                                 msg_status=message_status, msg_id=original_message.msg_id,
+                                                 msg_type=response_type, description=description)
             json_msg = error_msg.to_json_msg()
             self.adapter.publish(json_msg)
         except Exception as e:
-            print "Unhandled exception in function: to_json_msg():", e
+            logger.error("[PCOM] Unhandled exception in function: to_json_msg(): {0}", e)
+
+    def broadcast_error_message(self, error_id, description, info):
+        """
+        Broadcasts an error message to the broker. This is mainly used to signal a failed discovery.
+
+        :param error_id: ID of the error message
+        :param description: description that will be placed under contents
+        :param info: info that will be placed under contents
+        :return: None
+        """
+        json_msg = {
+            "TOPICS": {
+                "TX_TYPE": "BROADCAST",
+                "MSG_TYPE": "EVENT",
+                "MSG_STATUS": "ERROR",
+                "MSG_ID": self._event_id_generator.next(),
+                "FROM": self.DISCOVERY_CODE,
+            },
+            "CONTENTS": {
+                "EVENT": error_id,
+                "ERROR_CODE": error_id,
+                "DESCRIPTION": description,
+                "INFO": info
+            }}
+        self.adapter.publish(json_msg)
 
     def _message_queue_handler(self, message):
         """
@@ -263,23 +324,26 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # this function should return a fired deferred, so set one up
         d = defer.Deferred()
-        d.callback(None)
 
-        # print "MESSAGE", message
         try:
             s = pcom_message.PCOMMessage.from_json_msg(message)
         except Exception as e:
-            print "Could not translate JSON message to PCOM equivalent because of exception:", e
-            print "Message that caused PCOM translation error:", message
+            logger.error("[PCOM] Could not translate JSON message to PCOM equivalent because of "
+                         "exception: {0}".format(e))
+            logger.error("[PCOM] Message that caused PCOM translation error: {0}".format(message))
+            d.errback(e)
             return d
 
         # Serialize the message and prepare for protocol wrapping.
         try:
             packet = encode_pcom_message(s)
         except Exception as e:
-            print "Unable to encode pcom message"
-            print "Exception:", e
-            self.send_error_message(original_message=s, message_status=self.ERROR_STATUS, description="Unable to encode message: {0} because of exception: {1}".format(message, e))
+            logger.error("[PCOM] Unable to encode pcom message")
+            logger.error("[PCOM] Exception: {0}".format(e))
+            self.send_error_message(original_message=s, message_status=self.ERROR_STATUS,
+                                    description="Unable to encode message: {0} because of "
+                                                "exception: {1}".format(message, e))
+            d.errback(e)
             return d
 
         need_ack = True
@@ -290,16 +354,29 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         try:
             packet = str(wrap_packet(packet, sequence_num, need_ack))
 
-        except ValueError:
-            print "Fatal error: created packet with invalid checksum, aborting send."
+        except ValueError as v:
+            logger.error("[PCOM] Fatal error: created packet with invalid checksum, aborting send.")
+            d.errback(v)
+            return d
+        except Exception as e:
+            d.errback(e)
             return d
 
-        # print "SENT MESSAGE: ", [hex(ord(x)) for x in packet]
+        d.callback(None)
 
-
-        # Write to serial line! Good luck packet.
-        self._ack_window.add(ACKInfo(sequence_num, 0, packet, self.transport))
+        disc_msg_deferred = self._discovery_msg_ids[s.msg_id] if self._discovery_in_progress else None
+        self._ack_window.add(ACKInfo(sequence_num, 0, packet, self.transport, self.ack_timeout_handler,
+                                     disc_msg_deferred))
         return d
+
+    def ack_timeout_handler(self):
+        """
+        Called when an ACK fails to send
+        :return: None
+        """
+        error_id = self.DISCOVERY_TIMEOUT_ID if self._discovery_in_progress else self.MESSAGE_TIMEOUT_ERROR_ID
+        self.broadcast_error_message(error_id, "Message send failed at transport layer.", "Connection failed. Please"
+                                               " verify connection with embedded board.")
 
     def _discovery_listener(self, msg):
         """
@@ -338,9 +415,13 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param requested_property_id: property ID that we want to know the name of
         :return: name of the property from Embedded Core
         """
-
-        response = yield self.send_command(to, command_id=GET_PROPERTY_NAME, params=["property_id"],
-                                           data=[requested_property_id])
+        try:
+            response = yield self.send_command(to, command_id=GET_PROPERTY_NAME, params=["property_id"],
+                                               data=[requested_property_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to find property name for property {0} because of exception: {1}".format(
+                requested_property_id, e))
+            defer.returnValue(None)
 
         # The data in the response message will be a list,
         # the property name should be in the 0th position
@@ -348,9 +429,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         try:
             defer.returnValue(response.data[0])
         except IndexError:
-            print "Response from embedded board during discovery sequence did not return data in " \
-                  "expect format. Expected" \
-                  " at least one data field, received:", response.data
+            logger.error("Response from embedded board during discovery sequence did not return data in "
+                         "expect format. Expected at least one data field, received: {0}".format(response.data))
+            defer.returnValue(None)
 
     @defer.inlineCallbacks
     def get_property_desc(self, to, requested_property_id):
@@ -362,16 +443,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param requested_property_id: property ID to get the description of
         :return:
         """
-
-        response = yield self.send_command(to, command_id=GET_PROPERTY_DESC, params=["property_id"],
-                                      data=[requested_property_id])
-
+        try:
+            response = yield self.send_command(to, command_id=GET_PROPERTY_DESC, params=["property_id"],
+                                               data=[requested_property_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to find property description for property {0} in item {1} because of exception:"
+                         "{2}".format(requested_property_id, to, e))
+            defer.returnValue(None)
         try:
             defer.returnValue(response.data[0])
         except IndexError:
-            print "Response from embedded board during discovery sequence did not return data in " \
-                  "expect format. Expected" \
-                  " at least one data field, received:", response.data
+            logger.error("Response from embedded board during discovery sequence did not return data in expect format."
+                         " Expected at least one data field, received: {0}".format(response.data))
+            defer.returnValue(None)
 
     @defer.inlineCallbacks
     def get_command_name(self, to, requested_command_id):
@@ -382,18 +466,22 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param requested_command_id: command ID that we want to know the name of
         :return: name from Embedded Core
         """
-
-        response = yield self.send_command(to, command_id=GET_COMMAND_NAME, params=["command_id"],
-                                           data=[requested_command_id])
+        try:
+            response = yield self.send_command(to, command_id=GET_COMMAND_NAME, params=["command_id"],
+                                               data=[requested_command_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to find command name for command {0} in item {1} because of exception:"
+                         "{2}".format(requested_command_id, to, e))
+            defer.returnValue(None)
 
         # The data in the response message will be a list,
         # the command name should be in the 0th position
         try:
             defer.returnValue(response.data[0])
         except IndexError:
-            print "Response from embedded board during discovery sequence did not return data in " \
-                  "expect format. Expected" \
-                  " at least one data field, received:", response.data
+            logger.error("Response from embedded board during discovery sequence did not return data in expect format."
+                         " Expected at least one data field, received: {0}".format(response.data))
+            defer.returnValue(None)
 
     @defer.inlineCallbacks
     def get_command_input_param_format(self, to, requested_command_id):
@@ -407,9 +495,13 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param requested_command_id: command ID that we want the parameter format of
         :return: format string describing input parameters
         """
-
-        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command_id"],
-                                           data=[requested_command_id])
+        try:
+            response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_FORMAT, params=["command_id"],
+                                               data=[requested_command_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to find command input format for command {0} in item {1} because of exception:"
+                         "{2}".format(requested_command_id, to, e))
+            defer.returnValue(None)
 
         r_val = '' if len(response.data) == 0 else response.data[0]
         defer.returnValue(r_val)
@@ -427,9 +519,13 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param requested_command_id: command id to find the parameter names of
         :return: a list of parameter names
         """
-
-        response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command_id"],
-                                           data=[requested_command_id])
+        try:
+            response = yield self.send_command(to, command_id=GET_COMMAND_INPUT_PARAM_NAMES, params=["command_id"],
+                                               data=[requested_command_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to find command input parameter names for command {0} in item {1} because of "
+                         "exception: {2}".format(requested_command_id, to, e))
+            defer.returnValue(None)
 
         param_names = [] if len(response.data) == 0 else [x.strip() for x in response.data[0].split(',')]
         defer.returnValue(param_names)
@@ -447,9 +543,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param requested_command_id: command id to find the parameter names of
         :return: a list of parameter names
         """
+        try:
+            response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command_id"],
+                                               data=[requested_command_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to find command output parameter description for command {0} in item {1}"
+                         " because of exception: {2}".format(requested_command_id, to, e))
+            defer.returnValue(None)
 
-        response = yield self.send_command(to, command_id=GET_COMMAND_OUTPUT_PARAM_DESC, params=["command_id"],
-                                           data=[requested_command_id])
         list_of_names = [] if len(response.data) == 0 else [x.strip() for x in response.data[0].split(',')]
         defer.returnValue(list_of_names)
 
@@ -463,9 +564,13 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param requested_property_id: property ID that we want the type of
         :return: format string describing the type
         """
-
-        response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property_id"],
-                                           data=[requested_property_id])
+        try:
+            response = yield self.send_command(to, command_id=GET_PROPERTY_TYPE, params=["property_id"],
+                                               data=[requested_property_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to find property type for property {0} in item {1} because of exception: "
+                         "{2}".format(requested_property_id, to, e))
+            defer.returnValue(None)
 
         r_val = '' if len(response.data) == 0 else response.data[0]
         defer.returnValue(r_val)
@@ -517,6 +622,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # If we need to wait the result should be a deferred object.
         if response_req:
             result = defer.Deferred()
+            result.addErrback(self.msg_timeout_errback)
             # Add the correct mapping to the dictionary
             self._discovery_msg_ids[event_id] = result
 
@@ -527,17 +633,20 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # Return the Deferred object if we need to
         return result
 
+    def msg_timeout_errback(self, failure):
+        """
+        Errback attached to a message that is called if it fails to send.
+
+        :param failure:
+        :return: defer.failure.Failure object
+        """
+        return failure
+
     def connectionMade(self):
         """
         The initializer for the protocol. This function is called when a connection to the server
-        (broker in our case) has been established. Keep this function LIGHT, it should not take a long time
-        to fetch the subsystem and item IDs. The user typically shouldn't notice.
-
-        I wrote a function _get_attached_items() that is called here and also when a discovery takes place.
-        :return: None
+        (broker in our case) has been established.
         """
-
-        self._get_attached_items()
         return
 
     @defer.inlineCallbacks
@@ -562,49 +671,56 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # is to fetch all subsystems. The reactor inside of
         # the embedded core should return with each subsystem as a
         # ID, Name pair (eg. (0, "IO_Control_board"))
+        try:
+            response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
+            self._subsystem_ids = [int(response.data[0])]
+        except Exception as e:
+            logger.error("Exception occurred when trying to find available subsystems: {0}".format(e))
 
-        response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
-        self._subsystem_ids = [int(response.data[0])]
-        # print "Subsystems found:", response.data[1]
-
-        # TODO: Explain this in comments
         d = self._attached_item_d
         self._attached_item_d = None
         d.callback(None)
 
     def load_discovery_from_file(self):
+        """
+        Loads discovery info from PCOMSerial.discovery_file that was passed in at protocol open.
 
+        :return: discovery message that should be sent to broker
+        """
         discovery_msg = {}
 
         try:
-            discovery_file = open(PCOMSerial.import_discovery_file)
+            with open(PCOMSerial.discovery_file) as discovery_file:
+                data = json.load(discovery_file)
+                if len(data) == 0:
+                    logger.error("[PCOM] No data loaded from JSON file")
+                    discovery_file.close()
+                    discovery_msg = self.process_data_file(data)
+
         except Exception as e:
-            print "Could not open discovery file because of exception: ", e
-            return discovery_msg
+            logger.error("[PCOM] Could not open discovery file because of exception: {0}".format(e))
 
-        data = json.load(discovery_file)
-        if len(data) == 0:
-            print "No data loaded from JSON file"
-            discovery_file.close()
-            return discovery_msg
-
-        discovery_msg = self.process_data_file(data)
-        discovery_file.close()
         return discovery_msg
 
     def process_data_file(self, data):
+        """
+        Given the data from the discovery file, fills in the corresponding maps.
+        :param data: data produces from JSON file
+        :return: discovery message to produce
+        """
 
-        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_PROPERTY_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_STREAM_NAME_MAP, PCOM_COMMAND_MAP, PCOM_COMMAND_NAME_MAP
+        global PCOM_COMMAND_MAP, PCOM_PROPERTY_MAP, PCOM_PROPERTY_NAME_MAP, PCOM_ERROR_CODE_MAP, PCOM_STREAM_NAME_MAP, \
+            PCOM_COMMAND_MAP, PCOM_COMMAND_NAME_MAP, PCOM_ITEM_NAME_MAP
 
-        def _convert_item_ids_to_int(map):
-            return {int(k): v for k, v in map.items()}
+        def _convert_item_ids_to_int(_map):
+            return {int(k): v for k, v in _map.items()}
 
-        def _convert_command_and_prop_ids(map):
-            for k, v in map.items():
+        def _convert_command_and_prop_ids(_map):
+            for k, v in _map.items():
                 for command_id, cmd_info in v.items():
                     if command_id.isdigit():
-                        map[k][int(command_id)] = cmd_info
-                        del map[k][command_id]
+                        _map[k][int(command_id)] = cmd_info
+                        del _map[k][command_id]
 
         PCOM_COMMAND_MAP = data["PCOM_COMMAND_MAP"]
         PCOM_COMMAND_MAP = _convert_item_ids_to_int(PCOM_COMMAND_MAP)
@@ -626,6 +742,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_STREAM_NAME_MAP = data["PCOM_STREAM_NAME_MAP"]
         PCOM_STREAM_NAME_MAP = _convert_item_ids_to_int(PCOM_STREAM_NAME_MAP)
 
+        PCOM_ITEM_NAME_MAP = data["PCOM_ITEM_NAME_MAP"]
+        PCOM_ITEM_NAME_MAP = _convert_item_ids_to_int(PCOM_ITEM_NAME_MAP)
+
         discovery_msg = data["DISCOVERY"]
 
         for item in discovery_msg["CHILDREN"]:
@@ -634,11 +753,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         return discovery_msg
 
     def write_discovery_info_to_file(self, file_name, discovery_msg):
+        """
+        Given a discovery message and file name, writes the necessary discovery information to the file.
 
+        This includes several maps and the discovery message itself so that it does not need to be generated.
+
+        :param file_name: discovery file name
+        :param discovery_msg: discovery message to be pushed to broker
+        :return:
+        """
         try:
             discovery_file = open(file_name, "w")
         except Exception as e:
-            print "Could not open file:", file_name, "because of exception:", e
+            logger.error("Could not open file: {0} because of exception: {1}".format(file_name, e))
             return
 
         dict_to_write = dict()
@@ -649,14 +776,24 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         dict_to_write["PCOM_PROPERTY_MAP"] = PCOM_PROPERTY_MAP
         dict_to_write["PCOM_PROPERTY_NAME_MAP"] = PCOM_PROPERTY_NAME_MAP
         dict_to_write["PCOM_STREAM_NAME_MAP"] = PCOM_STREAM_NAME_MAP
+        dict_to_write["PCOM_ITEM_NAME_MAP"] = PCOM_ITEM_NAME_MAP
         dict_to_write["DISCOVERY"] = discovery_msg
         json.dump(dict_to_write, discovery_file)
+        logger.info("Discovery written to: {0}".format(file_name))
         discovery_file.close()
 
     @staticmethod
     def build_command_info(format, input_params, output_params):
-        return {"format": format, "input params": input_params, "output params": output_params}
+        """
+        Builds the command info (dictionary) for a command when given the format, input parameters,
+        and output parameters.
 
+        :param format: format string (eg. "fff")
+        :param input_params: list of parameter names (eg. ["rate", "height", "weight"])
+        :param output_params: list of output parameter names (eg. ["Rick", "and", "Morty"])
+        :return: the command info dictionary
+        """
+        return {"format": format, "input params": input_params, "output params": output_params}
 
     @staticmethod
     def initialize_command_maps(item_id):
@@ -676,15 +813,22 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_COMMAND_MAP[item_id][RESET_ITEM] = PCOMSerial.build_command_info("", [], [])
         PCOM_COMMAND_MAP[item_id][GET_ITEM_NAME] = PCOMSerial.build_command_info("", [], ["Item name"])
         PCOM_COMMAND_MAP[item_id][GET_ITEM_TYPE] = PCOMSerial.build_command_info("", [], ["Item type"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_IDS] = PCOMSerial.build_command_info("", [], ["Command IDs"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_IDS] = PCOMSerial.build_command_info("", [], ["Property IDs"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_NAME] = PCOMSerial.build_command_info("H", ["command_id"], ["Command name"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input format"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input names"])
-        PCOM_COMMAND_MAP[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = PCOMSerial.build_command_info("H", ["command_id"], ["Command input output"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_NAME] = PCOMSerial.build_command_info("H", ["property_id"], ["Property name"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_TYPE] = PCOMSerial.build_command_info("H", ["property_id"], ["Property type"])
-        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_DESC] = PCOMSerial.build_command_info("H", ["property_id"], ["Property desc"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_IDS] = PCOMSerial.build_command_info("", [], ["Command IDs[]"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_IDS] = PCOMSerial.build_command_info("", [], ["Property IDs[]"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_NAME] = \
+            PCOMSerial.build_command_info("H", ["command_id"], ["Command name"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_FORMAT] = \
+            PCOMSerial.build_command_info("H", ["command_id"], ["Command input format"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_INPUT_PARAM_NAMES] = \
+            PCOMSerial.build_command_info("H", ["command_id"], ["Command input names[]"])
+        PCOM_COMMAND_MAP[item_id][GET_COMMAND_OUTPUT_PARAM_DESC] = \
+            PCOMSerial.build_command_info("H", ["command_id"], ["Command input output description"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_NAME] = \
+            PCOMSerial.build_command_info("H", ["property_id"], ["Property name"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_TYPE] = \
+            PCOMSerial.build_command_info("H", ["property_id"], ["Property type"])
+        PCOM_COMMAND_MAP[item_id][GET_PROPERTY_DESC] = \
+            PCOMSerial.build_command_info("H", ["property_id"], ["Property desc"])
 
         PCOM_COMMAND_MAP[item_id]["reset_item"] = RESET_ITEM
         PCOM_COMMAND_MAP[item_id]["get_item_name"] = GET_ITEM_NAME
@@ -710,18 +854,31 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
 
         if not PCOMSerial.is_port_attached:
-            self.send_command(tx_type="BROADCAST", msg_status="ERROR", data=["No Serial Port connected to Parlay. Please open serial port before discovering"])
+            logger.error("[PCOM] Failed to discover. No port connected.")
+            self.send_command(tx_type="BROADCAST", msg_status="ERROR",
+                              data=["No Serial Port connected to Parlay. Open serial port before discovering"])
             defer.returnValue(BaseProtocol.get_discovery(self))
 
-        if PCOMSerial.import_discovery_file is None:
-            print "No discovery file specified, retrieving information from board"
-        else:
-            discovery_msg = self.load_discovery_from_file()
-            defer.returnValue(discovery_msg)
+        self._subsystem_ids = []
+        # If we were already in the process of a discovery we should
+        # return a deferred object.
+        if self._discovery_in_progress:
+            defer.returnValue(self._discovery_deferred)
 
-        print "----------------------------"
-        print "Discovery function started!"
-        print "----------------------------"
+        self._discovery_in_progress = True
+
+        self._get_attached_items()
+
+        if PCOMSerial.discovery_file is not None:
+            discovery_msg = self.load_discovery_from_file()
+            if discovery_msg != {}:
+                self._loaded_from_file = True
+                self._discovery_in_progress = False
+                defer.returnValue(discovery_msg)
+
+        self._loaded_from_file = False
+
+        logger.info("Unable to load discovery from file, fetching items from embedded system...")
 
         t1 = time.time()
 
@@ -729,37 +886,39 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if self._attached_item_d is not None:
             yield self._attached_item_d
 
-        # If we were already in the process of a discovery we should
-        # return a deferred object.
-        if self._in_progress:
-            defer.returnValue(self._discovery_deferred)
-
-        self._in_progress = True
         self.items = []
         for subsystem_id in self._subsystem_ids:
             try:
                 yield self._get_item_discovery_info(subsystem_id)
             except Exception as e:
-                print("Exception while discovering! Skipping subsystem : " + str(subsystem_id) + "\n    " + str(e))
+                logger.error("Exception while discovering! Skipping subsystem: {0}\n     {1}".format(subsystem_id, e))
 
-        self._in_progress = False
+        self._discovery_in_progress = False
 
         t2 = time.time()
 
-        print "Discovery took", (t2 - t1), "seconds"
+        logger.info("Discovery took {0} seconds".format(str(t2-t1)))
         # At this point self.items should be populated with
         # the ParlayStandardItem objects that represent the items we discovered.
         # By calling BaseProtocol's get_discovery() function we can get that information
         # to the adapter and furthermore to the broker.
         discovery_msg = BaseProtocol.get_discovery(self)
-        if PCOMSerial.export_discovery_file is not None:
-            self.write_discovery_info_to_file(PCOMSerial.export_discovery_file, discovery_msg)
+
+        if PCOMSerial.discovery_file is not None and self._loaded_from_file is False:
+            self.write_discovery_info_to_file(PCOMSerial.discovery_file, discovery_msg)
+
+        if self._discovery_deferred:
+            self._discovery_deferred.callback(discovery_msg)
+
+        # reset discovery deferred
+        self._discovery_deferred = defer.Deferred()
 
         defer.returnValue(discovery_msg)
 
 
     @staticmethod
-    def command_cb(command_info_list, item_id, command_id, command_dropdowns, command_subfields, parlay_item, hidden=False):
+    def command_cb(command_info_list, item_id, command_id, command_dropdowns, command_subfields, parlay_item,
+                   hidden=False):
         """
         Callback function used to update the command map and parlay item dropdown menu when the command info
         is retrieved from the embedded device during discovery. This function is called using gatherResults
@@ -781,9 +940,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # Ensure that the command_info_list contains at least <expected #> fields
         if len(command_info_list) < expected_command_info_list_length:
-            print "Error in discovering command information for item:", item_id
-            print "  Command:", command_id
-            return
+            logger.error("Error in discovering command information for:"
+                         "-- Item: {0}\n"
+                         "-- Command: {1}".format(item_id, command_id))
 
         c_name = command_info_list[0]
         c_input_format = expand_fmt_string(command_info_list[1])
@@ -791,7 +950,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         c_output_desc = command_info_list[3]
 
         PCOM_COMMAND_MAP[item_id][command_id] = PCOMSerial.build_command_info(c_input_format, c_input_names,
-                                                      c_output_desc)
+                                                                              c_output_desc)
 
         PCOM_COMMAND_NAME_MAP[item_id][c_name] = command_id
 
@@ -805,6 +964,13 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     @staticmethod
     def build_property_data(name, fmt):
+        """
+        Builds property dictionary consisting of the name and format of the property.
+
+        :param name: property name (eg. "Butterbot")
+        :param fmt: format string for the property (eg. "f")
+        :return: dictionary representing information about the property
+        """
         return {"name": name, "format": fmt}
 
     @staticmethod
@@ -855,17 +1021,19 @@ class PCOMSerial(BaseProtocol, LineReceiver):
          :return:
          """
 
-        if len(format_char) < 1:
+        if len(format_char) == 0:
             return INPUT_TYPES.STRING
+        if len(format_char) > 1:
+            return INPUT_TYPES.ARRAY
 
         if format_char in PCOM_SERIAL_NUMBER_INPUT_CHARS:
             return INPUT_TYPES.NUMBER
-        elif format_char[0] == PCOM_SERIAL_STRING_INPUT_CHARS:
+        elif format_char[0] == PCOM_SERIAL_ARRAY_INPUT_CHARS:
             return INPUT_TYPES.ARRAY
-        elif format_char in PCOM_SERIAL_ARRAY_INPUT_CHARS:
+        elif format_char in PCOM_SERIAL_STRING_INPUT_CHARS:
             return INPUT_TYPES.STRING
         else:
-            print "Invalid format character", format_char, "defaulting to INPUT TYPE STRING"
+            logger.warn("Invalid format character {0} defaulting to INPUT TYPE STRING".format(format_char))
 
         return INPUT_TYPES.STRING
 
@@ -886,25 +1054,31 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         expected_property_info_list_length = 3
 
         if len(property_info_list) < expected_property_info_list_length:
-            print "Error in property info discovery sequence for item:", item_id
-            print "Property:", property_id
+            logger.error("Error in discovering property information for:"
+                         "-- Item: {0}\n"
+                         "-- Property: {1}".format(item_id, property_id))
 
         # set variable to positions in the list for readability
         property_name = property_info_list[0]
         property_type = property_info_list[1]
-        property_desc = property_info_list[2]
 
         PCOM_PROPERTY_NAME_MAP[item_id][property_name] = property_id
-        PCOM_STREAM_NAME_MAP[item_id][property_name + "_stream"] = property_id
+        PCOM_STREAM_NAME_MAP[item_id][property_name] = property_id
 
         PCOM_PROPERTY_MAP[item_id][property_id] = PCOMSerial.build_property_data(property_name, property_type)
 
         parlay_item.add_property(property_id, name=property_name, attr_name=property_name, input=PCOMSerial._get_input_type(property_type))
-        parlay_item.add_datastream(property_name + "_stream", name=property_name + "_stream", attr_name=property_name + "_stream")
+        parlay_item.add_datastream(property_name, name=property_name, attr_name=property_name)
 
         return
 
     def _initialize_reactor_command_map(self, reactor):
+        """
+        Inserts entries for the reactor into the PCOM_COMMAND_MAP used for message translation.
+
+        :param reactor: reactor ID
+        :return: None
+        """
         PCOM_COMMAND_MAP[reactor] = {}
         PCOM_COMMAND_MAP[reactor][0] = PCOMSerial.build_command_info("", [], [])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = PCOMSerial.build_command_info("", [], ["codes"])
@@ -955,96 +1129,121 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         #     self._already_discovered.add(item_id)
 
         discovery = {"Subsystem ID": subsystem_id}
-        print "Running discovery on subsystem: ", subsystem_id
+        logger.info("Running discovery on subsystem: {0}".format(subsystem_id))
 
         # Convert subsystem IDs to ints so that we can send them
         # back down the serial line to retrieve their attached item
         # For each subsystem ID, fetch the items attached to it
 
-        print "Fetching items from subsystem ID: ", subsystem_id
+        logger.info("Fetching items from subsystem ID: {0}".format(subsystem_id))
 
         REACTOR = subsystem_id << self.SUBSYSTEM_SHIFT
-        response = yield self.send_command(REACTOR, "DIRECT")
-        self._item_ids = [int(item_id) for item_id in response.data]  # TODO: Change to extend() to get all item IDs
-
-
         # Fetch error codes
         self._initialize_reactor_command_map(REACTOR)
-        response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_CODES)
-        self._error_codes = [int(error_code) for error_code in response.data]
+        PCOM_ITEM_NAME_MAP[REACTOR] = "REACTOR"
+        try:
+            response = yield self.send_command(REACTOR, "DIRECT")
+            self._item_ids = [int(item_id) for item_id in response.data]
 
-        for error_code in self._error_codes:
-            response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_STRING, params=["code"], data=[error_code])
-            error_code_string = response.data[0]
-            PCOM_ERROR_CODE_MAP[error_code] = error_code_string
+            response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_CODES)
+            self._error_codes = [int(error_code) for error_code in response.data]
 
-        print "---> ITEM IDS FOUND: ", self._item_ids
+            for error_code in self._error_codes:
+                response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_STRING,
+                                                   params=["code"], data=[error_code])
+                error_code_string = response.data[0]
+                PCOM_ERROR_CODE_MAP[error_code] = error_code_string
 
-        for item_id in self._item_ids:
-            self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
-            PCOMSerial.initialize_command_maps(item_id)
+            logger.info("---> ITEM IDS FOUND: {0}".format(self._item_ids))
 
-        for item_id in self._item_ids:
-            response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
-            item_name = str(response.data[0])
+            for item_id in self._item_ids:
+                self.adapter.subscribe(self.add_message_to_queue, TO=item_id)
+                PCOMSerial.initialize_command_maps(item_id)
 
-            parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)
+            for item_id in self._item_ids:
+                response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
+                item_name = str(response.data[0])
 
-            response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
+                PCOM_ITEM_NAME_MAP[item_id] = item_name
+                parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)
 
-            item_type = int(response.data[0])
+                response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
 
-            response = yield self.send_command(item_id, command_id=GET_COMMAND_IDS, tx_type="DIRECT")
+                item_type = int(response.data[0])
 
-            command_ids = response.data
+                response = yield self.send_command(item_id, command_id=GET_COMMAND_IDS, tx_type="DIRECT")
 
-            command_dropdowns = []
-            command_subfields = []
+                command_ids = response.data
 
-            parlay_item.add_field('COMMAND', INPUT_TYPES.DROPDOWN,
-                                  dropdown_options=command_dropdowns,
-                                  dropdown_sub_fields=command_subfields)
+                command_dropdowns = []
+                command_subfields = []
 
-            discovered_command = defer.DeferredList([])
+                parlay_item.add_field('COMMAND', INPUT_TYPES.DROPDOWN,
+                                      dropdown_options=command_dropdowns,
+                                      dropdown_sub_fields=command_subfields)
 
-            for command_id in command_ids:
-                # Loop through the command IDs and build the Parlay Item object
-                # for each one
+                def placeholder(failure):
+                    return failure
 
-                command_name = self.get_command_name(item_id, command_id)
-                command_input_format = self.get_command_input_param_format(item_id, command_id)
-                command_input_param_names = self.get_command_input_param_names(item_id, command_id)
-                command_output_desc = self.get_command_output_parameter_desc(item_id, command_id)
+                discovered_command = defer.DeferredList([])
+                discovered_command.addErrback(placeholder)
 
-                discovered_command = defer.gatherResults([command_name, command_input_format, command_input_param_names, command_output_desc])
-                discovered_command.addCallback(PCOMSerial.command_cb, item_id=item_id, command_id=command_id,
-                                               command_subfields=command_subfields, command_dropdowns=command_dropdowns,
-                                               parlay_item=parlay_item, hidden=(command_id in DISCOVERY_MESSAGES))
+                for command_id in command_ids:
+                    # Loop through the command IDs and build the Parlay Item object
+                    # for each one
 
-            yield discovered_command
+                    command_name = self.get_command_name(item_id, command_id)
+                    command_input_format = self.get_command_input_param_format(item_id, command_id)
+                    command_input_param_names = self.get_command_input_param_names(item_id, command_id)
+                    command_output_desc = self.get_command_output_parameter_desc(item_id, command_id)
 
-            response = yield self.send_command(item_id, command_id=GET_PROPERTY_IDS, tx_type="DIRECT")
-            property_ids = response.data
+                    if not command_name or not command_input_format or not command_input_param_names or \
+                            not command_output_desc:
 
-            discovered_property = defer.DeferredList([])
+                        discovered_command.errback(defer.failure.Failure(Exception("")))
+                        raise Exception("[PCOM] Unable to fetch command info for item:", item_id)
 
-            for property_id in property_ids:
-                property_name = self.get_property_name(item_id, property_id)
-                property_type = self.get_property_type(item_id, property_id)
-                property_desc = self.get_property_desc(item_id, property_id)
+                    discovered_command = defer.gatherResults([command_name, command_input_format,
+                                                              command_input_param_names, command_output_desc])
+                    discovered_command.addCallback(PCOMSerial.command_cb, item_id=item_id, command_id=command_id,
+                                                   command_subfields=command_subfields,
+                                                   command_dropdowns=command_dropdowns,
+                                                   parlay_item=parlay_item, hidden=(command_id in DISCOVERY_MESSAGES))
 
-                discovered_property = defer.gatherResults([property_name, property_type, property_desc])
-                discovered_property.addCallback(PCOMSerial.property_cb, item_id=item_id, property_id=property_id,
-                                                parlay_item=parlay_item)
+                yield discovered_command
 
-            yield discovered_property
+                response = yield self.send_command(item_id, command_id=GET_PROPERTY_IDS, tx_type="DIRECT")
+                property_ids = response.data
 
-            if item_type != ITEM_TYPE_HIDDEN:
-                self.items.append(parlay_item)
+                discovered_property = defer.DeferredList([])
+                discovered_property.addErrback(placeholder)
 
-            print "Finished ITEM:", item_name
+                for property_id in property_ids:
 
-        print "Finished subsystem:", subsystem
+                    property_name = self.get_property_name(item_id, property_id)
+                    property_type = self.get_property_type(item_id, property_id)
+                    property_desc = self.get_property_desc(item_id, property_id)
+
+                    if not property_name or not property_type or not property_desc:
+                        discovered_property.errback(defer.failure.Failure(Exception("")))
+                        raise Exception("[PCOM] Unable to fetch property info for item:", item_id)
+
+                    discovered_property = defer.gatherResults([property_name, property_type, property_desc])
+                    discovered_property.addCallback(PCOMSerial.property_cb, item_id=item_id, property_id=property_id,
+                                                    parlay_item=parlay_item)
+
+                yield discovered_property
+
+                if item_type != ITEM_TYPE_HIDDEN:
+                    self.items.append(parlay_item)
+
+                logger.info("[PCOM] Finished ITEM: {0}".format(item_name))
+
+        except Exception as e:
+            logger.error("[PCOM]: Could not fetch discovery info due to exception: {0}".format(e))
+            raise e
+
+        logger.error("[PCOM] Finished subsystem: {0}".format(subsystem))
         defer.returnValue(discovery)
 
     def _send_broadcast_message(self):
@@ -1114,18 +1313,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return  # Ignore, timeout should handle the resend.
 
         parlay_msg = msg.to_json_msg()
-        # print "---> Message to be published: ", parlay_msg
-
         if self._is_reset_msg(parlay_msg):
             self.reset()
-            print "PCOM: Reset message received! Resetting... "
+            logger.info("[PCOM] Reset message received! Resetting... ")
 
         # If we need to ack, ACK!
         if ack_expected:
             ack = str(p_wrap(ack_nak_message(sequence_num, True)))
             self.transport.write(ack)
-            # print "---> ACK MESSAGE SENT"
-            # print [hex(ord(x)) for x in ack]
 
         self.adapter.publish(parlay_msg, self.transport.write)
 
@@ -1140,10 +1335,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param line:
         :return:
         """
-
-        # print "--->Line received was called!"
-        # print [hex(ord(x)) for x in line]
-
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
         start_byte_index = (line.rfind(START_BYTE_STR) + 1)
@@ -1152,9 +1343,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             packet_tuple = unstuff_packet(buf[start_byte_index:])
             self._on_packet(*packet_tuple)
         except FailCRC:
-            print "Failed CRC"
-        except e:
-            print "Could not decode message because of exception", e
+            logger.error("[PCOM] Failed CRC")
+        except Exception as e:
+            logger.error("[PCOM] Could not decode message because of exception: {0}".format(e))
 
 
 class ACKInfo:
@@ -1162,12 +1353,14 @@ class ACKInfo:
     Stores ACK information: deferred and number of retries
     """
 
-    def __init__(self, sequence_number, num_retries, packet, transport):
+    def __init__(self, sequence_number, num_retries, packet, transport, failure_function, msg_deferred):
         self.deferred = defer.Deferred()
         self.num_retries = num_retries
         self.sequence_number = sequence_number
         self.transport = transport
         self.packet = packet
+        self.failure_function = failure_function
+        self.msg_deferred = msg_deferred
 
 
 class SlidingACKWindow:
@@ -1186,7 +1379,7 @@ class SlidingACKWindow:
         self.MAX_ACK_SEQ = 16
         # Initialize lack_acked_map so that none of the first ACKs think they are
         # duplicates. -1 works because no ACK has sequence number -1
-        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
+        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
 
     def ack_received_callback(self, sequence_number):
         """
@@ -1202,7 +1395,7 @@ class SlidingACKWindow:
 
             if sequence_number != self.EXPIRED:
                 if self._last_acked_map[sequence_number % self.WINDOW_SIZE] == sequence_number:
-                    print "UNEXPECTED ACK SEQ NUM:", sequence_number, "DROPPING"
+                    logger.error("[PCOM] UNEXPECTED ACK SEQ NUM: {0} DROPPING".format(sequence_number))
                     return
 
                 self._last_acked_map[sequence_number % self.WINDOW_SIZE] = sequence_number
@@ -1220,7 +1413,7 @@ class SlidingACKWindow:
 
         self._window = {}
         self._queue = []
-        self._last_acked_map = {seq_num: -1 for seq_num in range(self.MAX_ACK_SEQ/2)}
+        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
 
     def ack_timeout_errback(self, timeout_failure):
         """
@@ -1231,7 +1424,7 @@ class SlidingACKWindow:
 
         ack_to_send = self._window[timeout_failure.value.sequence_number]
         if ack_to_send.num_retries < self.NUM_RETRIES:
-            print "TIMEOUT SEQ NUM", timeout_failure.value.sequence_number, " RESENDING..."
+            logger.warn("[PCOM] TIMEOUT SEQ NUM {0} RESENDING...".format(timeout_failure.value.sequence_number))
             ack_to_send.transport.write(ack_to_send.packet)
             ack_to_send.num_retries += 1
             d = defer.Deferred()
@@ -1241,6 +1434,10 @@ class SlidingACKWindow:
             self.ack_timeout(ack_to_send.deferred, PCOMSerial.ACK_TIMEOUT, ack_to_send.sequence_number)
             return self.TIMEOUT
 
+        if self._window[timeout_failure.value.sequence_number].msg_deferred:
+            self._window[timeout_failure.value.sequence_number].msg_deferred.errback(defer.failure.Failure
+                                                                                     (Exception('Timeout Error')))
+        self._window[timeout_failure.value.sequence_number].failure_function()
         del self._window[timeout_failure.value.sequence_number]
         return self.EXPIRED
 
@@ -1273,7 +1470,7 @@ class SlidingACKWindow:
     def remove(self, sequence_number):
         """
         Removes ack_info from the window
-        :param ack_info:
+        :param sequence_number: sequence number of the ACK to remove from window
         :return:
         """
         if sequence_number in self._window:
@@ -1302,7 +1499,6 @@ class SlidingACKWindow:
         d.addCallback(clean_up_timer)
 
 
-
 class TimeoutException(Exception):
     """
     A custom exception used to be passed to the timeout errback for ACKs.
@@ -1312,7 +1508,6 @@ class TimeoutException(Exception):
 
     def __init__(self, sequence_number):
         self.sequence_number = sequence_number
-
 
 
 
