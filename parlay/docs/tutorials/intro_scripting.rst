@@ -143,7 +143,7 @@ commands both serially and in parallel.
 
         @parlay_command()
         def slow_command_1(self):
-            sleep(5)
+            self.sleep(5)
             return "Command 1 Completed!"
 
 
@@ -152,7 +152,7 @@ commands both serially and in parallel.
 
         @parlay_command()
         def slow_command_2(self):
-            sleep(5)
+            self.sleep(5)
             return "Command 2 Completed!"
 
 
@@ -197,8 +197,8 @@ In a separate command line, launch the following script:
     cmd2 = item2.send_parlay_command("slow_command_2")
 
     print "  Waiting for responses..."
-    response1 = cmd1.wait_for_complete()["CONTENTS"]["RESULT"]
-    response2 = cmd2.wait_for_complete()["CONTENTS"]["RESULT"]
+    response1 = cmd1.wait_for_complete()
+    response2 = cmd2.wait_for_complete()
 
     print response1
     print response2

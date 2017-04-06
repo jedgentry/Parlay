@@ -13,4 +13,5 @@ These tutorials will walk you through the basics of the Parlay system.
     intro_scripting
     case_study_serial_dc_motor_controller
     logging
+    user_interface
 
