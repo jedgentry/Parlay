@@ -15,9 +15,11 @@ conversion to and from a JSON message.
 from parlay.protocols.utils import message_id_generator
 
 import pcom_serial
-
+import logging
 import serial_encoding
 from enums import *
+
+logger = logging.getLogger(__name__)
 
 
 class PCOMMessage(object):
@@ -121,7 +123,7 @@ class PCOMMessage(object):
                 command_id = msg.contents.get("COMMAND", INVALID_ID)
                 command_int_id = cls._look_up_id(pcom_serial.PCOM_COMMAND_NAME_MAP, msg.to, command_id)
                 if command_int_id is None:
-                    print "Could not find integer command ID for command name:", command_id
+                    logger.error("Could not find integer command ID for command name: {0}".format(command_id))
                     return
                 # TODO: check for KeyError
                 command = pcom_serial.PCOM_COMMAND_MAP[msg.to].get(command_int_id, None)
@@ -147,7 +149,7 @@ class PCOMMessage(object):
                     property_id = msg.contents.get("PROPERTY", INVALID_ID)
                     property = cls._look_up_id(pcom_serial.PCOM_PROPERTY_NAME_MAP, msg.to, property_id)
                     if property is None:
-                        print "Could not find integer property ID for property name:", property
+                        logger.error("Could not find integer property ID for property name: {0}".format(property))
                         return
                     prop = pcom_serial.PCOM_PROPERTY_MAP[msg.to][property]
                     fmt = prop["format"]
@@ -577,8 +579,8 @@ class PCOMMessage(object):
         # we can not reliably add { output_name -> data } pairs to the CONTENTS dictionary
         # so we should report an error and not add anything to CONTENTS.
         if len(output_param_names) != len(self.data):
-            print "PCOM ERROR: Could not produce contents dictionary for data:", self.data, "and output parameters:", \
-                        output_param_names
+            logger.error("[PCOM] ERROR: Could not produce contents dictionary for data: {0} and"
+                         " output parameters: {1}".format(self.data, output_param_names))
             return
 
         # If we got here we know that the number of output parameters is the same
