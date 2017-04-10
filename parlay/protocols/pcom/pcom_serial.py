@@ -103,6 +103,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     STM_VCP_STRING = "STM32 Virtual ComPort"
     USB_SERIAL_CONV_STRING = "USB Serial Converter"
+    STLINK_STRING = "Link"
+
+    FTDI_VENDOR_ID = "=0403"
+    ST_VENDOR_ID = "=0483"
+    ST_SNR = "SNR="
 
     # ACK window size
     WINDOW_SIZE = 8
@@ -153,11 +158,16 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     def _filter_com_ports(potential_com_ports):
 
         def _is_valid_port(port_name):
-            return PCOMSerial.STM_VCP_STRING in port_name[1] or PCOMSerial.USB_SERIAL_CONV_STRING in port_name[1]
+            return PCOMSerial.STM_VCP_STRING in port_name[1] or PCOMSerial.USB_SERIAL_CONV_STRING in port_name[1] or \
+                   PCOMSerial.FTDI_VENDOR_ID in port_name[2] or (PCOMSerial.ST_VENDOR_ID in port_name[2] and
+                                                                 PCOMSerial.STLINK_STRING not in port_name[1]) or \
+                   PCOMSerial.ST_VENDOR_ID in port_name[2] and PCOMSerial.ST_SNR in port_name[2]
 
         result_list = []
         try:
             for port in potential_com_ports:
+                logger.info("PORT:")
+                logger.info(port)
                 if len(port) > 1:
                     if _is_valid_port(port):
                         result_list.append(port)
@@ -178,6 +188,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         logger.info("[PCOM] Available COM ports: {0}".format(list_ports.comports()))
 
         filtered_comports = cls._filter_com_ports(list_ports.comports())
+        logger.info("[PCOM]: filtered_comports:")
+        logger.info(filtered_comports)
         potential_serials = [port_list[0] for port_list in filtered_comports]
         cls.default_args['port'] = potential_serials
 
