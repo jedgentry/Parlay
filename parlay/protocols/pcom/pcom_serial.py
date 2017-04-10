@@ -61,7 +61,7 @@ PCOM_STREAM_NAME_MAP = {}
 PCOM_ITEM_NAME_MAP = {}
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 # A namedtuple representing the information of each property.
 # This information will be retrieved during discovery.
