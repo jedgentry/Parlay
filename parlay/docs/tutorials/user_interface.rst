@@ -412,11 +412,60 @@ drop existing widgets.  Furthermore, an item card's title bar buttons will also 
 .. image:: images/parlay_editing_mode_off.png
    :alt: Editing mode disabled
 
-.. Protocols
-.. ---------
+Protocols
+---------
 
-.. Notifications
-.. -------------
+There are often times, especially for embedded programmers and developers, where Python Parlay items are not sufficient
+to run all of your testing tools. Parlay has support for other protocols (such as USB, Bluetooth, etc) to be connected
+to the system so you may directly communicate to your embedded devices from the Parlay System.
 
-.. Settings
-.. --------
+Near the bottom of the left side navigator, you should see a button that says "Protocols".  Clicking this will prompt
+open a dialog that will allow you to connect to different protocols available in your Parlay System.  By connecting to
+your specified protocol, you will then be able to request a discovery for items connected in that protocol.
+
+
+Notifications
+-------------
+
+ParlayUI is a system that works with notifications. The first time you launch the Parlay system, Parlay will ask if you
+would like to enable notifications.
+
+.. image:: images/parlay_default_notification.png
+   :alt:  Browser Notification Prompt
+
+It is not necessary that you allow these notifications.  With enabled notifications, your browser will notify you
+whenever a Parlay Notification occurs AND you are not currently viewing the Parlay Tab in your browser.  If you disable
+notifications, you will still be able to view them from within the parlay system.
+
+If you look near the bottom of the left side navigator, underneath the Protocols button, you should see notifications.
+Clicking this tab will pull open a side navigator on the right hand side of the window with a history of all of the
+Parlay notifications you have received in your current session.
+
+You will also see notifications come up on your screen in real time in the bottom right corner of the window as a toast
+notification.
+
+.. image:: images/parlay_toast_notification.png
+   :alt: Parlay Toast Notification
+
+Settings
+--------
+
+The last entry in the left side navigator is the settings button.  Clicking this will open the settings configuration
+window where you can modify the different aspects of your Parlay System.  Most of the settings can be explained by the
+labels within each entry in the window, but there is one important feature that should be noticed.
+
+At the top of the Settings window, you should an entry for discovery settings.  There is an option to disable automatic
+discovery on the start of the Parlay System.  You may be wondering, why would I want to do this?  This can be
+essentially crucial for users who are dealing with large network of embedded systems.  Often times, in large networks
+of Parlay Items and embedded devices, Discovery can take minutes to complete.  By disabling the auto discovery,  you can
+continue to work by simply loading a saved discovery file, and having Parlay read the file and load discovery from the
+file rather than wait to find every single available item in a discovery request.
+
+.. image:: images/parlay_discovery_settings.png
+   :alt: Parlay Discovery Settings
+
+This does imply that you will have to run one discovery before being able to save and load the file.  Once your
+discovery is complete, you can open the settings window and click the "Save Discovery" which will prompt a download
+of a text file containing the response contents of the Discovery Request.  Now in the future, instead of having to wait
+minutes for a discovery to load, you can just click the "Load Discovery" button and have Parlay load the discovery in a
+much quicker time lapse.
