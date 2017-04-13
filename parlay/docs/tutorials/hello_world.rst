@@ -47,7 +47,7 @@ Two things will now happen:
 1) The parlay system will start running in the command line. Do not close 
    the command line window! 
 2) Your default web browser will automatically open a new tab and go to 
-   http://localhost:8080, where you will see the UI.
+   http://localhost:58080, where you will see the UI.
 
 Parlay User Interface
 ---------------------
@@ -96,7 +96,7 @@ accustomed to.
 -  If you just close the web browser, Parlay is *still running*. To shut
    down Parlay, close the command line window where you started Parlay.
    If you did not mean to close the browser, you can re-open your web
-   browser and navigate to http://localhost:8080, and Parlay will show
+   browser and navigate to http://localhost:58080, and Parlay will show
    the :doc:`user_interface` again.
 -  If you close the command line window before the web browser, the
    browser will lose communication with Parlay and :doc:`user_interface` top

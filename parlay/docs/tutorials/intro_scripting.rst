@@ -206,7 +206,7 @@ In a separate command line, launch the following script:
 .. code:: bash
 
     c:\> python serial_vs_parallel_script.py
-    Connecting to localhost : 8085
+    Connecting to localhost : 58085
     Running discovery...
 
     Sending blocking commands

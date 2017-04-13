@@ -29,7 +29,7 @@ class BaseProtocol(object):
 
         e.g.
         @classmethod
-        def open(cls, adapter, ip, port=8080):
+        def open(cls, adapter, ip, port=58080):
             return protocol(ip,port)
         """
         raise NotImplementedError()

@@ -23,6 +23,10 @@ BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
 BROKER_VERSION = parlay.__version__
 
+HTTP_PORT = 58080
+HTTPS_PORT = 58081
+WS_PORT = 58085
+SECURE_WS_PORT = 58086
 
 class Broker(object):
     """
@@ -86,8 +90,8 @@ class Broker(object):
         return Broker.instance
 
     @staticmethod
-    def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
-              websocket_port=8085, secure_websocket_port=8086, ui_path=None, log_level=logging.DEBUG):
+    def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=HTTP_PORT, https_port=HTTPS_PORT,
+              websocket_port=WS_PORT, secure_websocket_port=SECURE_WS_PORT, ui_path=None, log_level=logging.DEBUG):
         """
         Run the default Broker implementation.
         This call will not return.
@@ -593,7 +597,7 @@ class Broker(object):
                     raise
 
         if not ssl_only:
-            # listen for websocket connections on port 8085
+            # listen for websocket connections on port 58085
             factory = WebSocketServerFactory("ws://localhost:" + str(self.websocket_port))
             factory.protocol = WebSocketServerAdapter
             self.reactor.listenTCP(self.websocket_port, factory, interface=interface)

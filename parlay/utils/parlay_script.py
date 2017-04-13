@@ -10,7 +10,7 @@ from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES, ListenerStatu
 from autobahn.twisted.websocket import WebSocketClientFactory
 from parlay.protocols.websocket import WebsocketClientAdapter, WebsocketClientAdapterFactory
 
-DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
+DEFAULT_ENGINE_WEBSOCKET_PORT = 58085
 
 
 class ParlayScript(ThreadedItem):

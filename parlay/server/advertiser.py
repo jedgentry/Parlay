@@ -69,7 +69,7 @@ class ParlayConsumer(DatagramProtocol):
         try:
             info = json.loads(datagram)
             if info.get("type", None) == "PARLAY_INFO":
-                url="http://"+address[0]+":"+str(8080)
+                url="http://"+address[0]+":"+str(58080)
                 self.found_hosts[url] = info.get("info", {}).get("name", "N/A")
 
         except ValueError:
