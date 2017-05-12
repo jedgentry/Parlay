@@ -6,6 +6,8 @@ from parlay.testing.unittest_mixins.adapter import AdapterMixin
 from parlay.testing.unittest_mixins.reactor import ReactorMixin
 
 from parlay.items import parlay_standard
+from parlay import parlay_command
+
 
 class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
 
@@ -78,11 +80,25 @@ class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
                                      'TX_TYPE': 'DIRECT'},
                           'CONTENTS': {'ACTION': 'RESPONSE', 'PROPERTY': 'simple_property', 'VALUE': 10}})
 
-
     def tearDown(self):
-        #reset custom property list
+        # reset custom property list
         PropertyTestItem.custom_list = []
 
+
+class CommandTest(unittest.TestCase, AdapterMixin, ReactorMixin):
+
+    def setUp(self):
+        self.cmd_item_1 = CommandTestItem("ITEM_1", "ITEM_1", reactor=self.reactor, adapter=self.adapter)
+        self.cmd_item_2 = CommandTestItem("ITEM_2", "ITEM_2", reactor=self.reactor, adapter=self.adapter)
+
+    def testLocalSyncCommand(self):
+        d = defer.maybeDeferred(self.cmd_item_1.add, 2, 3)
+        d.addCallback(self.assertEqual, 5)
+        return d
+
+    def testLocalAsyncCommand(self):
+        value = self.cmd_item_1.add_async(2, 3)
+        self.assertEqual(value, 5)
 
 
 class PropertyTestItem(parlay_standard.ParlayCommandItem):
@@ -98,3 +114,17 @@ class PropertyTestItem(parlay_standard.ParlayCommandItem):
     custom_rw_propery = parlay_standard.ParlayProperty(val_type=float,
                                                        custom_read=lambda: ','.join(str(x) for x in PropertyTestItem.custom_list),
                                                        custom_write=lambda x: PropertyTestItem.custom_list.append(x))
+
+
+class CommandTestItem(parlay_standard.ParlayCommandItem):
+    """
+    Helper class to test custom commands
+    """
+
+    @parlay_command()
+    def add(self, x, y):
+        return x + y
+
+    @parlay_command(async=True)
+    def add_async(self, x, y):
+        return x + y

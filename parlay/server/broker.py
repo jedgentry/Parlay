@@ -12,13 +12,16 @@ import os
 import json
 import signal
 import functools
-
+import parlay
+import itertools
+import logging
+import advertiser
 
 # path to the root parlay folder
 PARLAY_PATH = os.path.dirname(os.path.realpath(__file__)) + "/.."
 BROKER_DIR = os.path.dirname(os.path.realpath(__file__))
 
-BROKER_VERSION = "0.2.0"
+BROKER_VERSION = parlay.__version__
 
 
 class Broker(object):
@@ -49,7 +52,7 @@ class Broker(object):
         def __init__(self):
             raise BaseException("Broker.Modes should never be instantiated.  It is only for enumeration.")
 
-    def __init__(self, reactor, websocket_port=8085, http_port=8080, https_port=8081, secure_websocket_port=8086):
+    def __init__(self, reactor):
         assert(Broker.instance is None)
 
         # :type parlay.server.reactor.ReactorWrapper
@@ -66,17 +69,11 @@ class Broker(object):
         # The listeners that will be called whenever a message is received
         self._listeners = {}  # See Listener lookup document for more info
 
-
-
         # the broker is a singleton
         Broker.instance = self
 
-        self.websocket_port = websocket_port
-        self.http_port = http_port
-        self.https_port = https_port
-        self.secure_websocket_port = secure_websocket_port
-        self._run_mode = Broker.Modes.PRODUCTION  # safest default
-
+        logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+        self._logger = logging.getLogger(__name__)  # use this as the logger
 
     @staticmethod
     def get_instance():
@@ -90,18 +87,23 @@ class Broker(object):
 
     @staticmethod
     def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
-              websocket_port=8085, secure_websocket_port=8086, ui_path=None):
+              websocket_port=8085, secure_websocket_port=8086, ui_path=None, log_level=logging.DEBUG):
         """
         Run the default Broker implementation.
         This call will not return.
         """
         broker = Broker.get_instance()
+        # do some construction stuff here
+        broker.websocket_port = websocket_port
         broker.http_port = http_port
         broker.https_port = https_port
-        broker.websocket_port = websocket_port
         broker.secure_websocket_port = secure_websocket_port
-        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
+        broker._run_mode = Broker.Modes.PRODUCTION  # safest default
 
+        if log_level is not None:
+            broker._logger.setLevel(log_level)
+
+        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
 
     @staticmethod
     def start_for_test():
@@ -123,6 +125,8 @@ class Broker(object):
         :param write_method : the protocol's method to callback if the broker needs to send a response
         :type msg : dict
         """
+        self._logger.debug(msg)
+
         if write_method is None:
             write_method = lambda _: _
 
@@ -151,7 +155,11 @@ class Broker(object):
 
         # call any functions in the None key
         for func, owner in root_list.get(None, []):
-            func(msg)
+            try:
+                func(msg)
+            except Exception as e:
+                print "UNCAUGHT EXCEPTION IN PROTOCOL"
+                print e
 
         TOPICS = msg['TOPICS']
         # for each key in the listeners list
@@ -280,11 +288,16 @@ class Broker(object):
         """
 
         if cls._started.called:
-            # already started, queue it up in the reactor
-            cls.get_instance().reactor.callLater(0, func)
+            #make sure its run in the broker
+            @run_in_broker
+            def inner():
+                # already started, queue it up in the reactor
+                return defer.maybeDeferred(func)
+            return inner()
         else:
             # need a lambda to eat any results from the previous callback in the chain
             cls._started.addBoth(lambda *args: func())
+            return cls._started
 
     @classmethod
     def call_on_stop(cls, func):
@@ -403,38 +416,36 @@ class Broker(object):
                 message_callback(reply)
 
         elif request == 'close_protocol':
-            # close the protocol with the string repr given
-            open_protocols = [str(x) for x in self._protocols]
-            reply['CONTENTS']['protocols'] = open_protocols
-
-            to_close = msg['CONTENTS']['protocol']
-            # see if it exsits
-            if to_close not in open_protocols:
-                reply['CONTENTS']['STATUS'] = "no such open protocol: " + to_close
-                message_callback(reply)
-                return
 
             new_protocol_list = []
-            try:
-                for x in self._protocols:
-                    if str(x) == to_close:
-                        x.close()
-                    else:
-                        new_protocol_list.append(x)
+            to_close = msg["CONTENTS"]["protocol"]
 
-                self._protocols = new_protocol_list
-                # recalc list
-                reply['CONTENTS']['protocols'] = [str(x) for x in self._protocols]
-                reply['CONTENTS']['STATUS'] = "ok"
+            for adapter in self.adapters:
+                protocols = adapter.get_open_protocols()
+
+                try:
+                    for x in protocols:
+                        if str(x) == to_close:
+                            adapter.untrack_open_protocol(x)
+                            x.close()
+
+                        else:
+                            new_protocol_list.append(x)
+
+                except NotImplementedError as _:
+                    reply['CONTENTS'][
+                        'STATUS'] = "Error while closing protocol. Protocol does not define close() method"
+                    message_callback(reply)
+
+                except Exception as e:
+                    reply['CONTENTS']['STATUS'] = "Error while closing protocol " + str(e)
+                    message_callback(reply)
                 message_callback(reply)
 
-            except NotImplementedError as _:
-                reply['CONTENTS']['STATUS'] = "Error while closing protocol. Protocol does not define close() method"
-                message_callback(reply)
-
-            except Exception as e:
-                reply['CONTENTS']['STATUS'] = "Error while closing protocol " + str(e)
-                message_callback(reply)
+            # recalc list
+            reply['CONTENTS']['protocols'] = [str(x) for x in new_protocol_list]
+            reply['CONTENTS']['STATUS'] = "ok"
+            message_callback(reply)
 
         elif request == "get_discovery":
             # if we're forcing a refresh, clear our whole cache
@@ -469,10 +480,14 @@ class Broker(object):
             all_d.addCallback(discovery_done)
             all_d.addErrback(discovery_error)
 
+        elif request == 'verify_broker_comms':
+            reply["CONTENTS"]['status'] = "ok"
+            message_callback(reply)
+
         elif request == "shutdown":
             reply["CONTENTS"]['status'] = "ok"
             message_callback(reply)
-            #give some time for the message to propagate, and the even queue to clean
+            # give some time for the message to propagate, and the even queue to clean
             self.reactor.callLater(0.1, self.cleanup)
 
 
@@ -526,7 +541,7 @@ class Broker(object):
         except:
             return "UNKNOWN"
 
-    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, ui_path=None):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, use_ssl=False, open_browser=True, ui_path=None):
         """
         Start up and run the broker. This method call with not return
         """
@@ -537,12 +552,11 @@ class Broker(object):
         signal.signal(signal.SIGINT, lambda sig, frame: self.cleanup())
 
         if mode == Broker.Modes.DEVELOPMENT:
-            print "WARNING: Broker running in DEVELOPER mode. Only use in a controlled development environment"
-            print "WARNING: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
+            print "INFO: Broker running in DEVELOPER mode. This is fine for a development environment"
+            print "INFO: For production systems run the Broker in PRODUCTION mode. e.g.: " + \
                   "broker.run(mode=Broker.Modes.PRODUCTION)"
             # print out the local ip to access this broker from
             print "This device is remotely accessible at http://" + self.get_local_ip() + ":" + str(self.http_port)
-
 
         self._run_mode = mode
 
@@ -559,23 +573,24 @@ class Broker(object):
             root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
 
         # ssl websocket
-        try:
-            from OpenSSL.SSL import Context
-            ssl_context_factory = BrokerSSlContextFactory()
+        if use_ssl:
+            try:
+                from OpenSSL.SSL import Context
+                ssl_context_factory = BrokerSSlContextFactory()
 
-            factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
-            factory.protocol = WebSocketServerAdapter
-            factory.setProtocolOptions(allowHixie76=True)
-            listenWS(factory, ssl_context_factory, interface=interface)
-            root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
-            self.reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
+                factory = WebSocketServerFactory("wss://localhost:" + str(self.secure_websocket_port))
+                factory.protocol = WebSocketServerAdapter
+                factory.setProtocolOptions()
+                listenWS(factory, ssl_context_factory, interface=interface)
+                root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
+                self.reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
 
-        except ImportError:
-            print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
-        except Exception as e:
-            print "WARNING: PyOpenSSL has had an error: " + str(e)
-            if ssl_only:
-                raise
+            except ImportError:
+                print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
+            except Exception as e:
+                print "WARNING: PyOpenSSL has had an error: " + str(e)
+                if ssl_only:
+                    raise
 
         if not ssl_only:
             # listen for websocket connections on port 8085
@@ -590,10 +605,12 @@ class Broker(object):
                 # give the reactor some time to init before opening the browser
                 self.reactor.callLater(.5, lambda: webbrowser.open_new_tab("http://localhost:"+str(self.http_port)))
 
+
+        # add advertising
+        reactor.listenMulticast(self.websocket_port, advertiser.ParlayAdvertiser(),
+                                listenMultiple=True)
         self.reactor.callWhenRunning(self._started.callback, None)
         self.reactor.run()
-
-
 
 try:
     from twisted.internet import ssl
@@ -644,6 +661,7 @@ def run_in_thread(fn):
     with result.
     """
     from parlay.server.reactor import run_in_thread
+
     @functools.wraps(fn)
     def decorator(*args, **kwargs):
         reactor = Broker.get_instance().reactor

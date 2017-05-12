@@ -15,8 +15,6 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
 
     broker = Broker.get_instance()
 
-
-
     def __init__(self, broker=None):
         WebSocketServerProtocol.__init__(self)
         self._discovery_response_defer = None
@@ -33,12 +31,10 @@ class WebSocketServerAdapter(WebSocketServerProtocol, Adapter):
         """
         Send a message dictionary as JSON
         """
-        print("->" + str(msg))
         self.sendMessage(json.dumps(msg))
 
     def onMessage(self, payload, isBinary):
         if not isBinary:
-            print payload
             msg = json.loads(payload)
 
             # if we're waiting for discovery and its a discovery response

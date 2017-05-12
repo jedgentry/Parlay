@@ -6,6 +6,7 @@ from base import BaseItem
 from parlay.server.broker import Broker, run_in_broker
 import sys
 import json
+import logging
 
 
 # a list of Item proxy classes for Scripts
@@ -121,7 +122,34 @@ class ThreadedItem(BaseItem):
                     if _msg['CONTENTS']['STATUS'] == 'ok':
                         result.callback(_msg['CONTENTS']['STATUS'])
                     else:
-                        result.errback(Failure(_msg['CONTENTS']['STATUS']))
+                        result.errback(Failure(RuntimeError(_msg['CONTENTS']['STATUS'])))
+                    return True  # we're done here
+                return False  # keep waiting
+
+            self.add_listener(listener)
+            return result
+
+        return self._reactor.maybeblockingCallFromThread(wait_for_response)
+
+    def close_protocol(self, protocol_id):
+        """
+        close a protocol by id
+        :param protocol_id:
+        :return:
+        """
+        msg = {"TOPICS": {'type': 'broker', 'request': 'close_protocol'},
+               "CONTENTS": {'protocol': protocol_id}}
+        self._reactor.maybeCallFromThread(self.publish, msg)
+
+        def wait_for_response():
+            result = defer.Deferred()
+
+            def listener(_msg):
+                if _msg['TOPICS'].get('response', "") == 'close_protocol_response':
+                    if _msg['CONTENTS']['STATUS'] == 'ok':
+                        result.callback(_msg['CONTENTS']['STATUS'])
+                    else:
+                        result.errback(Failure(RuntimeError(_msg['CONTENTS']['STATUS'])))
                     return True  # we're done here
                 return False  # keep waiting
 
@@ -154,7 +182,8 @@ class ThreadedItem(BaseItem):
         msg['TOPICS']['MSG_ID'] = self._message_id_generator.next()
         msg['TOPICS']['TO'] = to
         msg['TOPICS']['FROM'] = self.item_id
-        msg['CONTENTS']['COMMAND'] = command
+        if command is not None:
+            msg['CONTENTS']['COMMAND'] = command
         return msg
 
     def send_parlay_message(self, msg, timeout=DEFAULT_TIMEOUT, wait=None):
@@ -210,6 +239,8 @@ class ThreadedItem(BaseItem):
         with open(path, 'r') as f:
             self.discovery = json.load(f)
 
+    @run_in_broker
+    @defer.inlineCallbacks
     def get_item_by_id(self, item_id):
         """
         Returns a handler object that can be used to send messages to an item.
@@ -221,12 +252,23 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        try:
-            item_disc = next(self._find_item_info(self.discovery, item_id, "ID"))
+        def find():
+            g = self._find_item_info(self.discovery, item_id, "ID")
+            item_disc = next(g)
             return self._proxy_item(item_disc)
-        except StopIteration:
-            raise KeyError("Couldn't find item with id " + str(item_id))
 
+        try:
+            defer.returnValue(find())
+        except StopIteration:
+            # discover and try again
+            try:
+                yield self.discover(force=False)
+                defer.returnValue(find())
+            except StopIteration:
+                raise KeyError("Couldn't find item with id " + str(item_id))
+
+    @run_in_broker
+    @defer.inlineCallbacks
     def get_item_by_name(self, item_name):
         """
         Returns a handler object that can be used to send messages to an item.
@@ -238,13 +280,23 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
-        try:
+        def find():
             g = self._find_item_info(self.discovery, item_name, "NAME")
             item_disc = next(g)
             return self._proxy_item(item_disc)
-        except StopIteration:
-            raise KeyError("Couldn't find item with name " + str(item_name))
 
+        try:
+            defer.returnValue(find())
+        except StopIteration:
+            # discover and try again
+            try:
+                yield self.discover(force=False)
+                defer.returnValue(find())
+            except StopIteration:
+                raise KeyError("Couldn't find item with name " + str(item_name))
+
+    @run_in_broker
+    @defer.inlineCallbacks
     def get_all_items_with_name(self, item_name):
         """
         Returns a handler object that can be used to send messages to an item.
@@ -256,8 +308,13 @@ class ThreadedItem(BaseItem):
         if not self._reactor.running:
             raise Exception("You must call parlay.utils.setup() at the beginning of a script!")
 
+        result = [self._proxy_item(x) for x in self._find_item_info(self.discovery, item_name, "NAME")]
+        if len(result) == 0:  # retry after discover if it fails
+            yield self.discover(force=False)
+            result = [self._proxy_item(x) for x in self._find_item_info(self.discovery, item_name, "NAME")]
 
-        return [self._proxy_item(x) for x in self._find_item_info(self.discovery, item_name, "NAME")]
+        defer.returnValue(result)
+
 
 
     def _proxy_item(self, item_disc):
@@ -284,7 +341,12 @@ class ThreadedItem(BaseItem):
             raise KeyError("Couldn't find template proxy for:" + item_disc.get("TYPE", ""))
 
         # we have a good template class! Let's construct it
-        return template(item_disc, self)
+        try:
+            result = template(item_disc, self)
+            return result
+        except Exception as e:
+            print "Could not construct proxy Item. Caught Exception :" + str(e)
+            raise
 
     def _find_item_info(self, discovery, item_id, key):
         """

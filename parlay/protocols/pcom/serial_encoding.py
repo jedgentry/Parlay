@@ -13,6 +13,9 @@ import array
 import sys
 from enums import *
 import pcom_message
+import collections
+
+import pcom_serial
 
 FORMAT_STRING_TABLE = {
 
@@ -134,8 +137,9 @@ def encode_pcom_message(msg):
     payload = struct.pack("<HHHHHBB", msg.msg_id, msg.from_, msg.to, serialize_response_code(msg), msg.msg_status,
                           serialize_msg_type(msg), serialize_msg_attrs(msg))
 
+    # NOTE: struct.pack() does not support unicode so msg.format_string must be cast to str
     if msg.format_string:
-        payload += struct.pack("%ds" % len(msg.format_string), msg.format_string)
+        payload += struct.pack("%ds" % len(msg.format_string), str(msg.format_string))
 
     # NULL terminate the format_string,
     # or if there isn't a format_string we just
@@ -147,9 +151,32 @@ def encode_pcom_message(msg):
     # to the payload.
     if msg.data:
         msg.data = cast_data(msg.format_string, msg.data)
-        payload += struct.pack("<" + translate_fmt_str(msg.format_string, msg.data), *msg.data)
+        flattened_data = flatten(msg.data)
+        payload += struct.pack("<" + translate_fmt_str(msg.format_string, msg.data), *flattened_data)
 
     return payload
+
+def flatten(data):
+    """
+    Flattens an irregular data list into one list.
+
+    Eg.
+
+    [1, 2, [3, 4]] -> [1, 2, 3, 4]
+
+     NOTE: used for handling variable length format string data
+
+     FORMAT STRING = b*b
+     DATA = [2, [3, 4]]
+
+     Data needs to be packed as struct.pack('b2b', 2, 3, 4)
+    :param data:  data list to be packed
+    :return: flattened data lilst
+    """
+    if isinstance(data, collections.Iterable) and not isinstance(data, basestring):
+        return [element for lst in data for element in flatten(lst)]
+    else:
+        return [data]
 
 
 def expand_fmt_string(format_string):
@@ -207,7 +234,7 @@ def cast_data(fmt_string, data):
 
     Example usage:
 
-    cast_data("*B", ["12, 13, 14"]) --> [12, 13, 14]
+    cast_data("*B", ["12, 13, 14"]) --> [[12, 13, 14]]
     cast_data("Hs", ["12", "test"] --> [12, "test"]
 
     The return list will be sent to struct.pack()
@@ -230,9 +257,9 @@ def cast_data(fmt_string, data):
             continue
 
         if i == '*':
-            variable_array = data[index].split(",")
+            variable_array = data[index].split(",") if isinstance(data[index], basestring) else data[index]
             new_fmt_str = str(len(variable_array)) + expanded_fmt[fmt_index+1]
-            result.extend(cast_data(expand_fmt_string(new_fmt_str), variable_array))
+            result.append(cast_data(expand_fmt_string(new_fmt_str), variable_array))
             skip_next = 1
         elif i.isalpha():
             if i in "bBhHiIlLqQnNx":  # TODO: Should padding (x) be int?
@@ -275,13 +302,25 @@ def serialize_response_code(message):
     VALID_MSG_TYPES = ["COMMAND", "EVENT", "RESPONSE", "PROPERTY", "STREAM"]
 
     m_type = message.msg_type
+    map_to_use = None
 
     if m_type in VALID_MSG_TYPES:
         code = message.contents.get("STATUS" if m_type == "RESPONSE" else m_type, None)
-    else:
-        raise Exception("Response code could not be generated for message type: " + m_type)
+        if isinstance(code, basestring):
+            if m_type == "COMMAND":
+                map_to_use = pcom_serial.PCOM_COMMAND_NAME_MAP
+            elif m_type == "PROPERTY":
+                map_to_use = pcom_serial.PCOM_PROPERTY_NAME_MAP
+            elif m_type == "STREAM":
+                map_to_use = pcom_serial.PCOM_STREAM_NAME_MAP
 
-    return code
+            if map_to_use:
+                return pcom_message.PCOMMessage._look_up_id(map_to_use, message.to, code)
+
+        elif type(code) == int:
+            return code
+
+    raise Exception("Response code could not be generated for message type: " + m_type)
 
 
 def serialize_msg_type(msg):
@@ -458,7 +497,7 @@ def decode_pcom_message(binary_msg):
     msg.data = struct.unpack(receive_format, binary_msg[format_string_end_index+1:])
 
     # Remove null byte from all strings in data
-    print msg.data
+    # print msg.data
     msg.data = map(lambda s: s[:-1] if isinstance(s, basestring) and s.endswith('\x00') else s, msg.data)
 
     # Map booleans to numbers until UI handles booleans correctly.
@@ -467,7 +506,7 @@ def decode_pcom_message(binary_msg):
     # It's possible to receive empty strings for parameter requests.
     # In the case that we do receive an empty string we should not store it in data
     msg.data = filter(lambda x: x != '', msg.data)
-    print msg.data
+
     return msg
 
 
@@ -518,12 +557,14 @@ def translate_fmt_str(fmt_str, data):
     for fmt_index, char in enumerate(fmt_str):
 
         if char == '*':
-            rest_of_data_len = (len(data) - index)
             if is_binary:
+                rest_of_data_len = (len(data) - index)
                 rest_of_data_len /= FORMAT_STRING_TABLE[fmt_str[fmt_index+1]]
-
-            output_str += str(rest_of_data_len)
-            index += rest_of_data_len
+                output_str += str(rest_of_data_len)
+                index += rest_of_data_len
+            else:
+                output_str += str(len(data[index]))
+                index += 1
             continue
 
         if char.isdigit():
@@ -531,14 +572,18 @@ def translate_fmt_str(fmt_str, data):
 
         if char.isalpha() or char == '?':
             if char is 's':
-                count = get_str_len(data[index:]) if is_binary else len(data[index])+1
+                if is_binary:
+                    count = get_str_len(data[index:])
+                    index += count
+                else:
+                    count = len(data[index]) + 1
+                    index += 1
                 output_str += str(count)
             else:
                 multiplier = 1 if len(int_holder) == 0 else int(int_holder)
                 count = FORMAT_STRING_TABLE[char] * multiplier if is_binary else multiplier
                 int_holder = ''
-
-            index += count
+                index += count
 
         output_str += char
 
@@ -558,11 +603,10 @@ def pack_little_endian(type_string, data_list):
     return a
 
 
-# TESTING PURPOSES
-
 def hex_print(buf):
     """
-    :param buf:
+    Prints the characters of buffer in hexidecimal
+    :param buf: buffer to be printed
     :return:
     """
     print [hex(ord(x)) for x in buf]
@@ -589,19 +633,19 @@ def wrap_packet(packet, sequence_num, use_ack):
     payload_length = len(packet)
     sequence_byte = sequence_num | (NORMAL << 4) if use_ack else sequence_num | (ACK << 4)
 
-    checksum_array = bytearray([sequence_byte])
-    # calculate and add the checksum byte
-    checksum_array.append(payload_length & 0xffff)
-    checksum_array += packet
+    binary_msg = bytearray([sequence_byte])
+    binary_msg += struct.pack("<H", payload_length & 0xFFFF)
+    binary_msg += bytearray(packet)
 
-    checksum = get_checksum(sum_packet(checksum_array))
+    msg_sum = sum_packet(binary_msg)
+    checksum = get_checksum(msg_sum)
 
-    binary_msg = bytearray([sequence_byte, checksum]) + struct.pack("<H", payload_length & 0xffff) + packet
+    #verify checksum
+    if (msg_sum + checksum) & 0xff != 0:
+        raise ValueError("Checksum didn't equal zero!")
 
-    # If the packet sum is not zero we should raise an exception
-    # and not send the packet.
-    if sum_packet(binary_msg):
-        raise Exception("Checksum wasn't zero!")
+    binary_msg = bytearray([sequence_byte, checksum]) + binary_msg[1:]
+
 
     # Add the start stop and escape characters and send over serial port
     return p_wrap(binary_msg)
@@ -617,7 +661,7 @@ def unstuff_packet(packet):
     packet_len = len(packet)
 
     if sum_packet(packet) != 0:
-        print "WARNING PACKET DIDNT ADD UP TO ZERO"
+        raise FailCRC
 
     if packet_len < 1:
         raise IndexError("Packets must be AT LEAST 3 bytes long. packet was: " + str(packet))
@@ -663,8 +707,8 @@ def sum_packet(msg):
 
     checksum = 0
     for b in msg:
-        checksum = (checksum + b) & 0xff
-    return checksum
+        checksum = (checksum + b)
+    return checksum & 0xff
 
 def get_checksum(packet_sum):
     """
@@ -673,7 +717,12 @@ def get_checksum(packet_sum):
     :return: checksum for the packet
     """
 
-    return (0x100 - packet_sum) & 0xff #TODO: provide constants instead of magic numbers
+    return -packet_sum & 0xff
+
+class FailCRC(Exception):
+
+    def __init__(self):
+        pass
 
 
 

@@ -6,10 +6,13 @@ import fnmatch
 import urllib2
 
 
-UI_VERSION = "0.0.4"
+UI_VERSION = "0.0.22"
 UI_LOCATION = "parlay/ui/dist"
 DOCS_LOCATION = "parlay/docs/_build/html"
 
+here = os.path.abspath(os.path.dirname(__file__))
+UI_LOCATION = os.path.join(here, UI_LOCATION)
+DOCS_LOCATION = os.path.join(here, DOCS_LOCATION)
 
 def get_version():
     VERSIONFILE = os.path.join('parlay', '__init__.py')
@@ -32,7 +35,7 @@ def find_files(directory, pattern):
                 print "Found: " + _modulename
                 yield _modulename, _filename
 
-
+# If we're doing a build, or index has gotten deleted somehow, grab the correct version
 if not os.path.exists(UI_LOCATION + "/index.html"):
     # wget the dist file and put it in /ui/dist
     response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
@@ -40,7 +43,7 @@ if not os.path.exists(UI_LOCATION + "/index.html"):
     if not os.path.exists(UI_LOCATION):
         os.makedirs(UI_LOCATION)
 
-    with open(UI_LOCATION + "/index.html", 'w+') as index_file:
+    with open(os.path.join(UI_LOCATION, "index.html"), 'w+') as index_file:
         index_file.write(html)
 
 
@@ -54,11 +57,10 @@ else:
         sphinx.build_main(['-b html', 'parlay/docs', DOCS_LOCATION])
         package_data_files.extend([os.path.relpath(filename, "parlay") for _, filename in find_files(DOCS_LOCATION, "*")])
     except ImportError as _:
-        print "Warning: Documentation not built. Please pip install sphinx to build documentation."
+        print "Warning: Documentation not built. Please run `pip install sphinx sphinx-rtd-theme` to build documentation."
 
 
 # Get README to use as long description
-here = os.path.abspath(os.path.dirname(__file__))
 readme = ""
 with open(os.path.join(here, 'README.md')) as f:
     readme = f.read()
@@ -84,7 +86,8 @@ setup(
                    "pyOpenSSL>=0.15.1",
                    "cffi>=1.5.0",
                    "service-identity >=14.0.0",
-                   "pycrypto"]
+                   "requests",
+                   "ipaddress>=1.0.16"]
     },
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -95,5 +98,11 @@ setup(
     ],
     keywords='embedded device broker medical',
     zip_safe=False,
-    test_suite='parlay/tests'
+    test_suite='parlay/tests',
+    entry_points={
+        'console_scripts': [
+              'parlay = parlay.__main__:main',
+              'findparlay = parlay.server.advertiser:main'
+          ]
+    }
 )

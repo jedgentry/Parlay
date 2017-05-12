@@ -52,17 +52,17 @@ Two things will now happen:
 Parlay User Interface
 ---------------------
 
-At the top of the user interface is a search bar that says "Search for a
+At the top of the :doc:`user_interface` is a search bar that says "Search for a
 connected item".
 
-.. image:: images/parlay_item_search_blank.png
-   :alt: Blank item search box
+.. image:: images/parlay_item_menu.png
+   :alt: Parlay Item Menu Button
 
 Click it, and you will see a dropdown with the item we created in the
 script, "CheerfulPerson".
 
-.. image:: images/parlay_item_search_hello_world_item.png
-   :alt: Dropdown item search box
+.. image:: images/parlay_item_library.png
+   :alt: Parlay Item Library
 
 This brings up the item's card. By default, the card shows the available
 commands, and in this case, there is only one command: say\_hello. Click
@@ -81,7 +81,7 @@ Parlay UI is a web application
 This illustrates an important aspect of Parlay that can be confusing to
 first-time users:
 
-**Parlay is a web server, and the user interface to Parlay is a web 
+**Parlay is a web server, and the :doc:`user_interface` to Parlay is a web
 application.**
 
 Parlay and the web browser are two separate applications, that in this
@@ -97,9 +97,11 @@ accustomed to.
    down Parlay, close the command line window where you started Parlay.
    If you did not mean to close the browser, you can re-open your web
    browser and navigate to http://localhost:8080, and Parlay will show
-   the user interface again.
+   the :doc:`user_interface` again.
 -  If you close the command line window before the web browser, the
-   browser will lose communication with Parlay and user interface top
+   browser will lose communication with Parlay and :doc:`user_interface` top
    navigation bar will turn red. Run the python script again from a
    command line, and refresh your browser, and the UI will be ready
    again.
+
+

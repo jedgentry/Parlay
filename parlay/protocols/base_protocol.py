@@ -2,7 +2,7 @@ from meta_protocol import ProtocolMeta
 import inspect
 from twisted.internet import defer
 from parlay.server.broker import run_in_broker, run_in_thread
-from parlay.protocols.utils import timeout
+from parlay.protocols.utils import timeout,PrivateDeferred
 from collections import deque
 
 
@@ -15,7 +15,7 @@ class BaseProtocol(object):
     __metaclass__ = ProtocolMeta
 
     def __init__(self):
-        self._new_data = defer.Deferred()
+        self._new_data = PrivateDeferred()
         self.items = getattr(self, "items", [])
 
     @classmethod
@@ -98,11 +98,12 @@ class BaseProtocol(object):
         """
         Call this when you have new data and want to pass it to any waiting Items
         """
+        print data
         old_new_data = self._new_data
 
         # setup the new data in case it causes a callback to fire
-        self._new_data = defer.Deferred()
-        old_new_data.callback(data)
+        self._new_data = PrivateDeferred()
+        old_new_data._callback(data)
 
 
 class WaitHandler(object):
@@ -113,7 +114,7 @@ class WaitHandler(object):
         self._deferred = deferred
 
     @run_in_broker
-    def addCallback(self, fn, async=False):
+    def addCallback(self, fn, async=True):
         """
         Add a callback when you get new data
         """
