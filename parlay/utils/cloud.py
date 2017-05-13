@@ -12,9 +12,10 @@ from base64 import b64encode
 
 # conditional imports for extra features
 try:
-    from Crypto.Signature import PKCS1_v1_5
-    from Crypto.PublicKey import RSA
-    from Crypto.Hash import SHA256
+    import cryptography
+    from cryptography.hazmat.primitives import serialization, hashes
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+    from cryptography.hazmat.backends import default_backend
     SIGNATURE_ENABLED = True
 # Can't use the pycrypto library to generate signatures. Have to use username/pass auth
 except ImportError:
@@ -72,8 +73,10 @@ class DatapointManager(object):
 
     @property
     def private_key(self):
-        with open(self._private_key_file) as file:
-            return RSA.importKey(file.read(), self._private_key_passphrase)
+        with open(self._private_key_file) as key_file:
+            return serialization.load_pem_private_key(key_file.read(),
+                                                             password=self._private_key_passphrase,
+                                                             backend=default_backend())
 
     def _get_persistance(self):
         """
@@ -118,7 +121,10 @@ class DatapointManager(object):
                       "channel": self._channel,
                       "uuid": self._uuid}
             # sign it
-            packet["sig"] = b64encode(PKCS1_v1_5.new(self.private_key).sign(SHA256.new(packet["points"])))
+            signer = self.private_key.signer(padding.PKCS1v15(), hashes.SHA256())
+            signer.update(bytes(packet["points"]))
+            signature = signer.finalize()
+            packet["sig"] = b64encode(signature)
 
             r = requests.post(DatapointManager.REST_POST_URL, json=packet, timeout=DatapointManager.HTTP_TIMEOUT)
             if r.status_code != 200:
@@ -137,12 +143,13 @@ class DatapointManager(object):
 
 # add a datapoint
 if __name__ == "__main__":
-    DatapointManager.REST_POST_URL = "https://parlay.cloud/datapoint/api/v1/datapoint-create"
-    manager = DatapointManager('faaaeadf-6025-11e6-b901-80fa5b009d56', "test_param", "persist",
-                               private_key_file="test_private_key",
-                               private_key_passphrase=u'pbkdf2_sha1$24000$NT8TU6MK772183JDMEREO1CQRARI77BF$vsWnT825bTxUSsG+ZzNB4Up/M6o=',
+    #DatapointManager.REST_POST_URL = "https://dev.parlay.cloud/datapoint/api/v1/datapoint-create"
+    DatapointManager.REST_POST_URL = "http://localhost:5056/datapoint/api/v1/datapoint-create"
+    manager = DatapointManager('b743156c-3772-11e7-bf44-80fa5b009d56', "test.python", "persist",
+                               private_key_file="/tmp/test_parlay_device",
+                               private_key_passphrase='PASSWORD',
                                auto_sync_every=None)
-    point = Datapoint("THIS is a datapoint")
+    point = Datapoint("31337", encoding="JSON")
     manager.add_datapoint(point)
     print manager.sync_to_cloud()
 
