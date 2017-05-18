@@ -13,6 +13,8 @@ from parlay.protocols.local_item import local_item
 # Script Public API
 from utils.parlay_script import ParlayScript
 
+from utils.reporting import log_stack_on_error
+
 from server.broker import Broker
 
 
@@ -44,7 +46,8 @@ def open_protocol(protocol_name, **kwargs):
         start()
 
     """
-    result = Deferred()  # actual result that will callback when it's opened
+    result = log_stack_on_error(Deferred())  # actual result that will callback when it's opened
+
     def do_open_protocol():
         """
         Actually do the opening of the protocol once the broker is running
