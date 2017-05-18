@@ -25,7 +25,8 @@ class TCPClientProtocol(BaseProtocol, Protocol):
     @classmethod
     def open(cls, adapter, ip, port):
         """
-        Open a TCP
+        Open a TCP Protocol
+
         :param adapter: Parlay adapter
         :param ip: target IP address (example "192.168.0.2")
         :type ip: str
@@ -88,7 +89,7 @@ class TCPClientItem(ParlayCommandItem):
         :param data: chunk of raw bytes received
         :return: None
         """
-        raise NotImplementedError()
+        pass
 
     @parlay_command()
     def send_raw_data(self, data):
