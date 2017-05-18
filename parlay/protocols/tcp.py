@@ -42,6 +42,13 @@ class TCPClientProtocol(BaseProtocol, Protocol):
 
         endpoint = TCP4ClientEndpoint(adapter.reactor, ip, port)
         deferred = endpoint.connect(factory)
+
+        def bad_connection(failure):
+            message = "Could not connect to {}:{}\n{}\n".format(ip, port, failure.getErrorMessage())
+            raise StandardError(message)
+
+        deferred.addErrback(bad_connection)
+
         return deferred
 
     def close(self):
