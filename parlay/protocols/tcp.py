@@ -21,6 +21,7 @@ class TCPClientProtocol(BaseProtocol, Protocol):
 
         item = TCPClientItem(item_name, item_id, protocol=self)
         self.items = [item]
+        self.open = True
 
     @classmethod
     def open(cls, adapter, ip, port):
@@ -50,6 +51,9 @@ class TCPClientProtocol(BaseProtocol, Protocol):
         deferred.addErrback(bad_connection)
 
         return deferred
+
+    def connectionLost(self, reason=None):
+        self.open = False
 
     def close(self):
         self.transport.loseConnection()
@@ -81,6 +85,8 @@ class TCPClientProtocol(BaseProtocol, Protocol):
         :type data: str
         :return: None
         """
+        if not self.open:
+            raise IOError("TCP Connection was closed.")
         self.transport.write(data)
 
 
