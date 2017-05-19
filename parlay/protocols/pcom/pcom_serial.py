@@ -711,6 +711,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
                 if len(data) == 0:
                     logger.error("[PCOM] No data loaded from JSON file")
                     discovery_file.close()
+                else:
                     discovery_msg = self.process_data_file(data)
 
         except Exception as e:
