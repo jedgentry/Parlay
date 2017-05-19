@@ -15,6 +15,7 @@ THREADED_REACTOR.getThreadPool()
 
 script = None
 
+
 class ThreadedParlayScript(ParlayScript):
 
     ready = False
@@ -25,6 +26,7 @@ class ThreadedParlayScript(ParlayScript):
         script = self  # so everyone knows we're THE script
         # do nothing. This is just an appliance class that doesn't run anything
         pass
+
 
 def start_reactor(ip, port):
     try:
@@ -60,7 +62,8 @@ def setup(ip='localhost', port=DEFAULT_ENGINE_WEBSOCKET_PORT, timeout=3):
         while THREADED_REACTOR is None or (not THREADED_REACTOR.running) or not ThreadedParlayScript.ready:
             time.sleep(0.001)
             if (datetime.datetime.now() - start).total_seconds() > timeout:
-                raise RuntimeError("Could not connect to parlay. Is the parlay system running?")
+                raise RuntimeError("Could not connect to parlay. Is the parlay system running at {}:{}?".format(ip, port))
+
 
 def run_in_threaded_reactor(fn):
     """
