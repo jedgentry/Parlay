@@ -324,8 +324,11 @@ class Broker(object):
                 # could not find in this adapter, continue
                 continue
 
-        #if we get this far, it means we couldn't find it
-        raise LookupError("Could not find a protocol in any adapter with name:" + str(protocol_name))
+        # if we get this far, it means we couldn't find it
+        message = "Could not find a protocol in any adapter with name:  " + str(protocol_name)
+        message += "\n\n  If this protocol is defined in python, you may need to import it, like so:"
+        message += "\n    from  some.python.module import " + str(protocol_name)
+        raise LookupError(message)
 
     def handle_broker_message(self, msg, message_callback):
         """
@@ -390,7 +393,7 @@ class Broker(object):
             # could not find protocol name
             except LookupError as _:
                 reply['TOPICS']['response'] = 'error'
-                reply['CONTENTS'] = {'error': "No such protocol " + str(protocol_name)}
+                reply['CONTENTS'] = {'error': "Unknown protocol name: " + str(protocol_name)}
                 message_callback(reply)  # send right away
 
         elif request == 'get_open_protocols':
