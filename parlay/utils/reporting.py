@@ -36,14 +36,18 @@ def log_stack_on_error(deferred, msg=""):
         stack_str += item
 
     def errback(failure):
-        error_message = "\n=========================="
+        error_message = "\n==========================================="
         error_message += "\nERROR: An asynchronous function threw the following exception:\n\n"
-        error_message += failure.getBriefTraceback()
+        error_message += "  " + failure.getErrorMessage()
+        error_message += "\n\n\nORIGINAL CALL STACK THAT LED TO ERROR:\n\n"
+        error_message += stack_str
+        error_message += "\n\n\n"
+        error_message += "-----------------------\n"
+        error_message += "Asynchronous Traceback:\n\n"
+        error_message += failure.getTraceback(elideFrameworkCode=1)
         error_message += "\n"
         error_message += msg
-        error_message += "\n\nORIGINAL CALL STACK THAT LED TO ERROR:\n\n"
-        error_message += stack_str
-        error_message += "\n==========================\n\n"
+        error_message += "\n===========================================\n\n"
 
         logger.error(error_message)
 
