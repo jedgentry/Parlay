@@ -31,14 +31,16 @@ class Datapoint(dict):
         """
         Supported encoding
         """
-        NULL= "NULL"
+        NULL = "NULL"
+        JSON = "JSON"
 
-    def __init__(self, data, time=None, encoding=Encoding.NULL):
+    def __init__(self, data, channel, time=None, encoding=Encoding.NULL):
         super(Datapoint, self).__init__()
         self["data"] = data
         time = time if time is not None else datetime.datetime.now()
         self["time"] = str(time)
         self["encoding"] = encoding
+        self["channel"] = channel
 
 
 class DatapointManager(object):
@@ -46,16 +48,15 @@ class DatapointManager(object):
     A manager for storing and sending datapoints
     """
 
-    REST_POST_URL = "http://localhost:8000/datapoint/api/v1/datapoint-create"
-    HTTP_TIMEOUT = 5 # in seconds
-    SYNC_EVERY = 60 * 5 # in seconds
+    REST_POST_URL = "http://localhost:5056/datapoint/api/v1/datapoint-create"
+    HTTP_TIMEOUT = 120  # in seconds
+    SYNC_EVERY = 60 * 60 * 24  # in seconds
 
-    def __init__(self, uuid, channel, persistant_file, private_key_file, private_key_passphrase=None,
+    def __init__(self, uuid, persistant_file, private_key_file, private_key_passphrase=None,
                  auto_sync_every=SYNC_EVERY,reactor=None):
 
         self._private_key_file = private_key_file
         self._private_key_passphrase = private_key_passphrase
-        self._channel = channel
         self._persistance = persistant_file
         # authenticate with uuid and private key
         self._uuid = uuid
@@ -65,7 +66,7 @@ class DatapointManager(object):
 
         #see if the file exists, else create it
         if not os.path.isfile(persistant_file):
-            self._set_persistance({"channel": str(channel), "uuid": str(uuid), "points": []})
+            self._set_persistance({"uuid": str(uuid), "points": []})
 
         if auto_sync_every is not None and auto_sync_every > 0:
             self._auto_sync_call = LoopingCall(self.sync_to_cloud)
@@ -83,31 +84,29 @@ class DatapointManager(object):
         Get the persistance object as a dict
         :return:
         """
-        with self._lock:
-            with open(self._persistance,'r') as f:
-                return json.load(f)
+        with open(self._persistance,'r') as f:
+            return json.load(f)
 
     def _set_persistance(self, obj):
         """
         Get the persistance object as a dict
         :return:
         """
-        with self._lock:
-            with open(self._persistance, 'w') as f:
-                return json.dump(obj,f)
+        with open(self._persistance, 'w') as f:
+            return json.dump(obj,f)
 
     def add_datapoint(self, datapoint):
-        # get the persistant file
-        p = self._get_persistance()
-        # get the id to set the datapoint to
-        last_id = max([x["id"] for x in p["points"]]) if len(p["points"]) > 0 else -1
-        last_id = max([last_id, p.get("last_id", -1)])
+        with self._lock:
+            # get the persistant file
+            p = self._get_persistance()
+            # get the id to set the datapoint to
+            last_id = max([x["id"] for x in p["points"]]) if len(p["points"]) > 0 else -1
+            last_id = max([last_id, p.get("last_id", -1)])
 
-        datapoint["id"] = last_id + 1
-        p["points"].append(datapoint)
-        # set the persistant file
-        self._set_persistance(p)
-        # trigger a cloud update with retries
+            datapoint["id"] = last_id + 1
+            p["points"].append(datapoint)
+            # set the persistant file
+            self._set_persistance(p)
 
     @run_in_thread
     def sync_to_cloud(self):
@@ -118,7 +117,6 @@ class DatapointManager(object):
 
             # Serialize info into packet
             packet = {"points": json.dumps(info["points"]),
-                      "channel": self._channel,
                       "uuid": self._uuid}
             # sign it
             signer = self.private_key.signer(padding.PKCS1v15(), hashes.SHA256())

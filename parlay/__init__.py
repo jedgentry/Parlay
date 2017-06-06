@@ -52,7 +52,9 @@ def open_protocol(protocol_name, **kwargs):
         """
         # call the open protocol method and get its result as a deferred
         d = maybeDeferred(Broker.get_instance().open_protocol, protocol_name, kwargs)
-        d.chainDeferred(result)  # call result with whatever our success or failure is
+        d.addCallback(lambda x: result.callback(x))
+        d.addErrback(lambda error: failure.Failure("Could not open Protocol"))
+        #d.chainDeferred(result)  # call result with whatever our success or failure is
 
     Broker.call_on_start(do_open_protocol)
     return result

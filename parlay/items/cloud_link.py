@@ -293,6 +293,7 @@ if __name__ == "__main__":
     CloudLinkSettings.PUBLIC_KEY_LOCATION = '/tmp/test_parlay_device.pub.pem'
     CloudLinkSettings.PRIVATE_KEY_PASSPHRASE = "PASSWORD"
     CloudLinkSettings.UUID_LOCATION = "/tmp/test_parlay_uuid"
+    CloudLinkSettings.CLOUD_SERVER_ADDRESS = "http://localhost:5056"
     c = CloudLink()
     d = CloudStressTest()
     parlay.start()
