@@ -144,7 +144,6 @@ class LineTransportServerAdapter(Adapter, LineReceiver):
         :return:
         """
         self.sendLine(json.dumps(msg))
-        self.transport.flushOutput()
 
 
 class FileDeviceServerAdapter(LineTransportServerAdapter):
