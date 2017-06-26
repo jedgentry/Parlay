@@ -43,6 +43,17 @@ class TCPClientProtocol(BaseProtocol, Protocol):
         p = cls(adapter, ip, port)
         return p
 
+    @classmethod
+    def get_open_params_defaults(cls):
+        """
+        Gives the default arguments for the open() parameters.
+        :return: The dictionary containing the default arguments.
+        """
+        defaults = BaseProtocol.get_open_params_defaults()
+        defaults['port'] = [8888]
+        defaults['ip'] = ['127.0.0.1']
+        return defaults
+
     def connectionLost(self, reason=None):
         """ Called when the underlying TCP connection is lost. """
         self._state = self._TCPStates.DISCONNECTED
