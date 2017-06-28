@@ -194,6 +194,21 @@ class ParlayStandardItem(ThreadedItem):
 
         self.publish(msg)
 
+    def send_event(self, info, event, description):
+        """
+        Broadcasts an event.
+        :param info: Information about what caused the event.
+        :param event: The event name or number to fire.
+        :param description: The description of the event.
+        :return: None.
+        """
+        self.send_message(msg_type=MSG_TYPES.EVENT, tx_type=TX_TYPES.BROADCAST,
+                          contents={
+                              'INFO': info,
+                              'EVENT': event,
+                              'DESCRIPTION': description
+                          })
+
     def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
         """
         Send a parlay command to an known ID
