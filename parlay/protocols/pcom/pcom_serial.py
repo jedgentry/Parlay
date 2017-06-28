@@ -171,6 +171,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
                 if len(port) > 1:
                     if _is_valid_port(port):
                         result_list.append(port)
+                        result_list.append(port)
         except Exception as e:
             logger.error("[PCOM] Could not filter ports because of exception: {0}".format(e))
             return potential_com_ports
@@ -1426,11 +1427,12 @@ class SlidingACKWindow:
 
         # remove all deferreds
         for seq_num in self._window:
-            self._window[seq_num].deferred.callback(seq_num)
+            if self._window[seq_num].deferred:
+                self._window[seq_num].deferred.callback(seq_num)
 
         self._window = {}
         self._queue = []
-        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
+        self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.WINDOW_SIZE)}
 
     def ack_timeout_errback(self, timeout_failure):
         """
@@ -1438,6 +1440,9 @@ class SlidingACKWindow:
         :param timeout_exception: TimeoutException object that holds the ACK sequence number that timed out
         :return:
         """
+
+        if timeout_failure.value.sequence_number not in self._window:
+            return self.EXPIRED
 
         ack_to_send = self._window[timeout_failure.value.sequence_number]
         if ack_to_send.num_retries < self.NUM_RETRIES:
