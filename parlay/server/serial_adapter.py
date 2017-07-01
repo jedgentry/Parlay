@@ -65,7 +65,7 @@ class LineTransportServerAdapter(Adapter, LineReceiver):
     """
 
     broker = Broker.get_instance()
-    DEFAULT_DISCOVERY_TIMEOUT_TIME = 10
+    DEFAULT_DISCOVERY_TIMEOUT_TIME = 3
 
     def __init__(self, transport_factory, delimiter='\n', **kwargs):
         """
