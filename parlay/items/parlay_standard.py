@@ -194,20 +194,31 @@ class ParlayStandardItem(ThreadedItem):
 
         self.publish(msg)
 
-    def send_event(self, info, event, description):
+    def send_event(self, info, event, description, to=''):
         """
-        Broadcasts an event.
+        Broadcasts an event if no arguments for 'to' are supplied, direct event otherwise.
         :param info: Information about what caused the event.
         :param event: The event name or number to fire.
         :param description: The description of the event.
+        :param to: If supplied, sends the events directly to the specified items instead of broadcasting.
+        :type to: list[str]
         :return: None.
         """
-        self.send_message(msg_type=MSG_TYPES.EVENT, tx_type=TX_TYPES.BROADCAST,
-                          contents={
-                              'INFO': info,
-                              'EVENT': event,
-                              'DESCRIPTION': description
-                          })
+        if to == '':
+            self.send_message(msg_type=MSG_TYPES.EVENT, tx_type=TX_TYPES.BROADCAST,
+                              contents={
+                                  'INFO': info,
+                                  'EVENT': event,
+                                  'DESCRIPTION': description
+                              })
+        else:
+            for destination in to:
+                self.send_message(msg_type=MSG_TYPES.EVENT, tx_type=TX_TYPES.DIRECT, to=destination,
+                                  contents={
+                                      'INFO': info,
+                                      'EVENT': event,
+                                      'DESCRIPTION': description
+                                  })
 
     def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
         """
