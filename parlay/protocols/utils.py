@@ -125,9 +125,9 @@ class TimeoutError(Exception):
 
 def delay(seconds):
     """
-
-    :param seconds:
-    :return:
+    Calls the function after a certain amount of time has passed.
+    :param seconds: The amount of time to wait in seconds before calling.
+    :return: A deferred.
     """
     d = defer.Deferred()
     Broker.get_instance().reactor.callLater(seconds, lambda: d.callback(None))
