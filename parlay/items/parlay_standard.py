@@ -6,6 +6,7 @@ from parlay.items.threaded_item import ThreadedItem
 from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, \
     INPUT_TYPE_CONVERTER_LOOKUP
 from parlay_standard_proxys import BadStatusError, CommandHandle
+from parlay.utils.reporting import log_stack_on_error
 import os
 import re
 import inspect
@@ -248,6 +249,8 @@ def parlay_command(async=False, auto_type_cast=True):
             else:
                 wrapper = run_in_broker(fn)
         else:
+            if inspect.isgeneratorfunction(fn):
+                raise StandardError("Do not use the 'yield' keyword in a parlay command without 'parlay_command(async=True)' ")
             wrapper = run_in_thread(fn)
 
         wrapper._parlay_command = True
@@ -617,6 +620,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 self.send_response(msg, msg_status=MSG_STATUS.PROGRESS)
 
                 result = defer.maybeDeferred(run_command)
+                result = log_stack_on_error(result)
                 result.addCallback(lambda r: self.send_response(msg, {"RESULT": r}))
 
                 def bad_status_errback(f):
