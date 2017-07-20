@@ -521,7 +521,7 @@ def get_str_len(bin_data):
 
     count = 0
     for i in bin_data:
-        if i is not '\x00':
+        if i != '\x00':
             count += 1
         else:
             return count + 1  # Include NULL byte
