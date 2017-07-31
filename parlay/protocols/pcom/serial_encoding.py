@@ -658,6 +658,7 @@ def unstuff_packet(packet):
     """
 
     packet = _deescape_packet(packet)
+
     packet_len = len(packet)
 
     if sum_packet(packet) != 0:
@@ -680,6 +681,7 @@ def unstuff_packet(packet):
 
     return sequence_num, ack_expected, is_ack, is_nak, json_msg
 
+
 def _deescape_packet(packet):
     """
     :param packet:
@@ -688,6 +690,7 @@ def _deescape_packet(packet):
 
     result = bytearray()
     escaped = False
+
     for b in packet:
         if b == ESCAPE_BYTE:
             escaped = True  # next byte is escaped
@@ -718,6 +721,12 @@ def get_checksum(packet_sum):
     """
 
     return -packet_sum & 0xff
+
+
+class InvalidPacket(Exception):
+    def __init__(self):
+        pass
+
 
 class FailCRC(Exception):
 

@@ -368,6 +368,7 @@ class PCOMMessage(object):
         else:
             msg["TOPICS"]["MSG_STATUS"] = "ERROR"
             msg["CONTENTS"]["DESCRIPTION"] = "PCOM ERROR: Could not find item:", self.from_
+            return
 
         if self.response_code == 0:
             self._build_contents_map(["Subsystems"], msg["CONTENTS"])
