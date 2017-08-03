@@ -1,5 +1,6 @@
 import traceback
 import logging
+from twisted.internet.defer import CancelledError
 
 
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
@@ -36,6 +37,8 @@ def log_stack_on_error(deferred, msg=""):
         stack_str += item
 
     def errback(failure):
+        if isinstance(failure.value, CancelledError):
+            return deferred
         error_message = "\n==========================================="
         error_message += "\nERROR: An asynchronous function threw the following exception:\n\n"
         error_message += "  " + failure.getErrorMessage()

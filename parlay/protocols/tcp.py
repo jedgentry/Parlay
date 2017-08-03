@@ -1,3 +1,4 @@
+from twisted.internet.defer import succeed
 from twisted.internet.protocol import Protocol
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from parlay.protocols.base_protocol import BaseProtocol
@@ -103,7 +104,9 @@ class TCPClientProtocol(BaseProtocol, Protocol):
         """
         if self._state == self._TCPStates.CONNECTED:
             self.transport.write(data)
-            return
+            if 'ACK.R01' in data:
+                print 'TRANSPORT: ' + str(data)
+            return succeed(None)
 
         elif self._state == self._TCPStates.IN_PROGRESS:
             self._deferred.addCallback(lambda _: self.transport.write(data))

@@ -12,6 +12,7 @@ from twisted.internet.serialport import SerialPort
 from twisted.protocols.basic import LineReceiver
 from twisted.internet import defer
 from twisted.internet import reactor
+from twisted.internet.protocol import connectionDone
 
 from parlay.items.parlay_standard import ParlayStandardItem, INPUT_TYPES
 from parlay.protocols.base_protocol import BaseProtocol
@@ -171,7 +172,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
                 if len(port) > 1:
                     if _is_valid_port(port):
                         result_list.append(port)
-                        result_list.append(port)
+
         except Exception as e:
             logger.error("[PCOM] Could not filter ports because of exception: {0}".format(e))
             return potential_com_ports
@@ -204,7 +205,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self._ack_window.reset_window()
 
         self._ack_table = {seq_num: defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
-        self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
+        self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES, self)
 
     def close(self):
         """
@@ -214,6 +215,21 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self.reset()
         self.transport.loseConnection()
         return defer.succeed(None)
+
+    def write_to_port(self, buf):
+        if not self.is_port_attached:
+            try:
+                SerialPort(self, self._port, self.adapter.reactor, baudrate=self.BAUD_RATE)
+                self.is_port_attached = True
+            except Exception as e:
+                logger.error("[PCOM]: Unable to reopen port connection because of exception: " + str(e))
+                return
+
+        self.transport.write(buf)
+
+    def connectionLost(self, reason=connectionDone):
+        self.is_port_attached = False
+        LineReceiver.connectionLost(self, reason)
 
     def __str__(self):
         return "PCOM @ " + str(self._port)
@@ -280,7 +296,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         self._ack_table = {seq_num: defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
 
-        self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES)
+        self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES, self)
 
     def send_error_message(self, original_message, message_status, description=''):
         """
@@ -382,7 +398,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         d.callback(None)
 
         disc_msg_deferred = self._discovery_msg_ids[s.msg_id] if self._discovery_in_progress else None
-        self._ack_window.add(ACKInfo(sequence_num, 0, packet, self.transport, self.ack_timeout_handler,
+        self._ack_window.add(ACKInfo(sequence_num, 0, packet, self.ack_timeout_handler,
                                      disc_msg_deferred))
         return d
 
@@ -1338,7 +1354,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # If we need to ack, ACK!
         if ack_expected:
             ack = str(p_wrap(ack_nak_message(sequence_num, True)))
-            self.transport.write(ack)
+            self.write_to_port(ack)
 
         self.adapter.publish(parlay_msg, self.transport.write)
 
@@ -1355,8 +1371,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
         # Using byte array so unstuff can use numbers instead of strings
         buf = bytearray()
-        start_byte_index = (line.rfind(START_BYTE_STR) + 1)
+        start_byte_index = line.rfind(START_BYTE_STR)
+        if start_byte_index == -1:
+            logger.error("[PCOM] Received packet not starting with 0x02. ")
+            return
+
+        start_byte_index += 1  # move to next byte
         buf += line
+
         try:
             packet_tuple = unstuff_packet(buf[start_byte_index:])
             self._on_packet(*packet_tuple)
@@ -1364,6 +1386,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             logger.error("[PCOM] Failed CRC")
         except Exception as e:
             logger.error("[PCOM] Could not decode message because of exception: {0}".format(e))
+            raise e
 
 
 class ACKInfo:
@@ -1371,11 +1394,10 @@ class ACKInfo:
     Stores ACK information: deferred and number of retries
     """
 
-    def __init__(self, sequence_number, num_retries, packet, transport, failure_function, msg_deferred):
+    def __init__(self, sequence_number, num_retries, packet, failure_function, msg_deferred):
         self.deferred = defer.Deferred()
         self.num_retries = num_retries
         self.sequence_number = sequence_number
-        self.transport = transport
         self.packet = packet
         self.failure_function = failure_function
         self.msg_deferred = msg_deferred
@@ -1389,12 +1411,13 @@ class SlidingACKWindow:
     TIMEOUT = 1000
     EXPIRED = 1001
 
-    def __init__(self, window_size, num_retries):
+    def __init__(self, window_size, num_retries, _protocol):
         self._window = {}
         self._queue = []
         self.WINDOW_SIZE = window_size
         self.NUM_RETRIES = num_retries
         self.MAX_ACK_SEQ = 16
+        self.protocol = _protocol
         # Initialize lack_acked_map so that none of the first ACKs think they are
         # duplicates. -1 works because no ACK has sequence number -1
         self._last_acked_map = {seq_num: -1 for seq_num in xrange(self.MAX_ACK_SEQ/2)}
@@ -1426,7 +1449,7 @@ class SlidingACKWindow:
     def reset_window(self):
 
         # remove all deferreds
-        for seq_num in self._window:
+        for seq_num in self._window.keys():
             if self._window[seq_num].deferred:
                 self._window[seq_num].deferred.callback(seq_num)
 
@@ -1447,7 +1470,7 @@ class SlidingACKWindow:
         ack_to_send = self._window[timeout_failure.value.sequence_number]
         if ack_to_send.num_retries < self.NUM_RETRIES:
             logger.warn("[PCOM] TIMEOUT SEQ NUM {0} RESENDING...".format(timeout_failure.value.sequence_number))
-            ack_to_send.transport.write(ack_to_send.packet)
+            self.protocol.write_to_port(ack_to_send.packet)
             ack_to_send.num_retries += 1
             d = defer.Deferred()
             d.addErrback(self.ack_timeout_errback)
@@ -1472,8 +1495,7 @@ class SlidingACKWindow:
 
         ack_info.deferred.addCallback(self.ack_received_callback)
         ack_info.deferred.addErrback(self.ack_timeout_errback)
-
-        ack_info.transport.write(ack_info.packet)
+        self.protocol.write_to_port(ack_info.packet)
         self.ack_timeout(ack_info.deferred, PCOMSerial.ACK_TIMEOUT, ack_info.sequence_number)
         self._window[ack_info.sequence_number] = ack_info
 

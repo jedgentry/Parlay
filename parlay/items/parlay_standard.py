@@ -6,6 +6,7 @@ from parlay.items.threaded_item import ThreadedItem
 from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPUT_TYPE_DISCOVERY_LOOKUP, \
     INPUT_TYPE_CONVERTER_LOOKUP
 from parlay_standard_proxys import BadStatusError, CommandHandle
+from parlay.utils.reporting import log_stack_on_error
 import os
 import re
 import inspect
@@ -194,20 +195,31 @@ class ParlayStandardItem(ThreadedItem):
 
         self.publish(msg)
 
-    def send_event(self, info, event, description):
+    def send_event(self, info, event, description, to=''):
         """
-        Broadcasts an event.
+        Broadcasts an event if no arguments for 'to' are supplied, direct event otherwise.
         :param info: Information about what caused the event.
         :param event: The event name or number to fire.
         :param description: The description of the event.
+        :param to: If supplied, sends the events directly to the specified items instead of broadcasting.
+        :type to: list[str]
         :return: None.
         """
-        self.send_message(msg_type=MSG_TYPES.EVENT, tx_type=TX_TYPES.BROADCAST,
-                          contents={
-                              'INFO': info,
-                              'EVENT': event,
-                              'DESCRIPTION': description
-                          })
+        if to == '':
+            self.send_message(msg_type=MSG_TYPES.EVENT, tx_type=TX_TYPES.BROADCAST,
+                              contents={
+                                  'INFO': info,
+                                  'EVENT': event,
+                                  'DESCRIPTION': description
+                              })
+        else:
+            for destination in to:
+                self.send_message(msg_type=MSG_TYPES.EVENT, tx_type=TX_TYPES.DIRECT, to=destination,
+                                  contents={
+                                      'INFO': info,
+                                      'EVENT': event,
+                                      'DESCRIPTION': description
+                                  })
 
     def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
         """
@@ -237,6 +249,8 @@ def parlay_command(async=False, auto_type_cast=True):
             else:
                 wrapper = run_in_broker(fn)
         else:
+            if inspect.isgeneratorfunction(fn):
+                raise StandardError("Do not use the 'yield' keyword in a parlay command without 'parlay_command(async=True)' ")
             wrapper = run_in_thread(fn)
 
         wrapper._parlay_command = True
@@ -607,6 +621,7 @@ class ParlayCommandItem(ParlayStandardItem):
                 self.send_response(msg, msg_status=MSG_STATUS.PROGRESS)
 
                 result = defer.maybeDeferred(run_command)
+                result = log_stack_on_error(result)
                 result.addCallback(lambda r: self.send_response(msg, {"RESULT": r}))
 
                 def bad_status_errback(f):

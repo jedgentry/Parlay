@@ -8,6 +8,7 @@ from twisted.python import failure
 from parlay.server.broker import Broker
 
 
+
 class MessageQueue(object):
     """
     A basic message queue for messages that need to be acknowledged
@@ -123,15 +124,6 @@ class TimeoutError(Exception):
     pass
 
 
-def delay(seconds):
-    """
-
-    :param seconds:
-    :return:
-    """
-    d = defer.Deferred()
-    Broker.get_instance().reactor.callLater(seconds, lambda: d.callback(None))
-    return d
 
 
 class PrivateDeferred(defer.Deferred):
@@ -154,3 +146,19 @@ class PrivateDeferred(defer.Deferred):
 
     def _errback(self, fail=None):
         return defer.Deferred.errback(self, fail)
+
+
+# Due to circular import dependency with parlay.utils and scripting's __init__.py, this is needed here.
+from parlay.utils.reporting import log_stack_on_error
+
+
+def delay(seconds):
+    """
+    Calls the function after a certain amount of time has passed.
+    :param seconds: The amount of time to wait in seconds before calling.
+    :return: A deferred.
+    """
+    d = defer.Deferred()
+    d = log_stack_on_error(d)
+    Broker.get_instance().reactor.callLater(seconds, lambda: d.callback(None))
+    return d
