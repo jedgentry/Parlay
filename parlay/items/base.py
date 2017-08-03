@@ -13,7 +13,7 @@ class INPUT_TYPES(object):
 # lookup table for arg discovery
 INPUT_TYPE_DISCOVERY_LOOKUP = {'str': INPUT_TYPES.STRING, 'string': INPUT_TYPES.STRING, 'char': INPUT_TYPES.STRING,
                                'int': INPUT_TYPES.NUMBER, 'float': INPUT_TYPES.NUMBER, 'double': INPUT_TYPES.NUMBER,
-                               'short': INPUT_TYPES.NUMBER, 'long': INPUT_TYPES.NUMBER, 'list[]': INPUT_TYPES.ARRAY}
+                               'short': INPUT_TYPES.NUMBER, 'long': INPUT_TYPES.NUMBER, 'list': INPUT_TYPES.ARRAY}
 
 # dynamically add list types
 for k in INPUT_TYPE_DISCOVERY_LOOKUP.keys():

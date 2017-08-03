@@ -524,6 +524,7 @@ class ParlayCommandItem(ParlayStandardItem):
         Returns True if the message was handled, False otherwise
         """
         # run it through the listeners for processing
+
         self._runListeners(msg)
 
         topics, contents = msg["TOPICS"], msg["CONTENTS"]
