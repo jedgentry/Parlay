@@ -52,9 +52,24 @@ class DatapointManager(object):
     HTTP_TIMEOUT = 120  # in seconds
     SYNC_EVERY = 60 * 60 * 24  # in seconds
 
-    def __init__(self, uuid, persistant_file, private_key_file, private_key_passphrase=None,
-                 auto_sync_every=SYNC_EVERY,reactor=None):
+    def __init__(self, uuid, persistant_file, username_password=(None, None), private_key_file=None,
+                 private_key_passphrase=None,
+                 auto_sync_every=SYNC_EVERY, reactor=None):
+        """
 
+        :param uuid:
+        :param persistant_file:
+        :param username_password:
+        :param private_key_file:
+        :param private_key_passphrase:
+        :param auto_sync_every:
+        :param reactor:
+        """
+
+        # the username/password or private key must be provided!
+        assert(None not in username_password or private_key_file is not None)
+
+        self._username_password = username_password
         self._private_key_file = private_key_file
         self._private_key_passphrase = private_key_passphrase
         self._persistance = persistant_file
@@ -108,6 +123,7 @@ class DatapointManager(object):
             # set the persistant file
             self._set_persistance(p)
 
+    #todo make version with username and password
     @run_in_thread
     def sync_to_cloud(self):
         with self._lock:
