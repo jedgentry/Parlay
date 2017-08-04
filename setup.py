@@ -5,8 +5,6 @@ import re
 import fnmatch
 import urllib2
 
-
-UI_VERSION = "0.0.22"
 UI_LOCATION = "parlay/ui/dist"
 DOCS_LOCATION = "parlay/docs/_build/html"
 
@@ -34,17 +32,6 @@ def find_files(directory, pattern):
                 _modulename = os.path.splitext(_filename)[0].replace(os.path.sep, ".")
                 print "Found: " + _modulename
                 yield _modulename, _filename
-
-# If we're doing a build, or index has gotten deleted somehow, grab the correct version
-if not os.path.exists(UI_LOCATION + "/index.html"):
-    # wget the dist file and put it in /ui/dist
-    response = urllib2.urlopen('https://github.com/PromenadeSoftware/ParlayUI/releases/download/'+UI_VERSION+'/index.html')
-    html = response.read()
-    if not os.path.exists(UI_LOCATION):
-        os.makedirs(UI_LOCATION)
-
-    with open(os.path.join(UI_LOCATION, "index.html"), 'w+') as index_file:
-        index_file.write(html)
 
 
 package_data_files = [os.path.relpath(filename, "parlay") for _, filename in find_files(UI_LOCATION, "*")]
@@ -95,7 +82,7 @@ setup(
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Programming Language :: Python :: 2.7',
     ],
-    keywords='embedded device broker medical',
+    keywords='embedded device broker medical iot HMI ',
     zip_safe=False,
     test_suite='parlay/tests',
     entry_points={

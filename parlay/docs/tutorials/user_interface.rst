@@ -341,14 +341,131 @@ Discovery
 On the left Side Navigator, there is a button that says "Discovery". Clicking this button will request a discovery to
 the Parlay Connect server.  Note that you MUST be connected to Parlay Connect for this to properly work.
 
-.. Workspaces
-.. ----------
+Workspaces
+----------
 
-.. Editing Mode
-.. ------------
+You may have noticed that by adding a few widgets and then later refreshing your page results in losing all widgets
+in your workspace!  Fear not, this doesn't always have to happen.  Right underneath the discovery button in the left
+side navigator, you should see another button that says "workspaces" on it.  Click it, and a dialog like the one below
+should appear:
 
-.. Protocols
-.. ---------
+.. image:: images/parlay_workspaces_default.png
+   :alt: Blank workspace dialog
+
+Saving and Clearing the Current Workspace
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Try adding a few widgets and items, adding some small scripts to some of the widgets and reorganizing the placement of
+the widgets via the drag and drop functionality.  Now reopen the workspaces dialog.  You should see "Current Workspace"
+with the number of widgets you just added directly beneath it.  To the right you should see two buttons: "save as" and
+"clear".  By clicking "save as", you will be prompted for a name for the workspace that you are about to save.
+Workspace saving is extremely useful as it saves all widgets and items in your workspace as well as well as other meta
+data attached to it.  Meta data attached to widgets includes the position of the widget or item, scripts attached to the
+widget, streams enabled, and other data filled in the input fields (for widgets like tables and check lists). Clicking
+clear is pretty self explanatory (and dangerous! use with caution).  Once clear is clicked all items and widgets in your
+workspace are removed.  The only way to bring back widgets cleared is if you already have saved the workspace prior to
+clearing it.
 
 
+Autosave
+~~~~~~~~
 
+If you accidentally cleared the workspace but forgot to save it, there's a good chance that the auto save discovery
+saved a partial or complete state of your cleared workspace.  If an auto saved discovery is available it will show in
+the workspace dialog as seen below:
+
+.. image:: images/parlay_workspaces_autosave.png
+   :alt: Autosaved workspaces
+
+Managing Saved Workspaces
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Any saved workspace (or autosaved workspace) will have a "load" button and a "delete" button to the right hand side
+of its entry.  Clicking load will clear the current workspace and replace it with the workspace that you are loading.
+Delete will remove the saved workspace from Parlay.  You will no longer have access to the deleted workspace, so take
+caution when deleting workspaces you no longer need.
+
+At the bottom of the workspace dialog there are three final buttons: "Clear", "Export" and "Import". The clear button
+clears all saved workspaces. When clicking this button, you will be warned that this action cannot be undone.
+
+Exporting and Importing Workspaces
+**********************************
+
+The export and import functions of the workspace is a very useful tool to be able to collaboratively work on projects
+with other team mates, co-workers, class mates or colleagues. Clicking the export button will prompt you to download
+a text file to your local system.  This exported file contains all of your saved workspaces (excluding the autosaved
+workspace).  You can now send this file to a colleague, and they can import the file so they may work with the same
+workspace that you just created.
+
+In order to import a workspace, you must first click the import button.  Doing so will prompt you to select a text file
+in your hard drive containing the data contents of the workspace.  After loading the workspace (this may take a few
+econds to complete) you should see new workspaces made available for you to load onto your screen.
+
+Editing Mode
+------------
+
+On the left side navigator there is a toggle switch next to the "Edit" label.  Clicking this switch will toggle the edit
+mode on your screen.  You should notice that when the toggle is off, all of the title bars on each of the widgets
+disappear. As long as edit mode is off, you will not be able to add widgets or items, nor will you be able to drag and
+drop existing widgets.  Furthermore, an item card's title bar buttons will also be disabled.
+
+.. image:: images/parlay_editing_mode_off.png
+   :alt: Editing mode disabled
+
+Protocols
+---------
+
+There are often times, especially for embedded programmers and developers, where Python Parlay items are not sufficient
+to run all of your testing tools. Parlay has support for other protocols (such as USB, Bluetooth, etc) to be connected
+to the system so you may directly communicate to your embedded devices from the Parlay System.
+
+Near the bottom of the left side navigator, you should see a button that says "Protocols".  Clicking this will prompt
+open a dialog that will allow you to connect to different protocols available in your Parlay System.  By connecting to
+your specified protocol, you will then be able to request a discovery for items connected in that protocol.
+
+
+Notifications
+-------------
+
+ParlayUI is a system that works with notifications. The first time you launch the Parlay system, Parlay will ask if you
+would like to enable notifications.
+
+.. image:: images/parlay_default_notification.png
+   :alt:  Browser Notification Prompt
+
+It is not necessary that you allow these notifications.  With enabled notifications, your browser will notify you
+whenever a Parlay Notification occurs AND you are not currently viewing the Parlay Tab in your browser.  If you disable
+notifications, you will still be able to view them from within the parlay system.
+
+If you look near the bottom of the left side navigator, underneath the Protocols button, you should see notifications.
+Clicking this tab will pull open a side navigator on the right hand side of the window with a history of all of the
+Parlay notifications you have received in your current session.
+
+You will also see notifications come up on your screen in real time in the bottom right corner of the window as a toast
+notification.
+
+.. image:: images/parlay_toast_notification.png
+   :alt: Parlay Toast Notification
+
+Settings
+--------
+
+The last entry in the left side navigator is the settings button.  Clicking this will open the settings configuration
+window where you can modify the different aspects of your Parlay System.  Most of the settings can be explained by the
+labels within each entry in the window, but there is one important feature that should be noticed.
+
+At the top of the Settings window, you should an entry for discovery settings.  There is an option to disable automatic
+discovery on the start of the Parlay System.  You may be wondering, why would I want to do this?  This can be
+essentially crucial for users who are dealing with large network of embedded systems.  Often times, in large networks
+of Parlay Items and embedded devices, Discovery can take minutes to complete.  By disabling the auto discovery,  you can
+continue to work by simply loading a saved discovery file, and having Parlay read the file and load discovery from the
+file rather than wait to find every single available item in a discovery request.
+
+.. image:: images/parlay_discovery_settings.png
+   :alt: Parlay Discovery Settings
+
+This does imply that you will have to run one discovery before being able to save and load the file.  Once your
+discovery is complete, you can open the settings window and click the "Save Discovery" which will prompt a download
+of a text file containing the response contents of the Discovery Request.  Now in the future, instead of having to wait
+minutes for a discovery to load, you can just click the "Load Discovery" button and have Parlay load the discovery in a
+much quicker time lapse.
