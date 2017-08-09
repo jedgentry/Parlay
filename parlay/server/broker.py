@@ -443,7 +443,10 @@ class Broker(object):
                 except Exception as e:
                     reply['CONTENTS']['STATUS'] = "Error while closing protocol " + str(e)
                     message_callback(reply)
-                message_callback(reply)
+
+                else:
+                    reply['CONTENTS']['STATUS'] = 'ok'
+                    message_callback(reply)
 
             # recalc list
             reply['CONTENTS']['protocols'] = [str(x) for x in new_protocol_list]
