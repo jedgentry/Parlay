@@ -107,6 +107,9 @@ class BaseItem(object):
 
         return "/".join(templates)
 
+    def __del__(self):
+        self._adapter.deregister_item(self)
+
 
 def get_recursive_base_list(cls, base_list=None):
     """

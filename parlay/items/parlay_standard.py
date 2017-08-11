@@ -150,7 +150,6 @@ class ParlayStandardItem(ThreadedItem):
         if size_mb > FILE_CAP_SIZE:
             raise IOError(" ".join(["File is too big! Please ensure the file is less than", str(FILE_CAP_SIZE), FILE_CAP_UNITS, "and try again."]))
 
-
         with open(filename, "r") as file_to_send:
             try:
                 file_contents = file_to_send.read()
@@ -470,8 +469,7 @@ class ParlayCommandItem(ParlayStandardItem):
                                                       for x in arg_names]
 
         # run discovery to init everything for a first time
-        # call it immediately after init
-        self._adapter.reactor.callLater(0, ParlayCommandItem.get_discovery, self)
+        self.get_discovery()
 
 
 

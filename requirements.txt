@@ -14,4 +14,5 @@ sphinx-rtd-theme>=0.1.9
 Twisted>=15.5.0
 txaio>=2.2.0
 wheel>=0.24.0
+zest.releaser>=6.12.2
 zope.interface>=4.1.3
