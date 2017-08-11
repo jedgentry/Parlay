@@ -50,6 +50,14 @@ class Adapter(object):
         # let the item know we're their adapter
         item._adapter = self
 
+    def deregister_item(self, item):
+        """
+        Register an item with the adapter
+        :param item: item object to register
+        :return: None
+        """
+        self._items.remove(item)
+
     def get_protocols(self):
         """
         Return a list of protocols that could potentially be opened.
@@ -109,6 +117,21 @@ class PyAdapter(Adapter):
 
     def subscribe(self, fn, **kwargs):
         self._broker.subscribe(fn, **kwargs)
+
+    def deregister_item(self, item):
+        """
+        Register an item with the adapter
+        :param item: item object to register
+        :return: None
+        """
+        try:
+            self._items.remove(item)
+        # we don't care if its not in the list. We just want it GONE
+        except ValueError:
+            pass
+
+        self._broker.unsubscribe_all(item)
+
 
     def track_open_protocol(self, protocol):
         """

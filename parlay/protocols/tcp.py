@@ -3,6 +3,7 @@ from twisted.internet.protocol import Protocol
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
 from parlay.protocols.base_protocol import BaseProtocol
 from parlay.items.parlay_standard import ParlayCommandItem, parlay_command
+from parlay.utils.reporting import log_stack_on_error
 
 
 class TCPClientProtocol(BaseProtocol, Protocol):
@@ -116,7 +117,7 @@ class TCPClientProtocol(BaseProtocol, Protocol):
             d = self.connect(self._adapter, self._ip, self._port)
             d.addCallback(lambda _: self.transport.write(data))
             d.addErrback(self.connect_failed)
-            self._deferred = d
+            self._deferred = log_stack_on_error(d)
 
         return self._deferred
 
