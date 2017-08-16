@@ -37,8 +37,17 @@ See the `python logging documentation
 
 
 The parlay logger defaults to logging.DEBUG .
-To change the default log level of the parlay logger you can pass log_level to start()
+To change the default log level of the parlay logger you can pass log_level to start() :
 
 .. code:: python
 
     start(log_level=logging.WARN)
+    
+You can also customize how Parlay prints its log messages. The snippet below enhances the example by adding a timestamp to the log file handler before adding it to the logger:
+
+.. code:: python
+
+        handler = TimedRotatingFileHandler("LOG.txt", when="h", backupCount=10)
+        formatter = logging.Formatter(fmt='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
