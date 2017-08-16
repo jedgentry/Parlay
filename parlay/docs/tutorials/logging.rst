@@ -31,7 +31,7 @@ See the `python logging documentation
             # get the ROOT logger for the entire process
             logger = logging.getLogger()
             # add the file handler to the root logger. Now any logged messages will be logged to files every hour (max 10)
-            logger.addHandler(TimedRotatingFileHandler("LOG.txt", when="h", backupCount=10))
+            logger.addHandler(TimedRotatingFileHandler("LOG.txt", when="H", backupCount=10))
             # this function call starts Parlay, and does not return
             start()
 
@@ -47,7 +47,7 @@ You can also customize how Parlay prints its log messages. The snippet below enh
 
 .. code:: python
 
-        handler = TimedRotatingFileHandler("LOG.txt", when="h", backupCount=10)
-        formatter = logging.Formatter(fmt='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+        handler = TimedRotatingFileHandler("LOG.txt", when="H", backupCount=10)
+        formatter = logging.Formatter(fmt='%(asctime)s %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
