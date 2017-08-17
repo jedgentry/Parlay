@@ -91,7 +91,7 @@ class LineItem(ParlayCommandItem):
 
     @parlay_command(async=True)
     def send_raw_data(self, data):
-        self._protocol.sendLine(str(data))
+        yield self._protocol.sendLine(str(data))
 
     @parlay_command(async=True)
     def wait_for_data(self, timeout_secs=300):
