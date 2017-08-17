@@ -1,10 +1,9 @@
 from parlay.protocols.base_protocol import BaseProtocol
-from parlay.server.broker import Broker, run_in_broker
+from parlay.server.broker import Broker
 from twisted.internet import defer
-from twisted.internet.serialport import SerialPort
+from twisted.internet.serialport import SerialPort, serial
 from twisted.protocols.basic import LineReceiver
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, ParlayProperty, MSG_TYPES, BadStatusError
-
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, ParlayProperty
 
 
 class ASCIILineProtocol(BaseProtocol, LineReceiver):
@@ -23,14 +22,19 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         BaseProtocol.__init__(self)
 
     @classmethod
-    def open(cls, broker, port="/dev/tty.usbserial-FTAJOUB2", baudrate=57600, delimiter="\n"):
+    def open(cls, broker, port="/dev/tty.usbserial-FTAJOUB2", baudrate=57600, delimiter="\n",
+             bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE):
         """
         This will be called bvy the system to construct and open a new SSCOM_Serial protocol
         :param cls : The class object (supplied by system)
-        :param broker:  current broker insatnce (supplied by system)
-        :param port: the serial port device to use. On linux, something like "/dev/ttyUSB0". On windows something like "COM0"
+        :param broker:  current broker instance (supplied by system)
+        :param port: the serial port device to use. On linux, something like "/dev/ttyUSB0". On windows something like 
+        "COM0"
         :param baudrate: baudrate of serial connection
-        :param delimiter:
+        :param delimiter: The delimiter to token new lines off of.
+        :param bytesize: The number of data bits.
+        :param parity: The number of parity bits.
+        :param stopbits: The number of stop bits.
         """
         if isinstance(port, list):
             port = port[0]
@@ -38,7 +42,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         p = cls(port)
         cls.delimiter = str(delimiter).decode("string_escape")
 
-        SerialPort(p, port, broker.reactor, baudrate=baudrate)
+        SerialPort(p, port, broker.reactor, baudrate=baudrate, bytesize=bytesize, parity=parity, stopbits=stopbits)
 
         return p
 
@@ -53,6 +57,9 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
         defaults['port'] = potential_serials
         defaults['baudrate'] = [300, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200, 230400]
         defaults['delimiter'] = "\n"
+        defaults['bytesize'] = 8
+        defaults['parity'] = "N"
+        defaults['stopbits'] = 1
 
         return defaults
 
@@ -72,6 +79,7 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
 
     def __str__(self):
         return "Serial Terminal @ " + self._parlay_name
+
 
 class LineItem(ParlayCommandItem):
 
