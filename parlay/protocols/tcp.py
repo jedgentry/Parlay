@@ -65,6 +65,7 @@ class TCPClientProtocol(BaseProtocol, Protocol):
 
     def connectionMade(self):
         """ Called when the underlying TCP connection is made. """
+        self.transport.setTcpNoDelay(True)
         self._state = self._TCPStates.CONNECTED
         self._deferred = None
 
