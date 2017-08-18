@@ -105,8 +105,6 @@ class TCPClientProtocol(BaseProtocol, Protocol):
         """
         if self._state == self._TCPStates.CONNECTED:
             self.transport.write(data)
-            if 'ACK.R01' in data:
-                print 'TRANSPORT: ' + str(data)
             return succeed(None)
 
         elif self._state == self._TCPStates.IN_PROGRESS:
