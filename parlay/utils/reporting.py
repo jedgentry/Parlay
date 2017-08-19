@@ -54,5 +54,7 @@ def log_stack_on_error(deferred, msg=""):
 
         logger.error(error_message)
 
+        return failure
+
     deferred.addErrback(errback)
     return deferred
