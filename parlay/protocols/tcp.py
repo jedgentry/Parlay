@@ -1,3 +1,4 @@
+from twisted.internet import reactor, defer
 from twisted.internet.defer import succeed
 from twisted.internet.protocol import Protocol
 from twisted.internet.endpoints import TCP4ClientEndpoint, connectProtocol
@@ -20,6 +21,7 @@ class TCPClientProtocol(BaseProtocol, Protocol):
         self._port = port
         self._state = self._TCPStates.DISCONNECTED
         self._deferred = None
+        self._connectionMadeDeferred = None
 
         if getattr(self, "items", None) is None:
             item_id = "TCP-{}:{}".format(ip, port)
@@ -62,12 +64,14 @@ class TCPClientProtocol(BaseProtocol, Protocol):
         if self._deferred is not None:
             self._deferred.cancel()
             self._deferred = None
+            self._connectionMadeDeferred = None
 
     def connectionMade(self):
         """ Called when the underlying TCP connection is made. """
         self.transport.setTcpNoDelay(True)
         self._state = self._TCPStates.CONNECTED
         self._deferred = None
+        self._connectionMadeDeferred.callback(None)
 
     def close(self):
         if self._state != self._TCPStates.DISCONNECTED:
@@ -109,13 +113,14 @@ class TCPClientProtocol(BaseProtocol, Protocol):
             return succeed(None)
 
         elif self._state == self._TCPStates.IN_PROGRESS:
-            self._deferred.addCallback(lambda _: self.transport.write(data))
+            self._connectionMadeDeferred.addCallback(lambda _: self.transport.write(data))
 
         elif self._state == self._TCPStates.DISCONNECTED:
             self._state = self._TCPStates.IN_PROGRESS
             d = self.connect(self._adapter, self._ip, self._port)
-            d.addCallback(lambda _: self.transport.write(data))
             d.addErrback(self.connect_failed)
+            self._connectionMadeDeferred = log_stack_on_error(defer.Deferred())
+            self._connectionMadeDeferred.addCallback(lambda _: self.transport.write(data))
             self._deferred = log_stack_on_error(d)
 
         return self._deferred
