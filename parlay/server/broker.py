@@ -1,10 +1,12 @@
 import sys
 
 from twisted.internet import defer
+
 from parlay.server.adapter import PyAdapter
 from parlay.server.reactor import reactor
 from parlay.protocols.meta_protocol import ProtocolMeta
 from adapter import Adapter
+from twisted.python.log import addObserver
 
 from autobahn.twisted.websocket import WebSocketServerFactory, listenWS
 from twisted.web import static, server
@@ -101,7 +103,10 @@ class Broker(object):
         broker._run_mode = Broker.Modes.PRODUCTION  # safest default
 
         if log_level is not None:
-            broker._logger.setLevel(log_level)
+            # This needs to be included here due to scripting imports.
+            from parlay.utils.twisted_log_observer import LevelFileLogObserver
+            logger = LevelFileLogObserver(level=logging.ERROR)
+            addObserver(logger.emit)
 
         return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
 
