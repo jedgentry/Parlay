@@ -348,6 +348,15 @@ class TestPCOMMessage(unittest.TestCase):
         }
     }
 
+    TEST_ITEM_ID = 343
+    TEST_PROPERTY_MAP = {TEST_ITEM_ID: {'test_property': 1100}}
+    TEST_COMMAND_MAP = {TEST_ITEM_ID: {'test_command': 100}}
+    TEST_STREAM_MAP = {TEST_ITEM_ID: {'test_property_stream': 1100}}
+
+    pcom_serial.PCOM_PROPERTY_NAME_MAP = {TEST_ITEM_ID: {'test_property': 1100, u'chassis': 101}}
+    pcom_serial.PCOM_COMMAND_NAME_MAP = {TEST_ITEM_ID: {'test_command': 100}}
+    pcom_serial.PCOM_STREAM_NAME_MAP = {TEST_ITEM_ID: {'test_property_stream': 1100}}
+
     PROPERTY_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 7, u'FROM': u'qt.SelfTest', u'MSG_TYPE': u'PROPERTY'},
                          u'CONTENTS': {u'PROPERTY': 'test_property', u'ACTION': 'GET'}}
 
@@ -360,31 +369,23 @@ class TestPCOMMessage(unittest.TestCase):
     COMMAND_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 7, u'FROM': u'qt.SelfTest', u'MSG_TYPE': u'COMMAND'},
                     u'CONTENTS': {u'COMMAND': 'test_command'}}
 
-    STREAM_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 5, u'FROM': u'DeviceSession', u'MSG_TYPE': u'STREAM'},
+    STREAM_NAME_MSG = {u'TOPICS': {u'TO': 343, u'MSG_ID': 5, u'FROM': u'qt.SelfTest', u'MSG_TYPE': u'STREAM'},
                     u'CONTENTS': {u'STOP': False, u'STREAM': u'test_property_stream'}}
 
     test_pcom_message = PCOMMessage()
 
     def test_property_and_command_names(self):
-        TEST_ITEM_ID = 343
-        TEST_PROPERTY_MAP = {TEST_ITEM_ID: {'test_property': 1100}}
-        TEST_COMMAND_MAP = {TEST_ITEM_ID: {'test_command': 100}}
-        TEST_STREAM_MAP = {TEST_ITEM_ID: {'test_property_stream': 1100}}
 
-        self.assertEqual(PCOMMessage._look_up_id(TEST_PROPERTY_MAP, TEST_ITEM_ID, 'test_property'), 1100)
-        self.assertEqual(PCOMMessage._look_up_id(TEST_PROPERTY_MAP, TEST_ITEM_ID, 1100), 1100)
-        self.assertEqual(PCOMMessage._look_up_id(TEST_COMMAND_MAP, TEST_ITEM_ID, 100), 100)
-        self.assertEqual(PCOMMessage._look_up_id(TEST_COMMAND_MAP, TEST_ITEM_ID, 'test_command'), 100)
-        self.assertEqual(PCOMMessage._look_up_id(TEST_STREAM_MAP, TEST_ITEM_ID, 'test_property_stream'), 1100)
-
-        pcom_serial.PCOM_PROPERTY_NAME_MAP = {TEST_ITEM_ID: {'test_property': 1100, u'chassis': 101}}
-        pcom_serial.PCOM_COMMAND_NAME_MAP = {TEST_ITEM_ID: {'test_command': 100}}
-        pcom_serial.PCOM_STREAM_NAME_MAP = {TEST_ITEM_ID: {'test_property_stream': 1100}}
+        self.assertEqual(PCOMMessage._look_up_id(self.TEST_PROPERTY_MAP, self.TEST_ITEM_ID, 'test_property'), 1100)
+        self.assertEqual(PCOMMessage._look_up_id(self.TEST_PROPERTY_MAP, self.TEST_ITEM_ID, 1100), 1100)
+        self.assertEqual(PCOMMessage._look_up_id(self.TEST_COMMAND_MAP, self.TEST_ITEM_ID, 100), 100)
+        self.assertEqual(PCOMMessage._look_up_id(self.TEST_COMMAND_MAP, self.TEST_ITEM_ID, 'test_command'), 100)
+        self.assertEqual(PCOMMessage._look_up_id(self.TEST_STREAM_MAP, self.TEST_ITEM_ID, 'test_property_stream'), 1100)
 
         EXPECTED_PROPERTY_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x4c\x04\x00\x00\x10\x00\x00'
         EXPECTED_COMMAND_OUTPUT_BUFFER = '\x07\x00\x00\xfc\x57\x01\x64\x00\x00\x00\x00\x00\x00'
         EXPECTED_PROPERTY_2_OUTPUT_BUFFER = '\x03\x00\x00\xfc\x57\x01\x65\x00\x00\x00\x10\x00\x00'
-        EXPECTED_STREAM_OUTPUT_BUFFER = '\x05\x00\x01\xfc\x57\x01\x4c\x04\x00\x00\x12\x00\x00'
+        EXPECTED_STREAM_OUTPUT_BUFFER = '\x05\x00\x00\xfc\x57\x01\x4c\x04\x00\x00\x12\x00\x00'
 
         msg = PCOMMessage.from_json_msg(self.PROPERTY_NAME_MSG)
         self.assertEqual(EXPECTED_PROPERTY_OUTPUT_BUFFER, serial_encoding.encode_pcom_message(msg))
@@ -452,3 +453,15 @@ class TestPCOMMessage(unittest.TestCase):
         self.test_pcom_message.data = [1, 2, 3, 4]
         self.test_pcom_message._build_contents_map([], test_contents)
         self.assertEqual({}, test_contents)
+
+    def test_stream_rates(self):
+        # Set stream rate to 0
+        self.STREAM_NAME_MSG["CONTENTS"]["RATE"] = 0
+        msg = PCOMMessage.from_json_msg(self.STREAM_NAME_MSG)
+        self.assertEqual(serial_encoding.encode_pcom_message(msg), '\x05\x00\x00\xfcW\x01L\x04\x00\x00\x12\x00\x00')
+
+        # Set stream rate to 1000
+        self.STREAM_NAME_MSG["CONTENTS"]["RATE"] = 1000
+        msg = PCOMMessage.from_json_msg(self.STREAM_NAME_MSG)
+        self.assertEqual(serial_encoding.encode_pcom_message(msg), '\x05\x00\x00\xfcW\x01L\x04\x00\x00\x12\x00f\x00'
+                                                                   '\x00\x00zD')
