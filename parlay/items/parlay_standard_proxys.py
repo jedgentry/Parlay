@@ -24,12 +24,14 @@ class ParlayStandardScriptProxy(object):
             # do we want to block on a set until we get the ACK?
             self._blocking_set = blocking_set
 
+        @run_in_broker
+        @defer.inlineCallbacks
         def __get__(self, instance, owner):
             msg = instance._script.make_msg(instance.item_id, None, msg_type=MSG_TYPES.PROPERTY,
                                             direct=True, response_req=True, PROPERTY=self._id, ACTION="GET")
-            resp = instance._script.send_parlay_message(msg)
+            resp = yield instance._script.send_parlay_message(msg)
             # return the VALUE of the response
-            return resp["CONTENTS"]["VALUE"]
+            defer.returnValue(resp["CONTENTS"]["VALUE"])
 
         def __set__(self, instance, value):
             try:
