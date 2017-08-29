@@ -295,7 +295,7 @@ class ParlayProperty(object):
     """
 
     def __init__(self, default=None, val_type=str, read_only=False, write_only=False,
-                 custom_read=None, custom_write=None, callback=lambda _:_):
+                 custom_read=None, custom_write=None, callback=lambda _, __: __):
         """
         Init method for the ParlayProperty class
 
@@ -327,7 +327,7 @@ class ParlayProperty(object):
         if self._custom_read is None:
             return self._val_lookup.get(instance, self._init_val)
         else:
-            return self._custom_read()
+            return self._custom_read(instance)
 
     def __set__(self, instance, value):
         # special case for boolean
@@ -337,11 +337,11 @@ class ParlayProperty(object):
 
         # coerce the val
         val = value if self._val_type is None else self._val_type(value)
-        self._val_lookup[instance] = val if self._custom_write is None else self._custom_write(val)
+        self._val_lookup[instance] = val if self._custom_write is None else self._custom_write(instance, val)
 
         for listener in self.listeners.get(instance, {}).values():
             listener(value)  # call any listeners
-        self._callback(value)  # call my callback
+        self._callback(instance, value)  # call my callback
 
     def listen(self, instance, listener, requester_id):
         """
@@ -447,9 +447,11 @@ class ParlayCommandItem(ParlayStandardItem):
 
         # add any function that have been decorated
         for member_name in [x for x in dir(self) if not x.startswith("__")]:
-            member = getattr(self, member_name, {})
+            member = self.__class__.__dict__.get(member_name, None)
             # are we a method? and do we have the flag, and is it true?
             if callable(member) and hasattr(member, "_parlay_command") and member._parlay_command:
+                # get a reference to this OBJECTs bound functiion now, now the class's unbound function
+                member = getattr(self, member_name, {})
                 self._commands[member_name] = member
                 # build the sub-field based on their signature
                 arg_names = member._parlay_fn.func_code.co_varnames[1:member._parlay_fn.func_code.co_argcount]   # remove self
@@ -552,8 +554,11 @@ class ParlayCommandItem(ParlayStandardItem):
                     self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE"})
                     return True
                 elif action == "GET":
-                    val = getattr(self, self._properties[property_id]["ATTR_NAME"])
-                    self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "VALUE": val})
+                    def on_get(val):
+                        self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "VALUE": val})
+
+                    defer.maybeDeferred(lambda: getattr(self, self._properties[property_id]["ATTR_NAME"]))\
+                        .addCallback(on_get)
                     return True
             except Exception as e:
                 self.send_response(msg, {"PROPERTY": property_id, "ACTION": "RESPONSE", "DESCRIPTION": str(e)},
