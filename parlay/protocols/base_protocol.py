@@ -98,7 +98,6 @@ class BaseProtocol(object):
         """
         Call this when you have new data and want to pass it to any waiting Items
         """
-        print data
         old_new_data = self._new_data
 
         # setup the new data in case it causes a callback to fire
