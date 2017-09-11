@@ -112,8 +112,8 @@ class PropertyTestItem(parlay_standard.ParlayCommandItem):
     #custom reader writer. Writer pushes into list and reader gives you that list as a string
     custom_list = []
     custom_rw_propery = parlay_standard.ParlayProperty(val_type=float,
-                                                       custom_read=lambda: ','.join(str(x) for x in PropertyTestItem.custom_list),
-                                                       custom_write=lambda x: PropertyTestItem.custom_list.append(x))
+                                                       custom_read=lambda self: ','.join(str(x) for x in PropertyTestItem.custom_list),
+                                                       custom_write=lambda self, x: PropertyTestItem.custom_list.append(x))
 
 
 class CommandTestItem(parlay_standard.ParlayCommandItem):
