@@ -7,6 +7,7 @@ from parlay.items.base import INPUT_TYPES, MSG_STATUS, MSG_TYPES, TX_TYPES, INPU
     INPUT_TYPE_CONVERTER_LOOKUP
 from parlay_standard_proxys import BadStatusError, CommandHandle
 from parlay.utils.reporting import log_stack_on_error
+from base64 import b64encode
 import os
 import re
 import inspect
@@ -225,9 +226,18 @@ class ParlayStandardItem(ThreadedItem):
         Send a parlay command to an known ID
         """
         msg = self.make_msg(to, command, msg_type=MSG_TYPES.COMMAND,
-                                    direct=True, response_req=True, COMMAND=command, **kwargs)
+                            direct=True, response_req=True, COMMAND=command, **kwargs)
         self.send_parlay_message(msg, timeout=_timeout, wait=False)
         return CommandHandle(msg, self)
+
+    def encode_binary_data(self, mime_type, content):
+        """
+        Encodes binary data into a mime format that can be displayed on the Parlay UI.
+        :param mime_type: The mime type for the browser to understand the encoded data.
+        :param content: The content to encode.
+        :return: The encoded data with mime formatting.
+        """
+        return "data:" + str(mime_type) + ";base64 ," + b64encode(content)
 
 
 def parlay_command(async=False, auto_type_cast=True):
