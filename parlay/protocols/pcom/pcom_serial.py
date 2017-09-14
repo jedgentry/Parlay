@@ -116,7 +116,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     ACK_DIFFERENTIAL = 8
 
     # timeout before resend in secs
-    ACK_TIMEOUT = 1
+    ACK_TIMEOUT = .25
 
     ERROR_STATUS = DISCOVERY_CODE << 16
     DISCOVERY_TIMEOUT_ID = (DISCOVERY_CODE + 1) << 16
@@ -891,9 +891,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # Loop through all item IDs and find their children
         for item_id in self.items.keys():
-
-            children = yield self._fetch_children_from_embedded_dev(item_id)
-            self._add_children_to_item_discovery(item_id, children)
+            try:
+                children = yield self._fetch_children_from_embedded_dev(item_id)
+                self._add_children_to_item_discovery(item_id, children)
+            except Exception as e:
+                logger.error("Could not find children for item " + str(item_id) + " because of exception: " + str(e))
 
         # Flatten our items dictionary into a list as expected by the Broker
         self.items = [x for x in self.items.values()]
@@ -1500,12 +1502,6 @@ class SlidingACKWindow:
         if sequence_number != self.TIMEOUT:
 
             if sequence_number != self.EXPIRED:
-                if self._last_acked_map[sequence_number % self.WINDOW_SIZE] == sequence_number:
-                    logger.error("[PCOM] UNEXPECTED ACK SEQ NUM: {0} DROPPING".format(sequence_number))
-                    return
-
-                self._last_acked_map[sequence_number % self.WINDOW_SIZE] = sequence_number
-
                 del self._window[sequence_number]
                 if len(self._queue) > 0:
                     ack_to_add = self._queue.pop(0)
