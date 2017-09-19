@@ -4,12 +4,13 @@ from twisted.internet import defer
 
 from parlay.server.adapter import PyAdapter
 from parlay.server.reactor import reactor
+from parlay.server.http_server import CacheControlledSite
 from parlay.protocols.meta_protocol import ProtocolMeta
 from adapter import Adapter
 from twisted.python.log import addObserver
 
 from autobahn.twisted.websocket import WebSocketServerFactory, listenWS
-from twisted.web import static, server
+from twisted.web import static
 import os
 import json
 import signal
@@ -585,17 +586,6 @@ class Broker(object):
             root = static.File(PARLAY_PATH + "/ui/dist")
             root.putChild("docs", static.File(PARLAY_PATH + "/docs/_build/html"))
 
-        # overloading twisted.server.Site.getResourceFor to add HTTP headers for setting browser cache
-        class Site(server.Site):
-            def getResourceFor(self, request):
-                if not ui_caching:
-                    cache_strategy = "no-store, must-revalidate"
-                else:
-                    freshness_time_secs = 3600 # content younger than 1 hour is considered fresh
-                    cache_strategy = "max-age={}".format(freshness_time_secs)
-                request.setHeader("Cache-Control", cache_strategy)
-                return server.Site.getResourceFor(self, request)
-
         # ssl websocket
         if use_ssl:
             try:
@@ -607,7 +597,7 @@ class Broker(object):
                 factory.setProtocolOptions()
                 listenWS(factory, ssl_context_factory, interface=interface)
                 root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
-                self.reactor.listenSSL(self.https_port, Site(root), ssl_context_factory, interface=interface)
+                self.reactor.listenSSL(self.https_port, CacheControlledSite(ui_caching, root), ssl_context_factory, interface=interface)
 
             except ImportError:
                 print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
@@ -623,7 +613,7 @@ class Broker(object):
             self.reactor.listenTCP(self.websocket_port, factory, interface=interface)
 
             # http server
-            self.reactor.listenTCP(self.http_port, Site(root), interface=interface)
+            self.reactor.listenTCP(self.http_port, CacheControlledSite(ui_caching, root), interface=interface)
             if open_browser:
                 # give the reactor some time to init before opening the browser
                 self.reactor.callLater(.5, lambda: webbrowser.open_new_tab("http://localhost:"+str(self.http_port)))
