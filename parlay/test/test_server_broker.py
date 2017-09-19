@@ -46,7 +46,7 @@ class CacheControlledSiteTest(unittest.TestCase):
         request.prepath = [b""]
         request.postpath = [b""]
         site.getResourceFor(request)
-        assert(request.responseHeaders.getRawHeaders("cache-control") == ["no-store, must-revalidate"])
+        self.assertTrue(request.responseHeaders.getRawHeaders("cache-control") == ["no-store, must-revalidate"])
 
     def testUICaching(self):
         ui_caching = True
@@ -55,4 +55,4 @@ class CacheControlledSiteTest(unittest.TestCase):
         request.prepath = [b""]
         request.postpath = [b""]
         site.getResourceFor(request)
-        assert(request.responseHeaders.getRawHeaders("cache-control") == ["max-age={}".format(FRESHNESS_TIME_SECS)])
+        self.assertTrue(request.responseHeaders.getRawHeaders("cache-control") == ["max-age={}".format(FRESHNESS_TIME_SECS)])
