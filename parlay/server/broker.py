@@ -4,12 +4,13 @@ from twisted.internet import defer
 
 from parlay.server.adapter import PyAdapter
 from parlay.server.reactor import reactor
+from parlay.server.http_server import CacheControlledSite
 from parlay.protocols.meta_protocol import ProtocolMeta
 from adapter import Adapter
 from twisted.python.log import addObserver
 
 from autobahn.twisted.websocket import WebSocketServerFactory, listenWS
-from twisted.web import static, server
+from twisted.web import static
 import os
 import json
 import signal
@@ -89,7 +90,7 @@ class Broker(object):
 
     @staticmethod
     def start(mode=Modes.DEVELOPMENT, ssl_only=False, open_browser=True, http_port=8080, https_port=8081,
-              websocket_port=8085, secure_websocket_port=8086, ui_path=None, log_level=logging.DEBUG):
+              websocket_port=8085, secure_websocket_port=8086, ui_path=None, log_level=logging.DEBUG, ui_caching=False):
         """
         Run the default Broker implementation.
         This call will not return.
@@ -109,7 +110,8 @@ class Broker(object):
             logger = LevelFileLogObserver(level=logging.ERROR)
             addObserver(logger.emit)
 
-        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser, ui_path=ui_path)
+        return broker.run(mode=mode, ssl_only=ssl_only, open_browser=open_browser,
+                          ui_path=ui_path, ui_caching=ui_caching)
 
     @staticmethod
     def start_for_test():
@@ -284,8 +286,8 @@ class Broker(object):
         for k in root_list:
             if k is not None:  # special key for listener list
                 for v in root_list[k]:
-                        # call it again
-                        self.unsubscribe_all(owner, root_list[k][v])
+                    # call it again
+                    self.unsubscribe_all(owner, root_list[k][v])
 
     @classmethod
     def call_on_start(cls, func):
@@ -553,7 +555,7 @@ class Broker(object):
         except:
             return "UNKNOWN"
 
-    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, use_ssl=False, open_browser=True, ui_path=None):
+    def run(self, mode=Modes.DEVELOPMENT, ssl_only=False, use_ssl=False, open_browser=True, ui_path=None, ui_caching=False):
         """
         Start up and run the broker. This method call with not return
         """
@@ -595,7 +597,7 @@ class Broker(object):
                 factory.setProtocolOptions()
                 listenWS(factory, ssl_context_factory, interface=interface)
                 root.contentTypes['.crt'] = 'application/x-x509-ca-cert'
-                self.reactor.listenSSL(self.https_port, server.Site(root), ssl_context_factory, interface=interface)
+                self.reactor.listenSSL(self.https_port, CacheControlledSite(ui_caching, root), ssl_context_factory, interface=interface)
 
             except ImportError:
                 print "WARNING: PyOpenSSL is *not* installed. Parlay cannot host HTTPS or WSS without PyOpenSSL"
@@ -611,8 +613,7 @@ class Broker(object):
             self.reactor.listenTCP(self.websocket_port, factory, interface=interface)
 
             # http server
-            site = server.Site(root)
-            self.reactor.listenTCP(self.http_port, site, interface=interface)
+            self.reactor.listenTCP(self.http_port, CacheControlledSite(ui_caching, root), interface=interface)
             if open_browser:
                 # give the reactor some time to init before opening the browser
                 self.reactor.callLater(.5, lambda: webbrowser.open_new_tab("http://localhost:"+str(self.http_port)))
