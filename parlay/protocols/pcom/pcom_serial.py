@@ -990,7 +990,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         self.items = {}
         for subsystem_id in self._subsystem_ids:
-            if subsystem_id != 0:
+            if subsystem_id != 0 and type(subsystem_id) is int:
                 try:
                     yield self._get_item_discovery_info(subsystem_id)
                 except Exception as e:
