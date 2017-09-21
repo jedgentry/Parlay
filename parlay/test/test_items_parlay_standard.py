@@ -33,13 +33,13 @@ class PropertyTest(unittest.TestCase, AdapterMixin, ReactorMixin):
     def testCustomRWProp(self):
         # make sure we're clean
         self.assertEqual(PropertyTestItem.custom_list, [])
-        self.assertEqual(self.prop_item.custom_rw_propery, "")
+        self.assertEqual(self.prop_item.custom_rw_property, "")
         # add some to the list
-        self.prop_item.custom_rw_propery = 1
-        self.prop_item.custom_rw_propery = 2
-        self.prop_item.custom_rw_propery = 3
+        self.prop_item.custom_rw_property = 1
+        self.prop_item.custom_rw_property = 2
+        self.prop_item.custom_rw_property = 3
 
-        self.assertEqual(self.prop_item.custom_rw_propery, "1.0,2.0,3.0")
+        self.assertEqual(self.prop_item.custom_rw_property, "1.0,2.0,3.0")
 
     def testPropertySpec_Set(self):
         # set to 5
@@ -111,9 +111,9 @@ class PropertyTestItem(parlay_standard.ParlayCommandItem):
     write_only_property = parlay_standard.ParlayProperty(val_type=str, write_only=True)
     #custom reader writer. Writer pushes into list and reader gives you that list as a string
     custom_list = []
-    custom_rw_propery = parlay_standard.ParlayProperty(val_type=float,
-                                                       custom_read=lambda: ','.join(str(x) for x in PropertyTestItem.custom_list),
-                                                       custom_write=lambda x: PropertyTestItem.custom_list.append(x))
+    custom_rw_property = parlay_standard.ParlayProperty(val_type=float,
+                                                       custom_read=lambda self: ','.join(str(x) for x in PropertyTestItem.custom_list),
+                                                       custom_write=lambda self, x: PropertyTestItem.custom_list.append(x))
 
 
 class CommandTestItem(parlay_standard.ParlayCommandItem):
