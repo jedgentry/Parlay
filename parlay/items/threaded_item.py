@@ -43,7 +43,7 @@ class ThreadedItem(BaseItem):
     # a list of functions that will be alerted when a new script instance is created
     stop_reactor_on_close = True
 
-    def __init__(self, item_id, name, reactor=None, adapter=None, parents=set()):
+    def __init__(self, item_id, name, reactor=None, adapter=None, parents=None):
         BaseItem.__init__(self, item_id, name, adapter=adapter, parents=parents)
         self._reactor = self._adapter.reactor if reactor is None else reactor
         self._msg_listeners = []

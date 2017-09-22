@@ -56,28 +56,23 @@ class MSG_STATUS(object):
     OK = "OK"
     PROGRESS = 'PROGRESS'
 
+
 class BaseItem(object):
     """
     The Base Item that all other Items should inherit from
     """
 
-    def __init__(self, item_id, name, adapter=None, parents=set()):
+    def __init__(self, item_id, name, adapter=None, parents=None):
         self.item_id = item_id
         self.item_name = name
         """:type Adapter"""  # use the default pyadapter if no specific adapter was chosen
         self._adapter = adapter if adapter is not None else Broker.get_instance().pyadapter
-        self.children = set()  # child items
-        self.parents = {parents} if not isinstance(parents, Iterable) else set(parents)
 
-        if self.parents:
-            try:
-                for parent in set(self.parents):
-                    parent.add_child(self)
-            except Exception as e:
-                print "Unable to add this item as a child. Make sure parent is a Parlay item that supports " \
-                      "adding children."
-                print "Exception: ", str(e)
-                raise e
+        self.children = set()  # Initialize children set
+
+        parents = set() if not parents else parents  # Create a set to represent the parents of the item
+        self.parents = {parents} if not isinstance(parents, Iterable) else set(parents)  # Make sure parents is iterable
+        self._add_self_as_child_to_parents()
 
         # subscribe on_message to be called whenever we get a message *to* us
         self.subscribe(self.on_message, TO=item_id)
@@ -117,6 +112,20 @@ class BaseItem(object):
 
         return "/".join(templates)
 
+    def _add_self_as_child_to_parents(self):
+        """
+        Adds this BaseItem instance as a child to the parents passed as parameters in the constructor.
+        :return: None
+        """
+        try:
+            for parent in set(self.parents):
+                parent.add_child(self)
+        except Exception as e:
+            print "Unable to add this item as a child. Make sure parent is a Parlay item that supports " \
+                  "adding children."
+            print "Exception: ", str(e)
+            raise e
+
     def add_child(self, child):
         """
         Adds child to the children list of our item. NOTE: duplicates are not permitted.
@@ -127,9 +136,12 @@ class BaseItem(object):
         :return:
         """
         # Make sure child has not already been added
-        if child not in self.children and isinstance(child, BaseItem) and self not in self.parents:
-            self.children.add(child)
-            child.parents.add(self)
+        if not isinstance(child, BaseItem):
+            print "add_child() error. Child provided was not an instance of BaseItem."
+            return
+
+        self.children.add(child)
+        child.parents.add(self)
 
     def is_child(self):
         """
