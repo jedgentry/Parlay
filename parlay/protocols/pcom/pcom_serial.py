@@ -126,6 +126,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
     discovery_file = None
 
+    INVALID_SUBSYSTEM_ID = 0xFF
+
     @classmethod
     def open(cls, adapter, port, discovery_file=None):
         """
@@ -839,7 +841,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         # initialize the maps for this item
 
-        # If reactor, don't re-initialize the command map
+        # If reactor, don't re-initialize the command map because reactor specific commands have been initialized
+        # in _initialize_reactor_command_map
         if item_id & 0xFF != 0:
             PCOM_COMMAND_MAP[item_id] = {}
         PCOM_PROPERTY_MAP[item_id] = {}
@@ -990,7 +993,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         self.items = {}
         for subsystem_id in self._subsystem_ids:
-            if subsystem_id != 0 and type(subsystem_id) is int:
+            if subsystem_id != self.INVALID_SUBSYSTEM_ID and type(subsystem_id) is int:
                 try:
                     yield self._get_item_discovery_info(subsystem_id)
                 except Exception as e:
@@ -1187,6 +1190,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = PCOMSerial.build_command_info("", [], ["codes"])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_STRING] = PCOMSerial.build_command_info("H", ["code"], ["string"])
         PCOM_COMMAND_MAP[reactor][GET_CHILDREN] = PCOMSerial.build_command_info("H", ["item_id"], ["Item IDs[]"])
+        PCOM_COMMAND_MAP[reactor][GET_SUBSYSTEM_NAME] = PCOMSerial.build_command_info("", [], ["subsystem_name"])
 
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, subsystem):
@@ -1252,6 +1256,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_CODES)
             self._error_codes = [int(error_code) for error_code in response.data]
 
+            response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_SUBSYSTEM_NAME)
+            self._subsystem_name = "" if len(response.data) == 0 else str(response.data[0]) + "."
+
             for error_code in self._error_codes:
                 response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_STRING,
                                                    params=["code"], data=[error_code])
@@ -1266,7 +1273,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
             for item_id in self._item_ids:
                 response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
-                item_name = str(response.data[0])
+                item_name = self._subsystem_name
+                if len(response.data) != 0 and len(str(response.data[0])) > 0 and \
+                                str(response.data[0]) != self._subsystem_name:
+                    item_name += str(response.data[0])
 
                 PCOM_ITEM_NAME_MAP[item_id] = item_name
                 parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)

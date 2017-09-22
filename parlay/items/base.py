@@ -61,23 +61,23 @@ class BaseItem(object):
     The Base Item that all other Items should inherit from
     """
 
-    def __init__(self, item_id, name, adapter=None, parents=None):
+    def __init__(self, item_id, name, adapter=None, parents=set()):
         self.item_id = item_id
         self.item_name = name
         """:type Adapter"""  # use the default pyadapter if no specific adapter was chosen
         self._adapter = adapter if adapter is not None else Broker.get_instance().pyadapter
-        self.children = []  # child items
-        self.parents = [] if not parents else parents
-        self.parents = self.parents if isinstance(self.parents, Iterable) else [self.parents]
+        self.children = set()  # child items
+        self.parents = {parents} if not isinstance(parents, Iterable) else set(parents)
 
         if self.parents:
             try:
-                for parent in self.parents:
+                for parent in set(self.parents):
                     parent.add_child(self)
             except Exception as e:
                 print "Unable to add this item as a child. Make sure parent is a Parlay item that supports " \
                       "adding children."
                 print "Exception: ", str(e)
+                raise e
 
         # subscribe on_message to be called whenever we get a message *to* us
         self.subscribe(self.on_message, TO=item_id)
@@ -127,16 +127,16 @@ class BaseItem(object):
         :return:
         """
         # Make sure child has not already been added
-        if child not in self.children and isinstance(child, BaseItem):
-            self.children.append(child)
-            child.parents.append(self)
+        if child not in self.children and isinstance(child, BaseItem) and self not in self.parents:
+            self.children.add(child)
+            child.parents.add(self)
 
     def is_child(self):
         """
         Determines if this item is a child of another item. Or in other words this Item has a parent.
         :return: boolean - True if this item is a child, False if not.
         """
-        return self.parents != []
+        return len(self.parents) != 0
 
     def __del__(self):
         self._adapter.deregister_item(self)

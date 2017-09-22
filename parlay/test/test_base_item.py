@@ -31,7 +31,10 @@ class BaseItemTest(unittest.TestCase, AdapterMixin, ReactorMixin):
                                             'CHILDREN': [], 'ID': '1-Parent Child'},
                                            {'INTERFACES': [], 'TYPE': 'BaseItem/object', 'NAME': '2-Parent Child',
                                             'CHILDREN': [], 'ID': '2-Parent Child'}], 'ID': 'First Parent'}
-        self.assertEqual(self.first_parent.get_discovery(), expected_discovery)
+        self.assert_({'INTERFACES': [], 'TYPE': 'BaseItem/object', 'NAME': '1-Parent Child',
+                                            'CHILDREN': [], 'ID': '1-Parent Child'} in self.first_parent.get_discovery()["CHILDREN"])
+        self.assert_({'INTERFACES': [], 'TYPE': 'BaseItem/object', 'NAME': '2-Parent Child',
+             'CHILDREN': [], 'ID': '2-Parent Child'} in self.first_parent.get_discovery()["CHILDREN"])
 
     def testNoParentDiscovery(self):
 

@@ -24,7 +24,7 @@ class ParlayStandardItem(ThreadedItem):
     discovery. Inherit from it and use the parlay decorators to get UI functionality
     """
 
-    def __init__(self, item_id, name, reactor=None, adapter=None, parents=None):
+    def __init__(self, item_id, name, reactor=None, adapter=None, parents=set()):
         # call parent
         ThreadedItem.__init__(self, item_id, name, reactor, adapter, parents)
         self._content_fields = []
@@ -429,7 +429,7 @@ class ParlayCommandItem(ParlayStandardItem):
     # id generator for auto numbering class instances
     __ID_GEN = message_id_generator(2**32, 1)
 
-    def __init__(self, item_id=None, name=None, reactor=None, adapter=None, parents=None):
+    def __init__(self, item_id=None, name=None, reactor=None, adapter=None, parents=set()):
         """
         :param item_id : The id of the Item (Must be unique in this system)
         :type item_id str | int
