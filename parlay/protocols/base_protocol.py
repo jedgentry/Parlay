@@ -88,7 +88,7 @@ class BaseProtocol(object):
         return {'TEMPLATE': 'Protocol',
                 'NAME': str(self),
                 'protocol_type': getattr(self, "_protocol_type_name", "UNKNOWN"),
-                'CHILDREN': [x.get_discovery() for x in self.items]}
+                'CHILDREN': [x.get_discovery() for x in self.items if not x.is_child()]}
 
     def get_new_data_wait_handler(self):
         return WaitHandler(self._new_data)

@@ -24,15 +24,14 @@ class ParlayStandardItem(ThreadedItem):
     discovery. Inherit from it and use the parlay decorators to get UI functionality
     """
 
-    def __init__(self, item_id, name, reactor=None, adapter=None):
+    def __init__(self, item_id, name, reactor=None, adapter=None, parents=None):
         # call parent
-        ThreadedItem.__init__(self, item_id, name, reactor, adapter)
+        ThreadedItem.__init__(self, item_id, name, reactor, adapter, parents)
         self._content_fields = []
         self._topic_fields = []
         self._properties = {}  # Dictionary from name to (attr_name, read_only, write_only)
         self._datastreams = {}
         self.item_type = None
-
 
     def create_field(self,  msg_key, input, label=None, required=False, hidden=False, default=None,
                      dropdown_options=None, dropdown_sub_fields=None):
@@ -169,7 +168,6 @@ class ParlayStandardItem(ThreadedItem):
             self.send_message(to=receiver,
                               msg_type=MSG_TYPES.EVENT, 
                               contents=contents)
-
 
     def send_message(self, to=None, from_=None, contents=None, tx_type=TX_TYPES.DIRECT, msg_type=MSG_TYPES.DATA, msg_id=None, msg_status=MSG_STATUS.OK, response_req=False, extra_topics=None):
         """
@@ -431,7 +429,7 @@ class ParlayCommandItem(ParlayStandardItem):
     # id generator for auto numbering class instances
     __ID_GEN = message_id_generator(2**32, 1)
 
-    def __init__(self, item_id=None, name=None, reactor=None, adapter=None):
+    def __init__(self, item_id=None, name=None, reactor=None, adapter=None, parents=None):
         """
         :param item_id : The id of the Item (Must be unique in this system)
         :type item_id str | int
@@ -445,7 +443,7 @@ class ParlayCommandItem(ParlayStandardItem):
         if name is None:
             name = self.__class__.__name__
 
-        ParlayStandardItem.__init__(self, item_id, name, reactor, adapter)
+        ParlayStandardItem.__init__(self, item_id, name, reactor, adapter, parents)
         self._commands = {}  # dict with command name -> callback function
 
         # ease of use deferred for wait* functions

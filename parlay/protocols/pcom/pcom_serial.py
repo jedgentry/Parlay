@@ -116,7 +116,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     ACK_DIFFERENTIAL = 8
 
     # timeout before resend in secs
-    ACK_TIMEOUT = 1
+    ACK_TIMEOUT = .25
 
     ERROR_STATUS = DISCOVERY_CODE << 16
     DISCOVERY_TIMEOUT_ID = (DISCOVERY_CODE + 1) << 16
@@ -125,6 +125,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     is_port_attached = False
 
     discovery_file = None
+
+    INVALID_SUBSYSTEM_ID = 0xFF
 
     @classmethod
     def open(cls, adapter, port, discovery_file=None):
@@ -243,7 +245,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # A list of items that we will need to discover for.
         # The base protocol will use this dictionary to feed items to
         # the UI
-        self.items = []
+        self.items = {}
         self._error_codes = []
         self._loaded_from_file = False
 
@@ -706,7 +708,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # ID, Name pair (eg. (0, "IO_Control_board"))
         try:
             response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
-            self._subsystem_ids = [int(response.data[0])]
+            self._subsystem_ids = [int(x) for x in response.data]
         except Exception as e:
             logger.error("Exception occurred when trying to find available subsystems: {0}".format(e))
 
@@ -838,7 +840,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         """
 
         # initialize the maps for this item
-        PCOM_COMMAND_MAP[item_id] = {}
+
+        # If reactor, don't re-initialize the command map because reactor specific commands have been initialized
+        # in _initialize_reactor_command_map
+        if item_id & 0xFF != 0:
+            PCOM_COMMAND_MAP[item_id] = {}
         PCOM_PROPERTY_MAP[item_id] = {}
         PCOM_COMMAND_NAME_MAP[item_id] = {}
         PCOM_PROPERTY_NAME_MAP[item_id] = {}
@@ -877,6 +883,71 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_COMMAND_MAP[item_id]["get_property_name"] = GET_PROPERTY_NAME
         PCOM_COMMAND_MAP[item_id]["get_property_type"] = GET_PROPERTY_TYPE
         return
+
+    @defer.inlineCallbacks
+    def _create_item_hierarchy(self):
+        """
+        Converts self.items to a hierarchical tree where each item has children.
+
+        :return: None
+        """
+
+        # Loop through all item IDs and find their children
+        for item_id in self.items.keys():
+            try:
+                children = yield self._fetch_children_from_embedded_dev(item_id)
+                self._add_children_to_item_discovery(item_id, children)
+            except Exception as e:
+                logger.error("Could not find children for item " + str(item_id) + " because of exception: " + str(e))
+
+        # Flatten our items dictionary into a list as expected by the Broker
+        self.items = [x for x in self.items.values()]
+
+    @defer.inlineCallbacks
+    def _fetch_children_from_embedded_dev(self, item_id):
+        """
+        Queries the embedded device for the children of <item_id>
+        :param item_id: u16 short representing the ID of the item.
+        :return: list of children IDs
+        """
+        # Reactor will ways be item 0 on the subsystem. If our item ID is 277 the reactor is 256.
+        # 256 = 277 & 0xFF00
+        reactor_mask = 0xFF00
+
+        # First determine our Reactor's ID. We need to query it in order to find the children of
+        # the item we are at.
+        reactor_id = item_id & reactor_mask
+
+        # Query the Reactor for the children of our item ID
+        response = yield self.send_command(to=reactor_id, command_id=GET_CHILDREN, tx_type="DIRECT",
+                                           params=["item_id"], data=[item_id])
+
+        # Save our children IDs from our response data
+        defer.returnValue([int(child_id) for child_id in response.data])
+
+    def _add_children_to_item_discovery(self, item_id, children):
+        """
+        Adds the children <children> to discovery information for item_id.
+        :return: None
+        """
+        # Iterate through each ID found from Reactor query. We are going to add the child to our
+        # Parlay item and then save the child ID so that we can delete it from the top level
+        # of self.items after we are done.
+        for child_id in children:
+
+            # Check condition where we have listed ourselves as an item.
+            if child_id == item_id:
+                logger.warning("[PCOM] Item ID" + str(item_id) + " has itself has a child.")
+                continue
+
+            # Check for condition where we have not discovered the child ID
+            if child_id not in self.items.keys():
+                logger.warning("[PCOM] Child ID " + str(child_id) + " for parent item " + str(item_id) + " could not be"
+                                                                                                         " found.")
+                continue
+
+            # Add child to our dictionary in the correct spot
+            self.items[item_id].add_child(self.items[child_id])
 
     @defer.inlineCallbacks
     def get_discovery(self):
@@ -920,13 +991,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         if self._attached_item_d is not None:
             yield self._attached_item_d
 
-        self.items = []
+        self.items = {}
         for subsystem_id in self._subsystem_ids:
-            try:
-                yield self._get_item_discovery_info(subsystem_id)
-            except Exception as e:
-                logger.error("Exception while discovering! Skipping subsystem: {0}\n     {1}".format(subsystem_id, e))
-
+            if subsystem_id != self.INVALID_SUBSYSTEM_ID and type(subsystem_id) is int:
+                try:
+                    yield self._get_item_discovery_info(subsystem_id)
+                except Exception as e:
+                    logger.error("Exception while discovering! Skipping subsystem: {0}\n     {1}".format(subsystem_id, e))
+        yield self._create_item_hierarchy()
         self._discovery_in_progress = False
 
         t2 = time.time()
@@ -1117,6 +1189,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         PCOM_COMMAND_MAP[reactor][0] = PCOMSerial.build_command_info("", [], [])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_CODES] = PCOMSerial.build_command_info("", [], ["codes"])
         PCOM_COMMAND_MAP[reactor][GET_ERROR_STRING] = PCOMSerial.build_command_info("H", ["code"], ["string"])
+        PCOM_COMMAND_MAP[reactor][GET_CHILDREN] = PCOMSerial.build_command_info("H", ["item_id"], ["Item IDs[]"])
+        PCOM_COMMAND_MAP[reactor][GET_SUBSYSTEM_NAME] = PCOMSerial.build_command_info("", [], ["subsystem_name"])
 
     @defer.inlineCallbacks
     def _get_item_discovery_info(self, subsystem):
@@ -1182,6 +1256,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_CODES)
             self._error_codes = [int(error_code) for error_code in response.data]
 
+            response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_SUBSYSTEM_NAME)
+            self._subsystem_name = "" if len(response.data) == 0 else str(response.data[0]) + "."
+
             for error_code in self._error_codes:
                 response = yield self.send_command(to=REACTOR, tx_type="DIRECT", command_id=GET_ERROR_STRING,
                                                    params=["code"], data=[error_code])
@@ -1196,17 +1273,18 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
             for item_id in self._item_ids:
                 response = yield self.send_command(item_id, command_id=GET_ITEM_NAME, tx_type="DIRECT")
-                item_name = str(response.data[0])
+                item_name = self._subsystem_name
+                if len(response.data) != 0 and len(str(response.data[0])) > 0 and \
+                                str(response.data[0]) != self._subsystem_name:
+                    item_name += str(response.data[0])
 
                 PCOM_ITEM_NAME_MAP[item_id] = item_name
                 parlay_item = ParlayStandardItem(item_id=item_id, name=item_name)
 
                 response = yield self.send_command(item_id, command_id=GET_ITEM_TYPE, tx_type="DIRECT")
-
                 item_type = int(response.data[0])
 
                 response = yield self.send_command(item_id, command_id=GET_COMMAND_IDS, tx_type="DIRECT")
-
                 command_ids = response.data
 
                 command_dropdowns = []
@@ -1269,7 +1347,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
                 yield discovered_property
 
                 if item_type != ITEM_TYPE_HIDDEN:
-                    self.items.append(parlay_item)
+                    self.items[item_id] = parlay_item
 
                 logger.info("[PCOM] Finished ITEM: {0}".format(item_name))
 
@@ -1277,7 +1355,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             logger.error("[PCOM]: Could not fetch discovery info due to exception: {0}".format(e))
             raise e
 
-        logger.error("[PCOM] Finished subsystem: {0}".format(subsystem))
+        logger.info("[PCOM] Finished subsystem: {0}".format(subsystem))
         defer.returnValue(discovery)
 
     def _send_broadcast_message(self):
@@ -1383,10 +1461,9 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             packet_tuple = unstuff_packet(buf[start_byte_index:])
             self._on_packet(*packet_tuple)
         except FailCRC:
-            logger.error("[PCOM] Failed CRC")
+            logger.error("[PCOM] Failed CRC. Message buffer:" + str([hex(ord(x)) for x in line]))
         except Exception as e:
             logger.error("[PCOM] Could not decode message because of exception: {0}".format(e))
-            raise e
 
 
 class ACKInfo:
@@ -1435,12 +1512,6 @@ class SlidingACKWindow:
         if sequence_number != self.TIMEOUT:
 
             if sequence_number != self.EXPIRED:
-                if self._last_acked_map[sequence_number % self.WINDOW_SIZE] == sequence_number:
-                    logger.error("[PCOM] UNEXPECTED ACK SEQ NUM: {0} DROPPING".format(sequence_number))
-                    return
-
-                self._last_acked_map[sequence_number % self.WINDOW_SIZE] = sequence_number
-
                 del self._window[sequence_number]
                 if len(self._queue) > 0:
                     ack_to_add = self._queue.pop(0)
