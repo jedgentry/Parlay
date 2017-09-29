@@ -14,3 +14,7 @@ shutdown_broker = lambda: scripting_setup.script.shutdown_broker()
 open = lambda protocol_name, **kwargs: scripting_setup.script.open(protocol_name, **kwargs)
 open_protocol = open
 close_protocol = lambda protocol_id: scripting_setup.script.close_protocol(protocol_id)
+
+
+class TimeoutError(Exception):
+    pass
