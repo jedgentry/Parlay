@@ -16,5 +16,8 @@ open_protocol = open
 close_protocol = lambda protocol_id: scripting_setup.script.close_protocol(protocol_id)
 
 
+DEFAULT_TIMEOUT = 600  # unless modified, waiting for any message will raise TimeoutError after this time
+
+
 class TimeoutError(Exception):
     pass

@@ -5,7 +5,8 @@ from parlay.items.base import MSG_STATUS, MSG_TYPES
 from twisted.internet import defer
 from twisted.python import failure
 from parlay.server.broker import run_in_broker, run_in_thread
-from parlay.utils import TimeoutError
+from parlay.utils import TimeoutError, DEFAULT_TIMEOUT
+
 
 
 class ParlayStandardScriptProxy(object):
@@ -180,7 +181,7 @@ class ParlayStandardScriptProxy(object):
         self._discovery = discovery
         self._script = script
         self.datastream_update_rate_hz = 2
-        self.timeout = 120
+        self.timeout = DEFAULT_TIMEOUT
         self._command_id_lookup = {}
 
         # look at the discovery and add all commands, properties, and streams
@@ -243,7 +244,6 @@ class ParlayStandardScriptProxy(object):
             setattr(self, property_name, ParlayStandardScriptProxy.PropertyProxy(property_id, self))
 
 
-
     def send_parlay_command(self, command, **kwargs):
         """
         Manually send a parlay command. Returns a handle that can be paused on
@@ -253,7 +253,7 @@ class ParlayStandardScriptProxy(object):
                                     direct=True, response_req=True, COMMAND=command, **kwargs)
         # make the handle that sets up the listeners
         handle = CommandHandle(msg, self._script)
-        self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
+        self._script.send_parlay_message(msg, wait=False)
         return handle
 
     def get_datastream_handle(self, name):

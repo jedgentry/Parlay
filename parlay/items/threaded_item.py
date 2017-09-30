@@ -4,6 +4,7 @@ from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
 from base import BaseItem
 from parlay.server.broker import Broker, run_in_broker
+from parlay.utils import DEFAULT_TIMEOUT
 import sys
 import json
 import logging
@@ -11,9 +12,6 @@ import logging
 
 # a list of Item proxy classes for Scripts
 ITEM_PROXIES = {}
-
-
-DEFAULT_TIMEOUT = 120
 
 
 # list of deferreds to cancel when cleaning up
