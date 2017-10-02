@@ -623,6 +623,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param data: data that corresponds to each parameter
         :return:
         """
+
         # Increment the event ID
         event_id = self._event_id_generator.next()
 
@@ -910,6 +911,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param item_id: u16 short representing the ID of the item.
         :return: list of children IDs
         """
+
         # Reactor will ways be item 0 on the subsystem. If our item ID is 277 the reactor is 256.
         # 256 = 277 & 0xFF00
         reactor_mask = 0xFF00
@@ -918,9 +920,20 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # the item we are at.
         reactor_id = item_id & reactor_mask
 
+        # Invalid reactor ID
+        if reactor_id == 0:
+            defer.returnValue([])
+            return
+
         # Query the Reactor for the children of our item ID
-        response = yield self.send_command(to=reactor_id, command_id=GET_CHILDREN, tx_type="DIRECT",
+        try:
+            response = yield self.send_command(to=reactor_id, command_id=GET_CHILDREN, tx_type="DIRECT",
                                            params=["item_id"], data=[item_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to retrieve children from item {0} because of exception {1}".format(item_id,
+                                                                                                            str(e)))
+            defer.returnValue([])
+            return
 
         # Save our children IDs from our response data
         defer.returnValue([int(child_id) for child_id in response.data])
@@ -1097,7 +1110,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             token += i
             if token != "*":
                 tokenized_list.append(token)
-            token = ""
+                token = ""
         return tokenized_list
 
     @staticmethod
@@ -1117,6 +1130,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         for parameter, format_token in zip(c_input_names, expand_fmt_string(format_tokens)):
             local_subfields.append(parlay_item.create_field(msg_key=parameter, label=parameter,
                                                             input=PCOMSerial._get_input_type(format_token), required=True))
+
 
     @staticmethod
     def _get_input_type(format_char):
