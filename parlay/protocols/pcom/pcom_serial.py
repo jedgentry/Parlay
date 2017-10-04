@@ -122,10 +122,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     DISCOVERY_TIMEOUT_ID = (DISCOVERY_CODE + 1) << 16
     MESSAGE_TIMEOUT_ERROR_ID = (DISCOVERY_CODE + 2) << 16
 
-    is_port_attached = False
-
-    discovery_file = None
-
     INVALID_SUBSYSTEM_ID = 0xFF
 
     @classmethod
@@ -137,28 +133,41 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :return: returns the instantiated protocol object
         '"""
 
-        cls.discovery_file = discovery_file
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
         protocol = PCOMSerial(adapter, port)
+        protocol.discovery_file = None
+        protocol._open_port()
 
-        cls._open_port(protocol, port, adapter)
-
-        if not cls.is_port_attached:
+        if not protocol.is_port_attached:
             raise Exception("Unable to find connected embedded device.")
 
         return protocol
 
-    @classmethod
-    def _open_port(cls, protocol, port, adapter):
+    def _open_port(self):
+        """
+        Opens a SerialPort on <self._port> using <self.adapter>. If opening the port fails the error will be logged to
+        the logger.
+
+        :return: None
+        """
         try:
-            SerialPort(protocol, port, adapter.reactor, baudrate=cls.BAUD_RATE)
-            cls.is_port_attached = True
+            self._opened_port = SerialPort(self, self._port, self.adapter.reactor, baudrate=PCOMSerial.BAUD_RATE)
+            self.is_port_attached = True
+            self._opened_port.flushInput()
+            self._opened_port.flushOutput()
         except Exception as E:
             logger.error("[PCOM] Unable to open port because of error (exception): {0}".format(E))
 
     @staticmethod
     def _filter_com_ports(potential_com_ports):
+        """
+        Filters the provided list of COM ports based on the string descriptor provided by the USB connection.
+        If the string descriptor matches those provided generally by ST Micro the port will be added to the filtered
+        list. If no new filtered ports are found the old list is returned.
+        :param potential_com_ports: list of potential COM ports found using list_ports.comports() (from serial.tools)
+        :return:
+        """
 
         def _is_valid_port(port_name):
             return PCOMSerial.STM_VCP_STRING in port_name[1] or PCOMSerial.USB_SERIAL_CONV_STRING in port_name[1] or \
@@ -200,7 +209,10 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         return cls.default_args
 
     def reset(self):
-
+        """
+        Resets the information relevant to layer 2 communications (event ID generator, ACK window).
+        :return: None
+        """
         self._event_id_generator = message_id_generator((2 ** self.NUM_EVENT_ID_BITS))
         self._seq_num = message_id_generator((2 ** self.SEQ_BITS))
 
@@ -219,26 +231,39 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         return defer.succeed(None)
 
     def write_to_port(self, buf):
+        """
+        Helper function used to write to the COM port. If a valid port is not attached it attempts to reopen it first.
+        :param buf: Buffer that is going to be written to the COM port
+        :return: None
+        """
         if not self.is_port_attached:
-            try:
-                SerialPort(self, self._port, self.adapter.reactor, baudrate=self.BAUD_RATE)
-                self.is_port_attached = True
-            except Exception as e:
-                logger.error("[PCOM]: Unable to reopen port connection because of exception: " + str(e))
-                return
+            self._open_port()
 
         self.transport.write(buf)
 
     def connectionLost(self, reason=connectionDone):
+        """
+        Overridden function that is called when the connected port is disconnected. Simply sets the
+        self.is_port_attached flag to False so that we know we have been disconnected from the target embedded
+        board.
+        :param reason: Reason for disconnection. Of Twisted failure type.
+        :return:
+        """
         self.is_port_attached = False
         LineReceiver.connectionLost(self, reason)
 
     def __str__(self):
+        """
+        Overloaded __str__ function used to print out a PCOM instance.
+        :return:
+        """
         return "PCOM @ " + str(self._port)
 
     def __init__(self, adapter, port):
         """
+        Initializer function.
         :param adapter: The adapter that will serve as an interface for interacting with the broker
+        :param port: port that we will be connecting to (Eg. "/dev/tty.usbmodem1111" on MacOS)
         """
 
         self._port = port
@@ -299,6 +324,12 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         self._ack_table = {seq_num: defer.Deferred() for seq_num in xrange(2**self.SEQ_BITS)}
 
         self._ack_window = SlidingACKWindow(self.WINDOW_SIZE, self.NUM_RETRIES, self)
+
+        self._discovery_file = None
+
+        self._opened_port = None
+
+        self.is_port_attached = False
 
     def send_error_message(self, original_message, message_status, description=''):
         """
@@ -431,15 +462,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             self._discovery_msg_ids.pop(msg.msg_id).callback(msg)
 
         return
-
-    """
-
-    The following functions aid in the discovery protocol.
-    They may be condensed into fewer functions that require
-    more parameters, but I thought abstracting each message
-    would making understanding the protocol easier.
-
-    """
 
     @defer.inlineCallbacks
     def get_property_name(self, to, requested_property_id):
@@ -623,6 +645,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param data: data that corresponds to each parameter
         :return:
         """
+
         # Increment the event ID
         event_id = self._event_id_generator.next()
 
@@ -725,7 +748,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         discovery_msg = {}
 
         try:
-            with open(PCOMSerial.discovery_file) as discovery_file:
+            with open(self.discovery_file) as discovery_file:
                 data = json.load(discovery_file)
                 if len(data) == 0:
                     logger.error("[PCOM] No data loaded from JSON file")
@@ -891,6 +914,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         :return: None
         """
+        ""
 
         # Loop through all item IDs and find their children
         for item_id in self.items.keys():
@@ -910,6 +934,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         :param item_id: u16 short representing the ID of the item.
         :return: list of children IDs
         """
+
         # Reactor will ways be item 0 on the subsystem. If our item ID is 277 the reactor is 256.
         # 256 = 277 & 0xFF00
         reactor_mask = 0xFF00
@@ -918,9 +943,20 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # the item we are at.
         reactor_id = item_id & reactor_mask
 
+        # Invalid reactor ID
+        if reactor_id == 0:
+            defer.returnValue([])
+            return
+
         # Query the Reactor for the children of our item ID
-        response = yield self.send_command(to=reactor_id, command_id=GET_CHILDREN, tx_type="DIRECT",
+        try:
+            response = yield self.send_command(to=reactor_id, command_id=GET_CHILDREN, tx_type="DIRECT",
                                            params=["item_id"], data=[item_id])
+        except Exception as e:
+            logger.error("[PCOM] Unable to retrieve children from item {0} because of exception {1}".format(item_id,
+                                                                                                            str(e)))
+            defer.returnValue([])
+            return
 
         # Save our children IDs from our response data
         defer.returnValue([int(child_id) for child_id in response.data])
@@ -958,11 +994,14 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         items, messages, and endpoint types
         """
 
-        if not PCOMSerial.is_port_attached:
-            logger.error("[PCOM] Failed to discover. No port connected.")
-            self.send_command(tx_type="BROADCAST", msg_status="ERROR",
-                              data=["No Serial Port connected to Parlay. Open serial port before discovering"])
-            defer.returnValue(BaseProtocol.get_discovery(self))
+        if not self.is_port_attached:
+            if not self._port:
+                logger.error("[PCOM] Failed to discover. No port connected.")
+                self.send_command(tx_type="BROADCAST", msg_status="ERROR",
+                                  data=["No Serial Port connected to Parlay. Open serial port before discovering"])
+                defer.returnValue(BaseProtocol.get_discovery(self))
+                return
+            self._open_port()
 
         self._subsystem_ids = []
         # If we were already in the process of a discovery we should
@@ -974,7 +1013,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         self._get_attached_items()
 
-        if PCOMSerial.discovery_file is not None:
+        if self.discovery_file is not None:
             discovery_msg = self.load_discovery_from_file()
             if discovery_msg != {}:
                 self._loaded_from_file = True
@@ -1010,8 +1049,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # to the adapter and furthermore to the broker.
         discovery_msg = BaseProtocol.get_discovery(self)
 
-        if PCOMSerial.discovery_file is not None and self._loaded_from_file is False:
-            self.write_discovery_info_to_file(PCOMSerial.discovery_file, discovery_msg)
+        if self.discovery_file is not None and self._loaded_from_file is False:
+            self.write_discovery_info_to_file(self.discovery_file, discovery_msg)
 
         if self._discovery_deferred:
             self._discovery_deferred.callback(discovery_msg)
@@ -1097,7 +1136,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             token += i
             if token != "*":
                 tokenized_list.append(token)
-            token = ""
+                token = ""
         return tokenized_list
 
     @staticmethod
@@ -1117,6 +1156,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         for parameter, format_token in zip(c_input_names, expand_fmt_string(format_tokens)):
             local_subfields.append(parlay_item.create_field(msg_key=parameter, label=parameter,
                                                             input=PCOMSerial._get_input_type(format_token), required=True))
+
 
     @staticmethod
     def _get_input_type(format_char):
