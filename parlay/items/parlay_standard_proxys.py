@@ -5,7 +5,8 @@ from parlay.items.base import MSG_STATUS, MSG_TYPES
 from twisted.internet import defer
 from twisted.python import failure
 from parlay.server.broker import run_in_broker, run_in_thread
-from parlay.utils import TimeoutError, DEFAULT_TIMEOUT
+from parlay.errors import TimeoutError
+from parlay.constants import DEFAULT_TIMEOUT
 
 
 

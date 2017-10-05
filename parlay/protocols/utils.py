@@ -6,7 +6,7 @@ from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import failure
 from parlay.server.broker import Broker
-from parlay.utils import TimeoutError
+from parlay.errors import TimeoutError
 
 
 class MessageQueue(object):

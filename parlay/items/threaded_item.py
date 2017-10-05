@@ -4,7 +4,7 @@ from parlay.protocols.utils import message_id_generator
 from twisted.python.failure import Failure
 from base import BaseItem
 from parlay.server.broker import Broker, run_in_broker
-from parlay.utils import DEFAULT_TIMEOUT
+from parlay.constants import DEFAULT_TIMEOUT
 import sys
 import json
 import logging
