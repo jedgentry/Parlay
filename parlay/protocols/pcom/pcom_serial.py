@@ -742,7 +742,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # ID, Name pair (eg. (0, "IO_Control_board"))
         try:
             response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
-            self._subsystem_ids = [int(x) for x in response.data]
+            self._subsystem_ids = [x for x in response.data if type(x) is int]
         except Exception as e:
             logger.error("Exception occurred when trying to find available subsystems: {0}".format(e))
 
