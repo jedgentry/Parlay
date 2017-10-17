@@ -41,7 +41,7 @@ class BaseProtocolTest(unittest.TestCase, ReactorMixin):
         return d
 
     def testTimeoutSync(self):
-        from parlay.protocols.utils import TimeoutError
+        from parlay.errors import TimeoutError
         @run_in_thread
         def run_test():
             handle = self.protocol.get_new_data_wait_handler()

@@ -6,7 +6,7 @@ from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import failure
 from parlay.server.broker import Broker
-
+from parlay.errors import TimeoutError
 
 
 class MessageQueue(object):
@@ -118,11 +118,6 @@ def timeout(d, seconds):
 
     d.addCallback(clean_up_timer)
     return timeout_deferred
-
-
-class TimeoutError(Exception):
-    pass
-
 
 
 

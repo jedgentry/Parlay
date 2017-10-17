@@ -5,6 +5,9 @@ from parlay.items.base import MSG_STATUS, MSG_TYPES
 from twisted.internet import defer
 from twisted.python import failure
 from parlay.server.broker import run_in_broker, run_in_thread
+from parlay.errors import TimeoutError
+from parlay.constants import DEFAULT_TIMEOUT
+
 
 
 class ParlayStandardScriptProxy(object):
@@ -179,7 +182,7 @@ class ParlayStandardScriptProxy(object):
         self._discovery = discovery
         self._script = script
         self.datastream_update_rate_hz = 2
-        self.timeout = 120
+        self.timeout = DEFAULT_TIMEOUT
         self._command_id_lookup = {}
 
         # look at the discovery and add all commands, properties, and streams
@@ -242,7 +245,6 @@ class ParlayStandardScriptProxy(object):
             setattr(self, property_name, ParlayStandardScriptProxy.PropertyProxy(property_id, self))
 
 
-
     def send_parlay_command(self, command, **kwargs):
         """
         Manually send a parlay command. Returns a handle that can be paused on
@@ -252,7 +254,7 @@ class ParlayStandardScriptProxy(object):
                                     direct=True, response_req=True, COMMAND=command, **kwargs)
         # make the handle that sets up the listeners
         handle = CommandHandle(msg, self._script)
-        self._script.send_parlay_message(msg, timeout=self.timeout, wait=False)
+        self._script.send_parlay_message(msg, wait=False)
         return handle
 
     def get_datastream_handle(self, name):
@@ -333,24 +335,35 @@ class CommandHandle(object):
         return self._done
 
     @run_in_thread
-    def wait_for(self, fn, timeout=None):
+    def wait_for(self, fn, timeout_sec=None):
         """
         Block and wait for a message in our queue where fn returns true. Return that message
-        """
-        msg = self._queue.get(timeout=timeout, block=True)
-        while not fn(msg):
-            msg = self._queue.get(timeout=timeout, block=True)
 
+        :param fn: function with argument message (parlay dictionary) that examines message and returns true
+                   if it meets certain criteria
+        :param timeout_sec: if matching message not received within this time, raises parlay.utils.TimeoutError.
+        :return: message as Parlay dictionary
+        """
+        try:
+            msg = self._queue.get(timeout=timeout_sec, block=True)
+            while not fn(msg):
+                msg = self._queue.get(timeout=timeout_sec, block=True)
+        except Queue.Empty:
+            raise TimeoutError
         return msg
 
     @run_in_thread
-    def wait_for_complete(self):
+    def wait_for_complete(self, timeout_sec=None):
         """
-        Called from a scripts thread. Blocks until the message is complete.
+        Waits until a response to the command is received, with a message status of OK or ERROR.
+
+        :param timeout_sec: if response not received within this time, raises parlay.utils.TimeoutError.
+        :return: the RESULT field of the response's CONTENTS if it exists, else all of CONTENTS
         """
 
-        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) != MSG_STATUS.PROGRESS and
-                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS", None) != MSG_STATUS.PROGRESS and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE,
+                            timeout_sec=timeout_sec)
 
         # if the  status is OK, then get the result, optherwise get the description
         status = msg["TOPICS"].get("MSG_STATUS", None)
@@ -360,13 +373,16 @@ class CommandHandle(object):
             raise BadStatusError("Error returned from item", msg["CONTENTS"].get("DESCRIPTION", ""))
 
     @run_in_thread
-    def wait_for_ack(self):
+    def wait_for_ack(self, timeout_sec=None):
         """
-        Called from a scripts thread. Blocks until the message is ackd
-        """
-        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS",None) == MSG_STATUS.PROGRESS and
-                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE)
+        Waits until a response to the command is received with a message status of PROGRESS.
 
+        :param timeout_sec: if PROGRESS response not received within this time, raises parlay.utils.TimeoutError.
+        :return: message as Parlay dictionary
+        """
+        msg = self.wait_for(lambda msg: msg["TOPICS"].get("MSG_STATUS", None) == MSG_STATUS.PROGRESS and
+                                        msg["TOPICS"].get("MSG_TYPE", None) == MSG_TYPES.RESPONSE,
+                            timeout_sec=timeout_sec)
         return msg
 
 

@@ -219,13 +219,13 @@ class ParlayStandardItem(ThreadedItem):
                                       'DESCRIPTION': description
                                   })
 
-    def send_parlay_command(self, to, command, _timeout=2**32, **kwargs):
+    def send_parlay_command(self, to, command, **kwargs):
         """
         Send a parlay command to an known ID
         """
         msg = self.make_msg(to, command, msg_type=MSG_TYPES.COMMAND,
                             direct=True, response_req=True, COMMAND=command, **kwargs)
-        self.send_parlay_message(msg, timeout=_timeout, wait=False)
+        self.send_parlay_message(msg, wait=False)
         return CommandHandle(msg, self)
 
     def encode_binary_data(self, mime_type, content):
