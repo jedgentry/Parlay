@@ -165,8 +165,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         try:
             self._opened_port = SerialPort(self, self._port, self.adapter.reactor, baudrate=PCOMSerial.BAUD_RATE)
             self.is_port_attached = True
-            self._opened_port.flushInput()
-            self._opened_port.flushOutput()
         except Exception as E:
             logger.error("[PCOM] Unable to open port because of error (exception): {0}".format(E))
 
