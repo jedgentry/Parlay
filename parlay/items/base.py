@@ -1,5 +1,7 @@
 from parlay.server.broker import Broker
 from collections import Iterable
+from distutils.util import strtobool
+from numbers import Number
 
 class INPUT_TYPES(object):
     NUMBER ="NUMBER"
@@ -13,7 +15,8 @@ class INPUT_TYPES(object):
 # lookup table for arg discovery
 INPUT_TYPE_DISCOVERY_LOOKUP = {'str': INPUT_TYPES.STRING, 'string': INPUT_TYPES.STRING, 'char': INPUT_TYPES.STRING,
                                'int': INPUT_TYPES.NUMBER, 'float': INPUT_TYPES.NUMBER, 'double': INPUT_TYPES.NUMBER,
-                               'short': INPUT_TYPES.NUMBER, 'long': INPUT_TYPES.NUMBER, 'list': INPUT_TYPES.ARRAY}
+                               'short': INPUT_TYPES.NUMBER, 'long': INPUT_TYPES.NUMBER, 'list': INPUT_TYPES.ARRAY,
+                               'bool': INPUT_TYPES.STRING}
 
 # dynamically add list types
 for k in INPUT_TYPE_DISCOVERY_LOOKUP.keys():
@@ -27,7 +30,18 @@ for k in INPUT_TYPE_DISCOVERY_LOOKUP.keys():
 
 # lookup table for arg conversion
 INPUT_TYPE_CONVERTER_LOOKUP = {'int': int, 'str': str, 'string': str, 'char': chr, 'float': float, 'double': float,
-                               'short' : int, 'long': int, 'list[]': lambda list_arg: list_arg}
+                               'short': int, 'long': int, 'list[]': lambda list_arg: list_arg,
+                               'bool': lambda bool_arg: _convert_to_boolean(bool_arg)}
+
+
+def _convert_to_boolean(bool_arg):
+    if isinstance(bool_arg, basestring):
+        return bool(strtobool(bool_arg))
+    # This check will also work for booleans since they inherit from the Number base class.
+    elif isinstance(bool_arg, Number):
+        return bool(bool_arg)
+    else:
+        raise TypeError("Could not convert argument to boolean")
 
 # dynamically add list types
 for k in INPUT_TYPE_CONVERTER_LOOKUP.keys():

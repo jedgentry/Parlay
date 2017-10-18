@@ -125,16 +125,27 @@ class PCOMSerial(BaseProtocol, LineReceiver):
     INVALID_SUBSYSTEM_ID = 0xFF
 
     @classmethod
-    def open(cls, adapter, port, discovery_file=None):
+    def open(cls, adapter, port=None, discovery_file=None):
         """
         :param cls: The class object
         :param adapter: current adapter instance used to interface with broker
-        :param port: the serial port device to use.
+        :param port: the serial port device to use. Leave this parameter empty if autoconnect is desired.
         :return: returns the instantiated protocol object
         '"""
 
         # Make sure port is not a list
         port = port[0] if isinstance(port, list) else port
+
+        if not port:
+            # If our port filter did not return only 1 available port, we cannot automatically connect.
+            # Raise exception and tell user to specify port manually.
+            default_args = cls.get_open_params_defaults()
+            if len(default_args['port']) != 1:
+                raise Exception('No port provided and filtered port list contained multiple entries: '
+                                '{}'.format(default_args['port']))
+
+            port = default_args['port'][0]
+
         protocol = PCOMSerial(adapter, port)
         protocol.discovery_file = None
         protocol._open_port()
@@ -154,8 +165,6 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         try:
             self._opened_port = SerialPort(self, self._port, self.adapter.reactor, baudrate=PCOMSerial.BAUD_RATE)
             self.is_port_attached = True
-            self._opened_port.flushInput()
-            self._opened_port.flushOutput()
         except Exception as E:
             logger.error("[PCOM] Unable to open port because of error (exception): {0}".format(E))
 
@@ -731,7 +740,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         # ID, Name pair (eg. (0, "IO_Control_board"))
         try:
             response = yield self.send_command(to=self.BROADCAST_SUBSYSTEM_ID, command_id=0, tx_type="BROADCAST")
-            self._subsystem_ids = [int(x) for x in response.data]
+            self._subsystem_ids = [x for x in response.data if type(x) is int]
         except Exception as e:
             logger.error("Exception occurred when trying to find available subsystems: {0}".format(e))
 
