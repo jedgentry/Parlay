@@ -64,9 +64,9 @@ setup(
     license="GPLv3",
     packages=find_packages(),
     package_data={"parlay": package_data_files},
-    install_requires=["Twisted >=15.0.0",
+    install_requires=["Twisted >=17.9.0",
                       "autobahn >=0.9.0",
-                      "pyserial < 3.0.0"],
+                      "pyserial >= 3.4.0"],
     extras_require={
         "secure": ["cryptography>=1.2.1",
                    "pyOpenSSL>=0.15.1",
