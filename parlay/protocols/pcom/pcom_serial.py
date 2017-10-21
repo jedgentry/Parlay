@@ -189,9 +189,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             for port in potential_com_ports:
                 logger.info("PORT:")
                 logger.info(port)
-                if len(port) > 1:
-                    if _is_valid_port(port):
-                        result_list.append(port)
+                if _is_valid_port(port):
+                    result_list.append(port)
 
         except Exception as e:
             logger.error("[PCOM] Could not filter ports because of exception: {0}".format(e))
