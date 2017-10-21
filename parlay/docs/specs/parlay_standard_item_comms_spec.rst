@@ -134,9 +134,11 @@ Stream interface for more detail.
 +============+=============+============================================+
 | "STREAM"   | Yes         | Stream ID                                  |
 +------------+-------------+--------------------------------------------+
-| "RATE"     | Yes         | Sample Rate in Hz (0 to cancel sampling)   |
+| "RATE"     | No          | Sample Rate in Hz (0 to cancel sampling)   |
 +------------+-------------+--------------------------------------------+
-| "VALUE"    | Yes         | Current value                              |
+| "VALUE"    | No          | Current value                              |
++------------+-------------+--------------------------------------------+
+| "STOP"     | No          | True to stop streaming. (default False)    |
 +------------+-------------+--------------------------------------------+
 
 Messages with "MSG\_TYPE": "PROPERTY" have the following fields. See the
