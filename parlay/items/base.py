@@ -110,6 +110,9 @@ class BaseItem(object):
         The protocol can call this to get discovery from me
         """
         # TODO: have interfaces automatically build in here
+        if not hasattr(self, "item_name"):
+            raise BaseItemError
+
         discovery = {"NAME": self.item_name, "ID": self.item_id, "TYPE": self.get_item_template_string(),
                      "INTERFACES": self._interfaces, "CHILDREN": [x.get_discovery() for x in self.children]}
 
@@ -134,11 +137,8 @@ class BaseItem(object):
         try:
             for parent in set(self.parents):
                 parent.add_child(self)
-        except Exception as e:
-            print "Unable to add this item as a child. Make sure parent is a Parlay item that supports " \
-                  "adding children."
-            print "Exception: ", str(e)
-            raise e
+        except AttributeError as e:
+            raise BaseItemError(self.item_id)
 
     def add_child(self, child):
         """
@@ -151,7 +151,7 @@ class BaseItem(object):
         """
         # Make sure child has not already been added
         if not isinstance(child, BaseItem):
-            print "add_child() error. Child provided was not an instance of BaseItem."
+            print str(self.item_id) + ": add_child() error. Child provided was not an instance of BaseItem."
             return
 
         self.children.add(child)
@@ -162,10 +162,27 @@ class BaseItem(object):
         Determines if this item is a child of another item. Or in other words this Item has a parent.
         :return: boolean - True if this item is a child, False if not.
         """
+        if not hasattr(self, "parents"):
+            raise BaseItemError(self.item_id)
+
         return len(self.parents) != 0
 
     def __del__(self):
         self._adapter.deregister_item(self)
+
+
+class BaseItemError(Exception):
+    """
+    Exception used to indicate item construction failures. For example, if the __init__ function of a
+    class inheriting from BaseItem is overridden and the parent's __init__() function is not called.
+    """
+    def __init__(self, item_id=None):
+        self.item_id = item_id
+
+    def __str__(self):
+        item_str = str(self.item_id) if self.item_id else ""
+        return item_str + " BaseItem constructor was not called. Parent's initializer" \
+                          " function must be called in __init__() function."
 
 
 def get_recursive_base_list(cls, base_list=None):

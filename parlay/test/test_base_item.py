@@ -5,6 +5,13 @@ from parlay.testing.unittest_mixins.reactor import ReactorMixin
 from parlay.items import base
 
 
+class NoSuperInitItem(base.BaseItem):
+
+    def __init__(self, item_id, item_name):
+        # NOTE: super __init__ not called.
+        pass
+
+
 class BaseItemTest(unittest.TestCase, AdapterMixin, ReactorMixin):
 
     def setUp(self):
@@ -22,6 +29,9 @@ class BaseItemTest(unittest.TestCase, AdapterMixin, ReactorMixin):
                                              adapter=self.adapter)
         # Create item with no children
         self.no_children = base.BaseItem("No-Children Item", "No-Children Item", adapter=self.adapter)
+
+        # Create item that will except on discovery
+        self.error_child = NoSuperInitItem("Error child", "Error child")
 
     def testTwoChildrenDiscovery(self):
 
@@ -60,3 +70,7 @@ class BaseItemTest(unittest.TestCase, AdapterMixin, ReactorMixin):
         expected_discovery = {'INTERFACES': [], 'TYPE': 'BaseItem/object', 'NAME': 'No-Children Item',
                               'CHILDREN': [], 'ID': 'No-Children Item'}
         self.assertEqual(expected_discovery, self.no_children.get_discovery())
+
+    def testAttrError(self):
+        with self.assertRaises(base.BaseItemError):
+            self.error_child.get_discovery()
