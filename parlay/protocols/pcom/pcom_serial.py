@@ -147,7 +147,7 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             port = default_args['port'][0]
 
         protocol = PCOMSerial(adapter, port)
-        protocol.discovery_file = None
+        protocol.discovery_file = discovery_file
         protocol._open_port()
 
         if not protocol.is_port_attached:
