@@ -29,7 +29,7 @@ read the response from, the "CheerfulPerson" item that we created in the
 
     # simple_script.py
 
-    from parlay.utils import setup, discover, get_item_by_name
+    from parlay.scripts import setup, discover, get_item_by_name
 
     setup()  # required at the beginning of every script
 
@@ -67,7 +67,7 @@ Elements of a script
 --------------------
 
 These are the basic functions you can call in a script. To use any of
-them, import them from parlay.utils, as seen in the simple example
+them, import them from parlay.scripts, as seen in the simple example
 above.
 
 ``setup()`` MUST be called at the beginning of every script.
@@ -135,10 +135,8 @@ commands both serially and in parallel.
     # items_with_slow_commands.py
 
     from parlay import start, local_item, ParlayCommandItem, parlay_command
-    from parlay.utils import sleep
 
-
-    @local_item(auto_connect=True)
+    @local_item()
     class Item1(ParlayCommandItem):
 
         @parlay_command()
@@ -147,7 +145,7 @@ commands both serially and in parallel.
             return "Command 1 Completed!"
 
 
-    @local_item(auto_connect=True)
+    @local_item()
     class Item2(ParlayCommandItem):
 
         @parlay_command()
@@ -157,6 +155,8 @@ commands both serially and in parallel.
 
 
     if __name__ == "__main__":
+        Item1(1, "Item 1")  # IDs can be integers or strings, but names must be strings
+        Item2(2, "Item 2")  # You can create more than one instance of an item, as long as they have distinct IDs
         start(open_browser=False)  # you can avoid launching your web browser
 
 Run the previous file on the command line to start Parlay:
@@ -171,7 +171,7 @@ In a separate command line, launch the following script:
 
     # serial_vs_parallel_script.py
 
-    from parlay.utils import setup, discover, get_item_by_name
+    from parlay.scripts import setup, discover, get_item_by_name
 
     setup()
     discover()
@@ -227,3 +227,6 @@ while running them in parallel takes only 5 seconds.
 
 You can mix and match serial and parallel commands to any level of
 complexity, which enables very powerful scripting capabilities.
+
+
+.. hello_world_: architecture/hello_world.rst

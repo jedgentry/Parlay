@@ -17,7 +17,7 @@ See the `python logging documentation
 
         from parlay import start, local_item, parlay_command, ParlayCommandItem
 
-        @local_item(auto_connect=True)
+        @local_item()
         class CheerfulPerson(ParlayCommandItem):
 
             @parlay_command()
@@ -25,14 +25,19 @@ See the `python logging documentation
                 return "Hello World!"
 
         if __name__ == "__main__":
-            # import the standard logger library and a Timed Rotating logger handler
+
             import logging
             from logging.handlers import TimedRotatingFileHandler
+
             # get the ROOT logger for the entire process
             logger = logging.getLogger()
+
             # add the file handler to the root logger. Now any logged messages will be logged to files every hour (max 10)
             logger.addHandler(TimedRotatingFileHandler("LOG.txt", when="H", backupCount=10))
-            # this function call starts Parlay, and does not return
+
+            # construct a CheerfulPerson item
+            CheerfulPerson(1, "Doug")
+
             start()
 
 
@@ -41,7 +46,7 @@ To change the default log level of the parlay logger you can pass log_level to s
 
 .. code:: python
 
-    start(log_level=logging.WARN)
+        start(log_level=logging.WARN)
     
 You can also customize how Parlay prints its log messages. The snippet below enhances the example by adding a timestamp to the log file handler before adding it to the logger:
 
