@@ -2,8 +2,9 @@ from parlay.protocols.base_protocol import BaseProtocol
 from parlay.server.broker import Broker
 from twisted.internet import defer
 from twisted.internet.serialport import SerialPort, serial
+from serial.serialutil import SerialException
 from twisted.protocols.basic import LineReceiver
-from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, ParlayProperty
+from parlay.items.parlay_standard import ParlayCommandItem, parlay_command, ParlayProperty, BadStatusError
 
 
 class ASCIILineProtocol(BaseProtocol, LineReceiver):
@@ -41,9 +42,10 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
 
         p = cls(port)
         cls.delimiter = str(delimiter).decode("string_escape")
-
-        SerialPort(p, port, broker.reactor, baudrate=baudrate, bytesize=bytesize, parity=parity, stopbits=stopbits)
-
+        try:
+            SerialPort(p, port, broker.reactor, baudrate=baudrate, bytesize=bytesize, parity=parity, stopbits=stopbits)
+        except (SerialException, OSError):
+            raise BadStatusError("Unable to open serial port. Check that you have administrator privileges.")
         return p
 
     @classmethod
@@ -82,7 +84,6 @@ class ASCIILineProtocol(BaseProtocol, LineReceiver):
 
 
 class LineItem(ParlayCommandItem):
-
     LAST_LINE_RECEIVED = ParlayProperty(val_type=str, default="")
 
     def __init__(self, item_id, name, protocol):
@@ -99,7 +100,7 @@ class LineItem(ParlayCommandItem):
         :type timeout_secs float
         """
         return self._protocol.get_new_data_wait_handler().wait(timeout_secs)
-        
+
     @parlay_command(async=True)
     def send_and_wait(self, data, timeout_secs=300):
         """
