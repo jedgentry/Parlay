@@ -3,8 +3,13 @@ Hello World
 ===========
 
 This is the simplest demonstration of the parlay system. In this
-tutorial, we will create a Parlay ``local_item`` object, use the Parlay
-User Interface to send it a command, and view the response.
+tutorial, we will create a Parlay `local_item` object, use the Parlay
+User Interface to send it a command, and view the response.  The Item will
+also demonstrate the use of Properties.
+
+
+This code is available as part of the `Parlay Examples Repo <https://github.com/PromenadeSoftware/ParlayExamples>`_ on Github.
+
 
 Create a ``local_item`` that says "Hello World!"
 ------------------------------------------------
@@ -16,20 +21,33 @@ Open a text editor and create a python script file named
 
     # parlay_hello.py
 
-    from parlay import start, local_item, parlay_command, ParlayCommandItem
+    import parlay
 
-    @local_item(auto_connect=True)
-    class CheerfulPerson(ParlayCommandItem):
+    @parlay.local_item()
+    class CheerfulPerson(parlay.ParlayCommandItem):
 
-        @parlay_command()
+        hello_message = parlay.ParlayProperty(default="Hello World!", val_type=str)
+        first_name = parlay.ParlayProperty(default="Sarah", val_type=str)
+
+        @parlay.parlay_command()
         def say_hello(self):
-            return "Hello World!"
+            return self.hello_message
+
+        @parlay.parlay_command()
+        def what_is_your_name(self):
+            # properties can be used just like any variable of their value type
+            return "My name is " + self.first_name + "!"
+
 
     if __name__ == "__main__":
-        # this function call starts Parlay, and does not return
-        start()
+
+        # parlay.start() will not exit, so we need to instantiate all local items before calling it
+        CheerfulPerson("CheerfulPerson", "CheerfulPerson")
+        parlay.start()
 
 Save this script in any directory on your system.
+
+
 
 Run the Hello World script
 --------------------------
@@ -49,31 +67,14 @@ Two things will now happen:
 2) Your default web browser will automatically open a new tab and go to 
    http://localhost:8080, where you will see the UI.
 
-Parlay User Interface
----------------------
-
-At the top of the :doc:`user_interface` is a search bar that says "Search for a
-connected item".
-
-.. image:: images/parlay_item_menu.png
-   :alt: Parlay Item Menu Button
-
-Click it, and you will see a dropdown with the item we created in the
-script, "CheerfulPerson".
-
-.. image:: images/parlay_item_library.png
-   :alt: Parlay Item Library
-
-This brings up the item's card. By default, the card shows the available
-commands, and in this case, there is only one command: say\_hello. Click
-the "Send" button, and you will see the item's response.
-
-.. image:: images/parlay_card_hello_world_item.png
-   :alt: Hello World item card
+In the browser UI, you'll be able to see the "CheerfulPerson" item in the item dropdown box.
+Open the item and try sending the "say_hello" command.  You'll see "Hello World!" as the result.
 
 That's it! You've just created a Parlay Command Item, defined a command,
 run Parlay, viewed the item's card in the UI, sent the item a command,
 and viewed the response.
+
+
 
 Parlay UI is a web application
 ------------------------------
@@ -81,8 +82,7 @@ Parlay UI is a web application
 This illustrates an important aspect of Parlay that can be confusing to
 first-time users:
 
-**Parlay is a web server, and the :doc:`user_interface` to Parlay is a web
-application.**
+*Parlay runs a* **web server**, *and the built-in User Interface is a* **web application**.
 
 Parlay and the web browser are two separate applications, that in this
 simple example, are both running on your computer. This architecture
@@ -93,15 +93,15 @@ accustomed to.
 
 -  If you really want to be done with Parlay, you must close the command
    line window AND the browser tab.
+
 -  If you just close the web browser, Parlay is *still running*. To shut
    down Parlay, close the command line window where you started Parlay.
    If you did not mean to close the browser, you can re-open your web
    browser and navigate to http://localhost:8080, and Parlay will show
-   the :doc:`user_interface` again.
+   the User Interface again.
+
 -  If you close the command line window before the web browser, the
-   browser will lose communication with Parlay and :doc:`user_interface` top
-   navigation bar will turn red. Run the python script again from a
-   command line, and refresh your browser, and the UI will be ready
-   again.
-
-
+   browser will lose communication with Parlay and the User Interface
+   will show a yellow warning message "Lost Connection with Broker".
+   Run the python script again from a command line, click "Reconnect",
+   and the UI will be ready again.

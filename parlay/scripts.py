@@ -15,5 +15,6 @@ open = lambda protocol_name, **kwargs: scripting_setup.script.open(protocol_name
 open_protocol = open
 close_protocol = lambda protocol_id: scripting_setup.script.close_protocol(protocol_id)
 
+# send_parlay_command = lambda *args, **kwargs: scripting_setup.script.
 
 
