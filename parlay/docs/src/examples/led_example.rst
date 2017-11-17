@@ -1,9 +1,9 @@
-======================
-Example: Control a LED
-======================
+=======================
+Example: Control an LED
+=======================
 
 An Item is a software object that represents a single piece of functionality.
-For example, an item can represent a LED on a board. An item could also represent
+For example, an item can represent an LED on a board. An item could also represent
 an array of LEDs, or a temperature controller, or almost anything.
 
 Items can communicate with each other, and it is common to build a hierarchy of items,
@@ -12,8 +12,8 @@ that control an entire subsystem consisting of several lower-level items.
 
 Let's go through an example.
 
-For demonstration purposes, we will ignore some complexities that would have to address
-in a realistic system, so we can understand what Parlay provides.  For instance, the following
+For demonstration purposes, we will ignore some complexities that we would have to address
+in a realistic system, so that we can understand what Parlay provides.  For instance, the following
 code is *not thread safe*.  It is not difficult to make this code usable for production, and
 we will do just that in a later tutorial.
 
@@ -21,9 +21,9 @@ we will do just that in a later tutorial.
 Introduction
 ------------
 
-If you have a LED on your board that you want to control, you can create a LED item.
+If you have an LED on your board that you want to control, you can create an LED item.
 
-What things might you want to do with a LED?
+What things might you want to do with an LED?
   * read its current state
   * turn it on or off
   * blink at a certain rate (maybe...)
@@ -165,6 +165,7 @@ Let's put it all together and show our LED Item class.
 
             sleep_time = 0.5 / frequency_hz
 
+            # this is not thread-safe
             for _ in xrange(num_blinks * 2):
                 self.on_state = not self.on_state
                 GPIO.output(self.channel, self.on_state)
