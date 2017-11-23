@@ -9,6 +9,7 @@ import traceback
 from parlay.items.threaded_item import ThreadedItem, ITEM_PROXIES, ListenerStatus
 from autobahn.twisted.websocket import WebSocketClientFactory
 from parlay.protocols.websocket import WebsocketClientAdapter, WebsocketClientAdapterFactory
+from parlay.server.broker import run_in_broker
 
 DEFAULT_ENGINE_WEBSOCKET_PORT = 8085
 
@@ -39,6 +40,19 @@ class ParlayScript(ThreadedItem):
     def kill(self):
         """ Kill the current script """
         self.cleanup()
+
+    @run_in_broker
+    def call_later(self, secs, fn, *args, **kwargs):
+        """
+        Calls function <fn> after <secs> seconds have passed.
+
+        :param secs: seconds to wait before calling function <fn>
+        :param fn: function to call
+        :param args: positional arguments that should be passed to <fn>
+        :param kwargs: keyword arguments that should be passed to <fn>
+        :return:
+        """
+        return self._reactor.callLater(secs, fn, *args, **kwargs)
 
     def cleanup(self, *args):
         """
