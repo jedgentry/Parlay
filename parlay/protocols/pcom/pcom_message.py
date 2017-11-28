@@ -150,7 +150,7 @@ class PCOMMessage(object):
                     property = cls._look_up_id(pcom_serial.PCOM_PROPERTY_NAME_MAP, msg.to, property_id)
                     if property is None:
                         logger.error("Could not find integer property ID for property name: {0}".format(property))
-                        return
+                        return data, fmt
                     prop = pcom_serial.PCOM_PROPERTY_MAP[msg.to][property]
                     fmt = prop["format"]
                     content_data = msg.contents.get('VALUE', 0)
