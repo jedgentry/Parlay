@@ -41,8 +41,6 @@ def _convert_to_boolean(bool_arg):
     # This check will also work for booleans since they inherit from the Number base class.
     elif isinstance(bool_arg, Number):
         return bool(bool_arg)
-    elif isinstance(bool_arg, bool):
-        return bool_arg
     else:
         raise TypeError("Could not convert argument to boolean")
 
