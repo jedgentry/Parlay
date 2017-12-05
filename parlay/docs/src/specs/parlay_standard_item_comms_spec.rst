@@ -231,13 +231,20 @@ Property Object Format
 | "PROPERTY_NAME" | NO          | The property name (Defaults to ID)            |
 +-----------------+-------------+-----------------------------------------------+
 | "INPUT"         | Yes         | "NUMBER", "STRING", "NUMBERS", "STRINGS",     |
-|                 |             | "OBJECT", "ARRAY", "DROPDOWN"                 |
+|                 |             | "ARRAY", "BOOLEAN",                           |
+|                 |             | ["NUMBER(S)" || "STRING(S)" || "BOOLEAN"]     |
+|                 |             |                                               |
+|                 |             | Specifiying an array of types is used for     |
+|                 |             | specificying struct type order                |
 +-----------------+-------------+-----------------------------------------------+
 | "READ\_ONLY"    | No          | Boolean, whether the property is read only,   |
 |                 |             | defaults to false                             |
 +-----------------+-------------+-----------------------------------------------+
 | "WRITE\_ONLY"   | No          | Boolean, whether the property is write only,  |
 |                 |             | defaults to false                             |
++-----------------+-------------+-----------------------------------------------+
+| "STREAMABLE"    | No          | Boolean, whether the property can be streamed,|
+|                 |             | defaults to true                              |
 +-----------------+-------------+-----------------------------------------------+
 
 DataStream Object Format
@@ -266,7 +273,8 @@ Field Object format
 |                         |             | field >                                       |
 +-------------------------+-------------+-----------------------------------------------+
 | "INPUT"                 | Yes         | "NUMBER", "STRING", "NUMBERS", "STRINGS",     |
-|                         |             | "OBJECT", "ARRAY", "DROPDOWN"                 |
+|                         |             | "ARRAY", "DROPDOWN", "BOOLEAN"                |
+|                         |             | ["NUMBER(S)" || "STRING(S)" || "BOOLEAN"]     |
 +-------------------------+-------------+-----------------------------------------------+
 | "REQUIRED"              | No          | If true, require the user fill out before     |
 |                         |             | sending command                               |
