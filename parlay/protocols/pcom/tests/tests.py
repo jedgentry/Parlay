@@ -1,10 +1,10 @@
-from twisted.internet import defer
 from twisted.trial import unittest
 
 from parlay.protocols.pcom.pcom_message import PCOMMessage
 from parlay.protocols.pcom.enums import *
 import parlay.protocols.pcom.serial_encoding as serial_encoding
 import parlay.protocols.pcom.pcom_serial as pcom_serial
+from parlay.items.parlay_standard import INPUT_TYPES
 
 
 class TestPCOMSerial(unittest.TestCase):
@@ -25,6 +25,42 @@ class TestPCOMSerial(unittest.TestCase):
         self.assertEqual(pcom_serial.PCOMSerial._filter_com_ports(port_list), port_list)
         port_list.append(self.VALID_USB_SERIAL_CONVERTER)
         self.assertEqual(pcom_serial.PCOMSerial._filter_com_ports(port_list), [self.VALID_USB_SERIAL_CONVERTER])
+
+    def test_input_types(self):
+
+        # Single format characters
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("I"), INPUT_TYPES.NUMBER)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("i"), INPUT_TYPES.NUMBER)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("Q"), INPUT_TYPES.NUMBER)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("q"), INPUT_TYPES.NUMBER)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("B"), INPUT_TYPES.NUMBER)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("b"), INPUT_TYPES.NUMBER)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("c"), INPUT_TYPES.STRING)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("?"), INPUT_TYPES.STRING)
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("*b"), INPUT_TYPES.ARRAY)
+
+        # Test negative path
+        self.assertRaises(pcom_serial.InvalidFormatStringException, pcom_serial.PCOMSerial._get_input_type, "")
+
+        # Multiple format characters, representing struct data type from embedded board
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("ff??"), [INPUT_TYPES.NUMBER, INPUT_TYPES.NUMBER, INPUT_TYPES.STRING, INPUT_TYPES.STRING])
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("??"),
+                         [INPUT_TYPES.STRING, INPUT_TYPES.STRING])
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("Qq"), [INPUT_TYPES.NUMBER, INPUT_TYPES.NUMBER])
+
+        # Test abnormally long format string
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type("B" * 50000), [INPUT_TYPES.NUMBER] * 50000)
+
+        # NOTE : PCOM_SERIAL_NUMBER_INPUT_CHARS = "BbHhIiQqfd"
+        # Test all numbers
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type(pcom_serial.PCOM_SERIAL_NUMBER_INPUT_CHARS),
+                         [INPUT_TYPES.NUMBER] * len(pcom_serial.PCOM_SERIAL_NUMBER_INPUT_CHARS))
+
+        # NOTE: PCOM_SERIAL_STRING_INPUT_CHARS = "?csx"
+        # Test all strings
+        self.assertEqual(pcom_serial.PCOMSerial._get_input_type(pcom_serial.PCOM_SERIAL_STRING_INPUT_CHARS),
+                         [INPUT_TYPES.STRING] * len(pcom_serial.PCOM_SERIAL_STRING_INPUT_CHARS))
+
 
 
 class TestSerialEncoding(unittest.TestCase):

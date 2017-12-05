@@ -1163,8 +1163,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
         format_tokens = PCOMSerial.tokenize_format_char_string(c_input_format)
 
         for parameter, format_token in zip(c_input_names, expand_fmt_string(format_tokens)):
-            local_subfields.append(parlay_item.create_field(msg_key=parameter, label=parameter,
+            try:
+                local_subfields.append(parlay_item.create_field(msg_key=parameter, label=parameter,
                                                             input=PCOMSerial._get_input_type(format_token), required=True))
+            except InvalidFormatStringException:
+                logger.warn("Invalid format character {0} for parameter {1}".format(format_token, parameter))
 
 
     @staticmethod
@@ -1177,14 +1180,17 @@ class PCOMSerial(BaseProtocol, LineReceiver):
          """
 
         if len(format_char) == 0:
-            return INPUT_TYPES.STRING
-        if len(format_char) > 1:
+            raise InvalidFormatStringException
+
+        if format_char[0] == PCOM_SERIAL_ARRAY_INPUT_CHARS:
             return INPUT_TYPES.ARRAY
+
+        if len(format_char) > 1:
+            # If format char is a struct, recursively identify each element of the struct
+            return [PCOMSerial._get_input_type(char) for char in format_char]
 
         if format_char in PCOM_SERIAL_NUMBER_INPUT_CHARS:
             return INPUT_TYPES.NUMBER
-        elif format_char[0] == PCOM_SERIAL_ARRAY_INPUT_CHARS:
-            return INPUT_TYPES.ARRAY
         elif format_char in PCOM_SERIAL_STRING_INPUT_CHARS:
             return INPUT_TYPES.STRING
         else:
@@ -1222,8 +1228,11 @@ class PCOMSerial(BaseProtocol, LineReceiver):
 
         PCOM_PROPERTY_MAP[item_id][property_id] = PCOMSerial.build_property_data(property_name, property_type)
 
-        parlay_item.add_property(property_id, name=property_name, attr_name=property_name, input=PCOMSerial._get_input_type(property_type))
-        parlay_item.add_datastream(property_name, name=property_name, attr_name=property_name)
+        try:
+            parlay_item.add_property(property_id, name=property_name, attr_name=property_name, input=PCOMSerial._get_input_type(property_type))
+            parlay_item.add_datastream(property_name, name=property_name, attr_name=property_name)
+        except InvalidFormatStringException:
+            logger.warn("Invalid format character {0} for property {1}".format(property_type, property_name))
 
         return
 
@@ -1676,6 +1685,12 @@ class TimeoutException(Exception):
     def __init__(self, sequence_number):
         self.sequence_number = sequence_number
 
+
+class InvalidFormatStringException(Exception):
+    """
+    Custom exception raised when invalid format string is found during discovery.
+    """
+    pass
 
 
 

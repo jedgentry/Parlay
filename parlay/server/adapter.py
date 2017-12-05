@@ -132,7 +132,6 @@ class PyAdapter(Adapter):
 
         self._broker.unsubscribe_all(item)
 
-
     def track_open_protocol(self, protocol):
         """
         track the given protocol for discovery
