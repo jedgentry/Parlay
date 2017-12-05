@@ -31,7 +31,8 @@ import json
 # Constants used in converting format chars to
 # Parlay input types
 PCOM_SERIAL_NUMBER_INPUT_CHARS = "BbHhIiQqfd"
-PCOM_SERIAL_STRING_INPUT_CHARS = "?csx"
+PCOM_SERIAL_STRING_INPUT_CHARS = "csx"
+PCOM_SERIAL_BOOL_INPUT_CHARS= "?"
 PCOM_SERIAL_ARRAY_INPUT_CHARS = '*'
 
 # Store a map of Item IDs -> Command ID -> Command Objects
@@ -1187,6 +1188,8 @@ class PCOMSerial(BaseProtocol, LineReceiver):
             return INPUT_TYPES.ARRAY
         elif format_char in PCOM_SERIAL_STRING_INPUT_CHARS:
             return INPUT_TYPES.STRING
+        elif format_char in PCOM_SERIAL_BOOL_INPUT_CHARS:
+            return INPUT_TYPES.BOOLEAN
         else:
             logger.warn("Invalid format character {0} defaulting to INPUT TYPE STRING".format(format_char))
 

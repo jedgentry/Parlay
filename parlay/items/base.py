@@ -11,12 +11,13 @@ class INPUT_TYPES(object):
     OBJECT = "OBJECT"
     ARRAY = "ARRAY"
     DROPDOWN = "DROPDOWN"
+    BOOLEAN = "BOOLEAN"
 
 # lookup table for arg discovery
 INPUT_TYPE_DISCOVERY_LOOKUP = {'str': INPUT_TYPES.STRING, 'string': INPUT_TYPES.STRING, 'char': INPUT_TYPES.STRING,
                                'int': INPUT_TYPES.NUMBER, 'float': INPUT_TYPES.NUMBER, 'double': INPUT_TYPES.NUMBER,
                                'short': INPUT_TYPES.NUMBER, 'long': INPUT_TYPES.NUMBER, 'list': INPUT_TYPES.ARRAY,
-                               'bool': INPUT_TYPES.STRING}
+                               'bool': INPUT_TYPES.BOOLEAN}
 
 # dynamically add list types
 for k in INPUT_TYPE_DISCOVERY_LOOKUP.keys():
@@ -40,6 +41,8 @@ def _convert_to_boolean(bool_arg):
     # This check will also work for booleans since they inherit from the Number base class.
     elif isinstance(bool_arg, Number):
         return bool(bool_arg)
+    elif isinstance(bool_arg, bool):
+        return bool_arg
     else:
         raise TypeError("Could not convert argument to boolean")
 
