@@ -13,13 +13,11 @@ What is Parlay?
 ---------------
 Parlay is a development framework that provides:
 
-  * a publish/subscribe message router called the Broker
-  * pre-built components to connect to devices over serial, TCP/IP, ModBus, GPIB and more
   * a built-in browser-based user interface to poke and prod connected items
+  * a drag and drop UI builder that lets make a custom screen of buttons, sliders, graphs and more.
+  * pre-built components to connect to devices over serial, TCP/IP, ModBus, GPIB and more
   * dead-simple scripting framework to write testing and development scripts in Python
 
-At the heart of Parlay is the broker, which provides publish/subscribe message
-routing between items.
 
 Parlay serves a web application that provides a poke & prod user interface to all
 connected items.  Via the user interface, users can send commands to and view responses
@@ -27,7 +25,8 @@ from items, change item properties, and graph item datastreams.  This user inter
 can be accessible over a network for development and testing, or served securely in
 production for remote diagnostics and service.
 
-Once items are connected to the broker, they are easily accessible from the user interface,
+At the heart of Parlay is the "broker", which provides publish/subscribe message
+routing between items. Once items are connected to the broker, they are easily accessible from the user interface,
 scripts, and any other item.
 
 
