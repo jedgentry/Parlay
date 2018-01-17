@@ -1,4 +1,4 @@
-__version__ = '1.3.3'
+__version__ = '1.3.4'
 
 
 # ignore all warnings for now. These messages cause confusion for users on a production system
