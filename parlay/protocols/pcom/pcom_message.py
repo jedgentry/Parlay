@@ -150,7 +150,7 @@ class PCOMMessage(object):
                     property = cls._look_up_id(pcom_serial.PCOM_PROPERTY_NAME_MAP, msg.to, property_id)
                     if property is None:
                         logger.error("Could not find integer property ID for property name: {0}".format(property))
-                        return
+                        return data, fmt
                     prop = pcom_serial.PCOM_PROPERTY_MAP[msg.to][property]
                     fmt = prop["format"]
                     content_data = msg.contents.get('VALUE', 0)
@@ -338,12 +338,14 @@ class PCOMMessage(object):
                 return error_code & pcom_serial.PCOMSerial.ITEM_ID_MASK
             return error_code
 
-        msg['CONTENTS']['ERROR_CODE'] = self.msg_status
         msg['TOPICS']['MSG_STATUS'] = "ERROR"
-        msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
         msg['TOPICS']['RESPONSE_REQ'] = False
+
+        msg['CONTENTS']['ERROR_CODE'] = self.msg_status
+        msg['CONTENTS']['DESCRIPTION'] = pcom_serial.PCOM_ERROR_CODE_MAP.get(self.msg_status, self.description)
         msg['CONTENTS']['ERROR ORIGIN'] = pcom_serial.PCOM_ITEM_NAME_MAP.get(_get_id_name_from_error_code(self.msg_status), "REACTOR")
         msg['CONTENTS']['ITEM SPECIFIC ERROR CODE'] = _get_specific_code(self.msg_status)
+        msg['CONTENTS']['INFO'] = self.data
 
     def _build_parlay_command_response(self, msg):
         """
@@ -405,6 +407,7 @@ class PCOMMessage(object):
                 # convert to stream name ID
                 id = self.get_name_from_id(sender_integer_id, pcom_serial.PCOM_STREAM_NAME_MAP, self.response_code,
                                            default_val=self.response_code)
+            # TODO: remove stream ID in topics when other platforms conform to spec.
             msg['TOPICS']['STREAM'] = id
             msg['CONTENTS']['STREAM'] = id
             msg['CONTENTS']['VALUE'] = self._get_data()

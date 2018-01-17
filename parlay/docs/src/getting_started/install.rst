@@ -6,15 +6,18 @@ Parlay is written in the Python programming language, for full
 cross-platform compatibility. As such, Parlay requires Python 2.7 to be
 installed your computer, as well as several python libraries.
 
-Install Python - Windows only
------------------------------
 
-If you are installing Parlay on a Windows PC, you will need to install
-Python 2.7 if you do not already have it. If you are running Linux or
-OSX, python is already included on your machine.
+Windows Only
+------------
 
-`Python 2.7 Installer for 64-bit
-Windows <https://www.python.org/ftp/python/2.7.11/python-2.7.11.amd64.msi>`__
+Parlay requires Python and several other dependencies to be installed
+first.
+
+There is a Windows installer on our GitHub page to make the process seamless.
+
+Visit  https://github.com/PromenadeSoftware/Parlay/releases/latest
+and click on "Parlay_<version>_Installer.exe" to download.
+
 
 How to Install Parlay
 ---------------------
@@ -24,6 +27,6 @@ from the git repository.
 
 .. code:: bash
 
-    c:\> pip install git+https://github.com/PromenadeSoftware/Parlay.git
+    c:\> pip install parlay
 
 This should install all dependencies for Parlay as well.

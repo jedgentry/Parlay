@@ -1,8 +1,5 @@
-====================
-Parlay Documentation
-====================
 
-Parlay is a software tool that makes it easier to develop and test embedded devices.
+.. include:: src/overview.rst
 
 Promenade Software, the company that created Parlay, specializes in developing
 software for safety-critical industries, such as medical devices, aerospace, and
@@ -34,10 +31,15 @@ Documentation Contents
 ----------------------
 
 .. toctree::
-    :maxdepth: 2
-    
-    install
-    tutorials/tutorials
-    apidoc/apidoc
-    specs/specs
+    :hidden:
 
+    Overview <src/overview>
+    src/examples/led_example
+    src/getting_started/getting_started
+    UI: Explore Items <src/ui/user_interface>
+    Scripts: Automate Control <src/scripts>
+    Architecture: Under the Hood <src/architecture/overview_architecture>
+    Protocols: Integrate existing devices <src/protocols/protocols>
+    src/tutorials/tutorials
+    src/apidoc/apidoc
+    Specifications <src/specs/specs>

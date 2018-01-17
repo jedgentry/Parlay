@@ -2,9 +2,13 @@
 Case Study: Serial DC Motor Controller
 ======================================
 
-This article will walk you through connecting Parlay to a simple serial
-motor controller from Sparkfun. Details and specifications of the motor
-controller can be found `here <https://www.sparkfun.com/products/9571>`__.
+This tutorial will walk you through connecting Parlay to the Serial
+Controlled Motor Driver from Sparkfun. Details and specifications of the motor
+controller can be found at https://www.sparkfun.com/products/9571.
+
+.. image:: images/serial_motor_controller.png
+    :alt: SparkFun Serial Controlled Motor Driver
+
 
 Motor Controller Serial Interface
 ---------------------------------
@@ -22,6 +26,7 @@ then it is terminated with a carriage return (not a newline character!).
 
 The parameters for the serial interface are 115200 baud, 8-N-1.
 
+
 Desired Commands
 ----------------
 
@@ -38,6 +43,7 @@ we create. So, let's decide on the following requirements:
    specify the speed as a positive or negative number
 -  These commands should be translated into the correct serial string to
    be sent to the motor controller
+
 
 The code
 --------
@@ -94,10 +100,16 @@ Here is the code to achieve this. We will examine it a bit at a time.
 
 
     if __name__ == "__main__":
+
+        # any protocol that has been imported or defined will be available to open
+        #  so we do not need to instantiate anything before calling start()
+
         start()
 
-The Protocol
-------------
+
+
+The Protocol Class
+------------------
 
 The first step is to create our own Protocol class, which we will call
 ``SerialMotorControllerProtocol``.
