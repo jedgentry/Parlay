@@ -1,5 +1,5 @@
 from parlay.protocols.serial_line import USBASCIILineProtocol
-import unittest
+from twisted.trial import unittest
 from parlay.testing.unittest_mixins.reactor import ReactorMixin
 from serial.tools.list_ports_common import ListPortInfo
 import re
