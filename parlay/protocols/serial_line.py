@@ -134,12 +134,12 @@ class USBASCIILineProtocol(ASCIILineProtocol):
         def __str__(self):
             return "{0}: {1}\n".format(USBASCIILineProtocol.USBASCIIException.ERROR_STRING_HEADER, self.msg)
 
-    def __init__(self, parlay_name):
+    def __init__(self, port):
         """
         Simply calls the ASCIILineProtocol's initializer function
-        :param parlay_name: Name associated with this protocol in the Parlay ecosystem.
+        :param port: Name associated with this protocol in the Parlay ecosystem.
         """
-        ASCIILineProtocol.__init__(self, parlay_name)
+        ASCIILineProtocol.__init__(self, port)
 
     @classmethod
     def open(cls, adapter, port_vendor_id=None, port_product_id=None, port_descriptor_regex_string=None, delimiter="\n",
