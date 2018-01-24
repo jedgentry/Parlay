@@ -57,6 +57,13 @@ See the [Parlay Examples](https://github.com/PromenadeSoftware/ParlayExamples) r
 
 Check out the #parlay channel on freenode IRC for help
 
+## Testing
+
+To run Twisted unit tests:
+```
+$ trial parlay/test
+```
+
 ## License
 
 This version of Parlay is released under the GPLv3 License. Contact [Promenade Software](http://promenadesoftware.com) for more information on a commercial license. 
