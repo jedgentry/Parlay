@@ -1,0 +1,68 @@
+======================================
+USBASCIILineProtocol: Tutorial
+======================================
+
+This tutorial will show you how to use the USBASCIILineProtocol. This protocol is useful for automatically connecting to a USB->Serial device while providing all functionality from ASCIILineProtocol.
+
+Determining USB Information
+---------------------------
+In order to use the protocol to automatically connect to a USB device the information of the target USB device must be known. To find this information you should use the script usb_identifier.py located in parlay/utils.
+
+With the target USB connected, run the script usb_identifier.py or use the print_usb_info() function provided in the module. The output should look similar to the following:
+
+.. code-block:: python
+
+  Parlay USB Identification Tool
+
+  ===========================================
+  USB DESCRIPTOR: n/a
+  VENDOR ID: None
+  PRODUCT ID: None
+  PATH: /dev/cu.MALS
+  ===========================================
+  USB DESCRIPTOR: n/a
+  VENDOR ID: None
+  PRODUCT ID: None
+  PATH: /dev/cu.SOC
+  ===========================================
+  USB DESCRIPTOR: n/a
+  VENDOR ID: None
+  PRODUCT ID: None
+  PATH: /dev/cu.Bluetooth-Incoming-Port
+  ===========================================
+  USB DESCRIPTOR: STM32 STLink
+  VENDOR ID: 1155
+  PRODUCT ID: 14155
+  PATH: /dev/cu.usbmodem145143
+  ===========================================
+  USB DESCRIPTOR: STM32 Virtual ComPort in FS Mod
+  VENDOR ID: 1155
+  PRODUCT ID: 22336
+  PATH: /dev/cu.usbmodem1451341
+  ===========================================
+
+Connecting to the Protocol
+--------------------------
+
+Let's say that the USB connection with descriptor "STM32 Virtual ComPort in FS Mod" is our target USB. Save the descriptor, vendor ID, and product ID, as these will be used to filter for the USB port.
+
+We can connect to this USB from the ParlayUI or from a Parlay Python script. From a Parlay Python script the following would connect us to the port:
+
+.. code-block:: python
+
+  from parlay.protocols.serial_line import USBASCIILineProtocol
+  import parlay
+
+  parlay.open_protocol("USBASCIILineProtocol", port_vendor_id=1155, port_product_id=22336)
+  parlay.start()
+
+This will open a connection to the USB->serial adapter with the following default parameters:
+
+- BAUD RATE: 115200
+- STOP BITS: 1
+- PARITY: None
+- BYTE SIZE: 8
+
+If you wish to change these parameters, simply pass the new parameter to the open() function of the USBASCIILineProtocol (eg, baudrate=57600).
+
+Notice in the above connection that only the vendor ID and product ID were provided. This is because the string descriptor for the target connection changes based on the host operating system. If the string descriptor for your USB does not change per operating system and you want the filter to be more robust you may add the port_descriptor_regex_string parameter. This parameter will be a regex string that will have to match the descriptor. For example, we could use "FS Mod" for our regex string since that would match our USB port descriptor. **Keep in mind, the Vendor ID and Product ID may change if a different serial adapter is used later in the project. If you want your filter to work for the entirety of the project, make sure that a different serial adapter with different make and/or model is NOT used.**
