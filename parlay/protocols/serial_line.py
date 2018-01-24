@@ -189,20 +189,9 @@ class USBASCIILineProtocol(ASCIILineProtocol):
                                                          .format(str(cls.NUM_REQUIRED_MATCHING_PORTS)
             ))
 
-        # Call our init function once we find the correct port
-        p = cls(matching_ports[0])
-        # Set delimiter for serial coms
-        cls.delimiter = str(delimiter).decode("string_escape")
-
-        # Attempt to open the port
-        try:
-            SerialPort(p, matching_ports[0], adapter.reactor, baudrate=baudrate, bytesize=bytesize, parity=parity,
-                       stopbits=stopbits)
-        except (SerialException, OSError):
-            raise BadStatusError("Unable to open serial port. Check that you have administrator privileges.")
-
-        # Return protocol instance
-        return p
+        # Open the ASCIILineProtocol on the found port
+        return super(USBASCIILineProtocol, cls).open(adapter, matching_ports[0], baudrate=baudrate, delimiter=delimiter,
+                                      bytesize=int(bytesize), parity=parity, stopbits=int(stopbits))
 
     @classmethod
     def get_open_params_defaults(cls):
